@@ -82,6 +82,7 @@ px4_add_board(
 		mc_rate_control
 		rls_wrench_estimator
 		admittance_control
+		dynamixel_serial
 		#micrortps_bridge
 		navigator
 		rc_update

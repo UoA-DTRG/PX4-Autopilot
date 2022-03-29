@@ -20,8 +20,8 @@ px4_add_board(
 		adc/board_adc
 		barometer/ms5611
 		#batt_smbus
-		camera_capture
-		camera_trigger
+		#camera_capture
+		#camera_trigger
 		distance_sensor # all available distance sensor drivers
 		gps
 		imu/l3gd20
@@ -37,8 +37,9 @@ px4_add_board(
 		tone_alarm
 	MODULES
 		#attitude_estimator_q
+		dynamixel_serial
 		battery_status
-		camera_feedback
+		#camera_feedback
 		commander
 		dataman
 		ekf2
@@ -47,13 +48,13 @@ px4_add_board(
 		#gyro_fft
 		#events
 		land_detector
-		landing_target_estimator
+		#landing_target_estimator
 		#load_mon
 		#local_position_estimator
 		logger
 		mavlink
 		mc_att_control
-		mc_hover_thrust_estimator
+		#mc_hover_thrust_estimator
 		mc_pos_control
 		mc_rate_control
 		navigator

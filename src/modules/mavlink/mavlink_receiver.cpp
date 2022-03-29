@@ -257,11 +257,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_statustext(msg);
 		break;
 
+#if !defined(CONSTRAINED_FLASH)
 	case MAVLINK_MSG_ID_DEBUG_VECT:
 		handle_message_debug_vect(msg);
 		break;
-
-#if !defined(CONSTRAINED_FLASH)
 
 	case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT:
 		handle_message_named_value_float(msg);
@@ -2648,6 +2647,7 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 	}
 }
 
+#if !defined(CONSTRAINED_FLASH)
 void
 MavlinkReceiver::handle_message_debug_vect(mavlink_message_t *msg)
 {
@@ -2666,7 +2666,6 @@ MavlinkReceiver::handle_message_debug_vect(mavlink_message_t *msg)
 	_debug_vect_pub.publish(debug_topic);
 }
 
-#if !defined(CONSTRAINED_FLASH)
 void
 MavlinkReceiver::handle_message_named_value_float(mavlink_message_t *msg)
 {
