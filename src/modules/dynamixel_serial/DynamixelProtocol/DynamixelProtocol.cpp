@@ -281,7 +281,7 @@ void DynamixelProtocol::process_packet(const uint8_t *pkt, uint8_t length)
 }
 
 
-void DynamixelProtocol::update(uint32_t n)
+void DynamixelProtocol::update(uint32_t n, unsigned short int pos, unsigned short int led)
 {
 	// 	// disable torque control
 	// send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 0, 1);
@@ -303,9 +303,6 @@ void DynamixelProtocol::update(uint32_t n)
 	//send_command(1, REG_GOAL_POSITION, (uint32_t) 512, 4);
 
 
-
-
-
 	// if (!initialised) {
 	// 	initialised = true;
 	// 	last_send_us = hrt_absolute_time();
@@ -322,11 +319,11 @@ void DynamixelProtocol::update(uint32_t n)
 	}
 
 	detect_servos();
-	send_command(BROADCAST_ID, LED_ENABLE, 1, 1);
+	send_command(BROADCAST_ID, LED_ENABLE, led, 1);
 
 	send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 1, 1);
 
-	send_command(BROADCAST_ID, REG_GOAL_POSITION, (uint32_t) 512, 4);
+	send_command(BROADCAST_ID, REG_GOAL_POSITION, (uint32_t) pos, 4);
 
 	// if (detection_count < DETECT_SERVO_COUNT) {
 	// 	detection_count++;

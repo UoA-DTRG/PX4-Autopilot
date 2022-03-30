@@ -33,7 +33,7 @@
 
 /**
  * @file dynamixel_serial.cpp
- * @brief Module for sending Dynamixel commands using serial port (based on FrSky telemetry)
+ * @brief Module for sending Dynamixel commands using serial port
  *
  * @author Pedro Mendes <pmen817@aucklanduni.ac.nz>
  *
@@ -67,19 +67,21 @@
  * Opens the UART device and sets all required serial parameters.
  */
 int dynamixel_open_uart(const int baud, const char *uart_name, struct termios *uart_config,
-		struct termios *uart_config_original)
+			struct termios *uart_config_original)
 {
 	/* Set baud rate */
-	// Dynamixel works on 9600 57600(default) 115200 1M 2M 3M 4M 4.5M
+	// Dynamixel works on 9600 19200 57600(default) 115200 1M 2M 3M
 
 #ifndef B1000000
 #define B1000000 1000000
 #endif
 
-	unsigned int speed = B57600;
+	unsigned int speed = B57600; //default
 
 	switch (baud) {
 	case 9600:   speed = B9600;   break;
+
+	case 19200:  speed = B19200;  break;
 
 	case 57600:  speed = B57600;  break;
 
@@ -98,7 +100,7 @@ int dynamixel_open_uart(const int baud, const char *uart_name, struct termios *u
 #endif
 
 	default:
-		PX4_ERR("Unsupported baudrate: %d\n\tsupported examples:\n\t9600, 57600\t\n115200\n1000000\n",
+		PX4_ERR("Unsupported baudrate: %d\n\tsupported examples:\n\t9600, 19200, (default) 57600\t\n115200\n1000000\n",
 			baud);
 		return -EINVAL;
 	}
@@ -114,6 +116,7 @@ int dynamixel_open_uart(const int baud, const char *uart_name, struct termios *u
 	/* Back up the original UART configuration to restore it after exit */
 	int termios_state;
 
+	/* Initialize the uart config */
 	if ((termios_state = tcgetattr(uart, uart_config_original)) < 0) {
 		PX4_ERR("ERR GET CONF %s: %d\n", uart_name, termios_state);
 		close(uart);
@@ -137,14 +140,15 @@ int dynamixel_open_uart(const int baud, const char *uart_name, struct termios *u
 	uart_config->c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
 	uart_config->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
 
+	/* Set baud rate */
 	if (cfsetispeed(uart_config, speed) < 0 || cfsetospeed(uart_config, speed) < 0) {
-		PX4_ERR("%s: %d (cfsetispeed, cfsetospeed)\n", uart_name, termios_state);
+		PX4_ERR("ERR SET BAUD %s: %d\n", uart_name, termios_state);
 		close(uart);
 		return -1;
 	}
 
 	if ((termios_state = tcsetattr(uart, TCSANOW, uart_config)) < 0) {
-		PX4_ERR("%s (tcsetattr)\n", uart_name);
+		PX4_WARN("ERR SET CONF %s\n", uart_name);
 		close(uart);
 		return -1;
 	}
@@ -173,20 +177,19 @@ void set_uart_single_wire(int uart, bool single_wire)
 			SER_SINGLEWIRE_PULLDOWN) : 0) < 0) {
 		PX4_WARN("setting TIOCSSINGLEWIRE failed");
 	}
-	PX4_INFO("Single Wire");
 }
 
 void set_uart_invert(int uart, bool invert)
 {
 	// Not all architectures support this. That's ok as it will just re-test the non-inverted case
 	ioctl(uart, TIOCSINVERT, invert ? (SER_INVERT_ENABLED_RX | SER_INVERT_ENABLED_TX) : 0);
-	PX4_INFO("Inverted UART");
 }
 
 
 int DynamixelSerial::print_status()
 {
 	PX4_INFO("Running");
+	PX4_INFO("Device: %s", (char const *) _device_name);
 	PX4_INFO("Baudrate: %i", _baudrate);
 	PX4_INFO("Packets sent: %lu", sentPackets);
 
@@ -195,18 +198,41 @@ int DynamixelSerial::print_status()
 
 int DynamixelSerial::custom_command(int argc, char *argv[])
 {
-	/*
+
 	if (!is_running()) {
 		print_usage("not running");
 		return 1;
 	}
 
-	// additional custom commands can be handled like this:
-	if (!strcmp(argv[0], "do-something")) {
-		get_instance()->do_something();
-		return 0;
+	if (!strcmp(argv[0], "send")) {
+
+		if (argc > 3) {
+			_servo_id_cmd = atof(argv[1]);
+			_pos_cmd = atof(argv[2]);
+			_led_cmd = atof(argv[3]);
+
+			if (_servo_id_cmd > 255) {
+				PX4_ERR("Invalid ID '%s'...\n Setting to ID to 1.", argv[1]);
+				_servo_id_cmd = 1;
+			}
+
+			if (_pos_cmd > 4095) {
+				PX4_ERR("Invalid goal position '%s'...\n Setting to 512.", argv[2]);
+				_pos_cmd = 512;
+			}
+
+			if (_led_cmd > 1) {
+				PX4_ERR("Invalid LED switch '%s'...\n Setting to 1.", argv[3]);
+				_led_cmd = 1;
+			}
+
+			return 0;
+
+		} else {
+			PX4_ERR("missing argument");
+			return 0;
+		}
 	}
-	 */
 
 	return print_usage("unknown command");
 }
@@ -232,16 +258,15 @@ int DynamixelSerial::task_spawn(int argc, char *argv[])
 
 DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 {
-	const char *device_name = "/dev/ttyS1"; /* default USART8 */;
-	int baud = 57600;
-	unsigned scanning_timeout_ms = 0;
+	const char *device_name = "/dev/ttyS3"; /* default device*/;
+	int baud = 57600;  			/* default baudrate */;
 
 	bool error_flag = false;
 	int myoptind = 1;
 	int ch;
 	const char *myoptarg = nullptr;
 
-	while ((ch = px4_getopt(argc, argv, "d:b:t:", &myoptind, &myoptarg)) != EOF) {
+	while ((ch = px4_getopt(argc, argv, "d:b", &myoptind, &myoptarg)) != EOF) {
 		switch (ch) {
 		case 'd':
 			device_name = myoptarg;
@@ -257,14 +282,10 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 			baud = (int)strtol(myoptarg, nullptr, 10);
 
 			if (baud < 9600 || baud > 3000000) {
-				PX4_ERR("invalid baud rate '%s'", myoptarg);
+				PX4_ERR("Invalid baud rate '%s'", myoptarg);
 				error_flag = true;
 			}
 
-			break;
-
-		case 't':
-			scanning_timeout_ms = strtoul(myoptarg, nullptr, 10) * 1000;
 			break;
 
 		case '?':
@@ -295,6 +316,9 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 	} else {
 		DynamixelSerial *instance = new DynamixelSerial(uart, baud);
 
+		//make a copy of device_name to be used in status command
+		memcpy(_device_name, device_name, ((strlen(device_name) < 10) ? strlen(device_name) : 10));
+
 		if (instance == nullptr) {
 			PX4_ERR("alloc failed");
 
@@ -304,8 +328,7 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 			set_uart_speed(uart, &uart_config, baud);
 			// switch to single-wire (half-duplex) mode, because S.Port uses only a single wire
 			set_uart_single_wire(uart, true);
-			set_uart_invert(uart, false);
-			PX4_INFO("%u",scanning_timeout_ms);
+			set_uart_invert(uart, false);     //Only works if set to false (no need to invert)
 		}
 
 		return instance;
@@ -313,44 +336,29 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 
 }
 
-// DynamixelSerial::DynamixelSerial(int uart, int baud)
-// 	: ModuleParams(nullptr)
-// {
-
-// }
-
 void DynamixelSerial::run()
 {
-	// Example: run the loop synchronized to the sensor_combined topic publication
-	// int sensor_combined_sub = orb_subscribe(ORB_ID(sensor_combined));
 	DynamixelProtocol dynamixel;
 
 	dynamixel.init(_uart, _baudrate);
 
-	//px4_pollfd_struct_t fds[1];
-	//fds[0].fd = dynamixel.get_uart();
-	//fds[0].events = POLLIN;
-
-	struct pollfd fds[1];
+	px4_pollfd_struct_t fds[1];
 	fds[0].fd = dynamixel.get_uart();
 	fds[0].events = POLLIN;
 
 	uint8_t sbuf[64];
-	// char sbuf[20];
 	// const hrt_abstime start_time = hrt_absolute_time();
 
-	PX4_INFO("_uart %i",_uart);
-	PX4_INFO("_baudrate %i",_baudrate);
+	PX4_INFO("_uart %i", _uart);
+	PX4_INFO("_baudrate %i", _baudrate);
 
 	// initialize parameters
 	parameters_update(true);
 
 	while (!should_exit()) {
 
-		// wait for up to 1000ms for data
-		////int pret = px4_poll(fds, (sizeof(fds) / sizeof(fds[0])), 1000);
-		//int status = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), 100);
-		int status = poll(fds, sizeof(fds) / sizeof(fds[0]), 100);
+
+		int status = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), 50);
 		_comm_state = true;
 
 		//Scan for packets
@@ -371,7 +379,7 @@ void DynamixelSerial::run()
 
 				usleep(50_ms);
 				int nbytes = read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-				PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1],sbuf[2], sbuf[3],sbuf[4], sbuf[5]);
+				PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1], sbuf[2], sbuf[3], sbuf[4], sbuf[5]);
 
 
 				if (nbytes > 5) {
@@ -384,17 +392,11 @@ void DynamixelSerial::run()
 
 			}
 
-			PX4_INFO("EXIT comm_state false");
+			//PX4_INFO("EXIT comm_state false");
 
 			// usleep(100_ms);
 			// // flush buffer
 			// read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-
-			// // check for a timeout
-			// if (_scanning_timeout_ms > 0 && (hrt_absolute_time() - start_time) / 1000 > _scanning_timeout_ms) {
-			// 	PX4_INFO("Scanning timeout: exiting");
-			// 	break;
-			// }
 
 		} else {
 
@@ -403,13 +405,15 @@ void DynamixelSerial::run()
 			//read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
 			//PX4_INFO("flushed buffer");
 
-			PX4_INFO("sending Dynamixel commands");
+			//PX4_INFO("sending Dynamixel commands");
 			usleep(150_ms);
-			dynamixel.update((uint32_t) status);
+			dynamixel.update((uint32_t) status, _pos_cmd, _led_cmd);
 
 
-			int nbytes = read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-			PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1],sbuf[2], sbuf[3],sbuf[4], sbuf[5], sbuf[6],sbuf[7], sbuf[8], sbuf[9], sbuf[10], sbuf[11], sbuf[12], sbuf[13], sbuf[14], sbuf[15]);
+			//int nbytes = read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
+			//PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1],
+			//	 sbuf[2], sbuf[3], sbuf[4], sbuf[5], sbuf[6], sbuf[7], sbuf[8], sbuf[9], sbuf[10], sbuf[11], sbuf[12], sbuf[13],
+			//	 sbuf[14], sbuf[15]);
 
 			// usleep(100_ms);
 			// write(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
@@ -425,7 +429,6 @@ void DynamixelSerial::run()
 	PX4_INFO("closing uart");
 	close(dynamixel.get_uart());
 
-	// orb_unsubscribe(sensor_combined_sub);
 }
 
 void DynamixelSerial::parameters_update(bool force)
@@ -453,16 +456,23 @@ int DynamixelSerial::print_usage(const char *reason)
 This module implements the usage of Dynamixel commands using a serial port.
 
 ### Examples
-Start dynamixel communication on ttyS6 serial with baudrate 57600 and no timeout
-$ dynamixel_serial start -d /dev/ttyS6 -b 57600 -t 0
+Start dynamixel communication on ttyS3 serial with baudrate 57600
+$ dynamixel_serial start -d /dev/ttyS3 -b 57600
+
+Send Dynamixel Write Goal Position and Switch LED:
+Servo_ID = 1 (set to 214 for all), Goal_Position = 512, Turn LED On = 1
+$ dynamixel_serial send 1 512 1
 
 )DESCR_STR");
 
 	PRINT_MODULE_USAGE_NAME("dynamixel_serial", "communication");
 	PRINT_MODULE_USAGE_COMMAND("start");
-	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS6", "<file:dev>", "Select Serial Device", true);
-	PRINT_MODULE_USAGE_PARAM_INT('b', 57600, 9600, 115200, "Baudrate", true);
-	PRINT_MODULE_USAGE_PARAM_INT('t', 0, 0, 60, "Scanning timeout [s] (default: no timeout)", true);
+	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS3", "<file:dev>", "Select Serial Device", true);
+	PRINT_MODULE_USAGE_PARAM_INT('b', 57600, 9600, 3000000, "Baudrate", true);
+
+	PRINT_MODULE_USAGE_COMMAND("send");
+	PRINT_MODULE_USAGE_ARG("ID, POSITION, LED", "Servo ID, Goal Position, Switch LED", false);
+	PRINT_MODULE_USAGE_COMMAND_DESCR("ID|POSITION|LED", "Send Dynamixel Write Goal Position");
 
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 

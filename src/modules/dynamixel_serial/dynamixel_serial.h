@@ -33,7 +33,7 @@
 
 /**
  * @file dynamixel_serial.h
- * @brief Module for sending Dynamixel commands using serial port (based on FrSky telemetry)
+ * @brief Module for sending Dynamixel commands using serial port
  *
  * @author Pedro Mendes <pmen817@aucklanduni.ac.nz>
  *
@@ -53,6 +53,10 @@ using namespace time_literals;
 
 extern "C" __EXPORT int dynamixel_serial_main(int argc, char *argv[]);
 
+const char* _device_name[10];
+unsigned short int _pos_cmd = 512;  //command when initialized
+unsigned short int _led_cmd = 1;    //command when initialized
+unsigned short int _servo_id_cmd = 1;  //command when initialized
 
 class DynamixelSerial : public ModuleBase<DynamixelSerial>, public ModuleParams
 {

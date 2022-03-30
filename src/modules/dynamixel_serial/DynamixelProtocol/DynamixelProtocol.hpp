@@ -115,7 +115,7 @@ public:
 	~DynamixelProtocol() = default;
 
 
-	void update(uint32_t n);
+	void update(uint32_t n, unsigned short int pos, unsigned short int led);
 	int get_uart() {return uart;}
 	void init(const int serial_uart, uint32_t serial_baud);
 
