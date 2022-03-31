@@ -62,7 +62,6 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/sensor_combined.h>
 
-
 /**
  * Opens the UART device and sets all required serial parameters.
  */
@@ -304,9 +303,9 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 	}
 
 	/* Open UART */
-	struct termios uart_config_original;
+
 	struct termios uart_config;
-	const int uart = dynamixel_open_uart(baud, device_name, &uart_config, &uart_config_original);
+	const int uart = dynamixel_open_uart(baud, device_name, &uart_config, &_uart_config_original);
 
 	if (uart < 0) {
 		device_name = NULL;
@@ -359,54 +358,55 @@ void DynamixelSerial::run()
 
 
 		int status = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), 50);
-		_comm_state = true;
-
-		//Scan for packets
-		if (!_comm_state) {
-
-			if (status == 0) {
-				// Timeout: let the loop run anyway, don't do `continue` here
-				PX4_INFO("status == 0");
 
 
-			} else if (status < 0) {
-				// this is undesirable but not much we can do
-				PX4_ERR("poll error %d, %d", status, errno);
-				px4_usleep(50000);
-				continue;
+		// //Scan for packets
+		// if (!_comm_state) {
 
-			} else if (status > 0) {
-
-				usleep(50_ms);
-				int nbytes = read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-				PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1], sbuf[2], sbuf[3], sbuf[4], sbuf[5]);
+		// 	if (status == 0) {
+		// 		// Timeout: let the loop run anyway, don't do `continue` here
+		// 		PX4_INFO("status == 0");
 
 
-				if (nbytes > 5) {
-					_comm_state = true;
-					PX4_INFO("SCAN: packet found!");
-					//This is only being found when Dynamixel connected to computer
-					//ttsy1 second cable (next to red)
-					//After that the module stops running
-				}
+		// 	} else if (status < 0) {
+		// 		// this is undesirable but not much we can do
+		// 		PX4_ERR("poll error %d, %d", status, errno);
+		// 		px4_usleep(50000);
+		// 		continue;
 
-			}
+		// 	} else if (status > 0) {
 
-			//PX4_INFO("EXIT comm_state false");
+		// 		usleep(50_ms);
+		// 		int nbytes = read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
+		// 		PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1], sbuf[2], sbuf[3], sbuf[4], sbuf[5]);
 
-			// usleep(100_ms);
-			// // flush buffer
-			// read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
 
-		} else {
+		// 		if (nbytes > 5) {
+		// 			_comm_state = true;
+		// 			PX4_INFO("SCAN: packet found!");
+		// 			//This is only being found when Dynamixel connected to computer
+		// 			//ttsy1 second cable (next to red)
+		// 			//After that the module stops running
+		// 		}
+
+		// 	}
+
+		// 	//PX4_INFO("EXIT comm_state false");
+
+		// 	// usleep(100_ms);
+		// 	// // flush buffer
+		// 	// read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
+
+		// } else {
 
 			//usleep(200_ms);
 			// flush buffer
-			//read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
+			read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
+			usleep(200_ms);
 			//PX4_INFO("flushed buffer");
 
 			//PX4_INFO("sending Dynamixel commands");
-			usleep(150_ms);
+
 			dynamixel.update((uint32_t) status, _pos_cmd, _led_cmd);
 
 
@@ -418,13 +418,13 @@ void DynamixelSerial::run()
 			// usleep(100_ms);
 			// write(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
 			// PX4_INFO("dwrote to port");
-		}
+		// }
 
 		parameters_update();
 	}
 
 	/* Reset the UART flags to original state */
-	// tcsetattr(dynamixel.get_uart(), TCSANOW, &uart_config_original);
+	tcsetattr(dynamixel.get_uart(), TCSANOW, &_uart_config_original);
 
 	PX4_INFO("closing uart");
 	close(dynamixel.get_uart());

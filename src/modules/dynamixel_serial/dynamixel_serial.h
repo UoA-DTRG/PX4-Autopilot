@@ -54,6 +54,7 @@ using namespace time_literals;
 extern "C" __EXPORT int dynamixel_serial_main(int argc, char *argv[]);
 
 const char* _device_name[10];
+struct termios _uart_config_original; //save original uart config
 unsigned short int _pos_cmd = 512;  //command when initialized
 unsigned short int _led_cmd = 1;    //command when initialized
 unsigned short int _servo_id_cmd = 1;  //command when initialized

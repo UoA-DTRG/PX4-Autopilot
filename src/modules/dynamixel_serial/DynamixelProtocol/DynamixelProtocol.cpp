@@ -165,25 +165,32 @@ broadcast configure all servos
 void DynamixelProtocol::configure_servos(void)
 {
 	// disable torque control
-	send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 0, 1);
+	// send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 0, 1);
+	send_command(BROADCAST_ID, Reg::TORQUE_ENABLE, 0);
 
-	// disable replies unless we read
-	send_command(BROADCAST_ID, REG_STATUS_RETURN, STATUS_RETURN_READ, 1);
+	// // disable replies unless we read
+	// send_command(BROADCAST_ID, REG_STATUS_RETURN, STATUS_RETURN_READ, 1);
+	send_command(BROADCAST_ID, Reg::STATUS_RETURN_LEVEL, 1);
 
-	// use position control mode
-	send_command(BROADCAST_ID, REG_OPERATING_MODE, OPMODE_POS_CONTROL, 1);
+	// // use position control mode
+	// send_command(BROADCAST_ID, REG_OPERATING_MODE, OPMODE_POS_CONTROL, 1);
+	send_command(BROADCAST_ID, Reg::OPERATING_MODE, OPMODE_POS_CONTROL);
 
-	// enable torque control
-	send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 1, 1);
+	// // enable torque control
+	// send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 1, 1);
+	send_command(BROADCAST_ID, Reg::TORQUE_ENABLE, 1);
 }
 
 
 /*
   send a command to a single servo, changing a register value
  */
-void DynamixelProtocol::send_command(uint8_t id, uint16_t reg, uint32_t value, uint8_t len)
+void DynamixelProtocol::send_command(uint8_t id, Reg reg_addr, uint32_t value)
 {
 	uint8_t txpacket[16] {};
+
+	uint16_t reg = static_cast<uint16_t>(reg_addr);
+	uint8_t len = get_size(reg_addr);
 
 	txpacket[PKT_ID] = id;
 	txpacket[PKT_LENGTH_L] = 5 + len;
@@ -318,12 +325,19 @@ void DynamixelProtocol::update(uint32_t n, unsigned short int pos, unsigned shor
 		return;
 	}
 
+
+
 	detect_servos();
-	send_command(BROADCAST_ID, LED_ENABLE, led, 1);
 
-	send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 1, 1);
+	send_command(BROADCAST_ID, Reg::LED, led);
 
-	send_command(BROADCAST_ID, REG_GOAL_POSITION, (uint32_t) pos, 4);
+	// send_command(BROADCAST_ID, LED_ENABLE, led, 1);
+	send_command(BROADCAST_ID, Reg::TORQUE_ENABLE, 1);
+
+	send_command(BROADCAST_ID, Reg::GOAL_POSITION, (uint32_t) pos);
+	// send_command(BROADCAST_ID, REG_TORQUE_ENABLE, 1, 1);
+
+	// send_command(BROADCAST_ID, REG_GOAL_POSITION, (uint32_t) pos, 4);
 
 	// if (detection_count < DETECT_SERVO_COUNT) {
 	// 	detection_count++;
@@ -368,56 +382,184 @@ void DynamixelProtocol::update(uint32_t n, unsigned short int pos, unsigned shor
 
 }
 
+//MX series Control Table
+uint8_t DynamixelProtocol::get_size(Reg reg)
+{
+	uint8_t size = 1;
+
+	switch (reg) {
+	case Reg::MODEL_NUMBER : size = 2; break;
+
+	case Reg::MODEL_INFORMATION : size = 4; break;
+
+	case Reg::VERSION_OF_FIRMWARE : size = 1; break;
+
+	case Reg::ID : size = 1; break;
+
+	case Reg::BAUDRATE : size = 1; break;
+
+	case Reg::RETURN_DELAY_TIME : size = 1; break;
+
+	case Reg::DRIVE_MODE : size = 1; break;
+
+	case Reg::OPERATING_MODE : size = 1; break;
+
+	case Reg::SECONDARY_ID : size = 1; break;
+
+	case Reg::PROTOCOL_VERSION : size = 1; break;
+
+	case Reg::HOMING_OFFSET : size = 4; break;
+
+	case Reg::MOVING_THRESHOLD : size = 4; break;
+
+	case Reg::TEMPERATURE_LIMIT : size = 1; break;
+
+	case Reg::MAX_VOLTAGE_LIMIT : size = 2; break;
+
+	case Reg::MIN_VOLTAGE_LIMIT : size = 2; break;
+
+	case Reg::PWM_LIMIT : size = 2; break;
+
+	case Reg::CURRENT_LIMIT : size = 2; break;
+
+	case Reg::ACCELERATION_LIMIT : size = 4; break;
+
+	case Reg::VELOCITY_LIMIT : size = 4; break;
+
+	case Reg::MAX_POSITION_LIMIT : size = 4; break;
+
+	case Reg::MIN_POSITION_LIMIT : size = 4; break;
+
+	case Reg::SHUTDOWN : size = 4; break;
+
+	case Reg::TORQUE_ENABLE : size = 1; break;
+
+	case Reg::LED : size = 1; break;
+
+	case Reg::STATUS_RETURN_LEVEL : size = 1; break;
+
+	case Reg::REGISTERED_INSTRUCTION : size = 1; break;
+
+	case Reg::HARDWARE_ERROR_STATUS : size = 1; break;
+
+	case Reg::VELOCITY_I_GAIN : size = 2; break;
+
+	case Reg::VELOCITY_P_GAIN : size = 2; break;
+
+	case Reg::POSITION_D_GAIN : size = 2; break;
+
+	case Reg::POSITION_I_GAIN : size = 2; break;
+
+	case Reg::POSITION_P_GAIN : size = 2; break;
+
+	case Reg::FEEDFORWARD_ACCELERATION_GAIN : size = 2; break;
+
+	case Reg::FEEDFORWARD_VELOCITY_GAIN : size = 2; break;
+
+	case Reg::BUS_WATCHDOG : size = 1; break;
+
+	case Reg::GOAL_PWM : size = 2; break;
+
+	case Reg::GOAL_CURRENT : size = 2; break;
+
+	case Reg::GOAL_VELOCITY : size = 4; break;
+
+	case Reg::PROFILE_ACCELERATION : size = 4; break;
+
+	case Reg::PROFILE_VELOCITY : size = 4; break;
+
+	case Reg::GOAL_POSITION : size = 4; break;
+
+	case Reg::REALTIME_TICK : size = 2; break;
+
+	case Reg::MOVING : size = 1; break;
+
+	case Reg::MOVING_STATUS  : size = 1; break;
+
+	case Reg::PRESENT_PWM : size = 2; break;
+
+	case Reg::PRESENT_CURRENT :  size = 2; break;
+
+	case Reg::PRESENT_VELOCITY : size = 4; break;
+
+	case Reg::PRESENT_POSITION : size = 4; break;
+
+	case Reg::VELOCITY_TRAJECTORY : size = 4; break;
+
+	case Reg::POSITION_TRAJECTORY : size = 4; break;
+
+	case Reg::PRESENT_INPUT_VOLTAGE : size = 2; break;
+
+	case Reg::PRESENT_TEMPERATURE : size = 1; break;
+
+	case Reg::EXTERNAL_PORT_DATA_1 : size = 2; break;
+
+	case Reg::EXTERNAL_PORT_DATA_2 : size = 2; break;
+
+	case Reg::EXTERNAL_PORT_DATA_3 : size = 2; break;
+
+	case Reg::INDIRECT_ADDR_1 : size = 2; break;
+
+	case Reg::INDIRECT_DATA_1 : size = 1; break;
+
+	case Reg::INDIRECT_ADDR_29 : size = 2; break;
+
+	case Reg::INDIRECT_DATA_29 : size = 1; break;
+
+	}
+
+	return size;
+}
+
 // CRC-16 (IBM/ANSI)
 // Polynomial : x16 + x15 + x2 + 1 (polynomial representation : 0x8005)
 // Initial Value : 0
-uint16_t DynamixelProtocol::updateCRC(uint16_t crc_accum, uint8_t *data_blk_ptr, uint16_t data_blk_size)
-{
-	uint16_t i;
-	static const uint16_t crc_table[256] = {0x0000,
-						0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
-						0x8033, 0x0036, 0x003C, 0x8039, 0x0028, 0x802D, 0x8027,
-						0x0022, 0x8063, 0x0066, 0x006C, 0x8069, 0x0078, 0x807D,
-						0x8077, 0x0072, 0x0050, 0x8055, 0x805F, 0x005A, 0x804B,
-						0x004E, 0x0044, 0x8041, 0x80C3, 0x00C6, 0x00CC, 0x80C9,
-						0x00D8, 0x80DD, 0x80D7, 0x00D2, 0x00F0, 0x80F5, 0x80FF,
-						0x00FA, 0x80EB, 0x00EE, 0x00E4, 0x80E1, 0x00A0, 0x80A5,
-						0x80AF, 0x00AA, 0x80BB, 0x00BE, 0x00B4, 0x80B1, 0x8093,
-						0x0096, 0x009C, 0x8099, 0x0088, 0x808D, 0x8087, 0x0082,
-						0x8183, 0x0186, 0x018C, 0x8189, 0x0198, 0x819D, 0x8197,
-						0x0192, 0x01B0, 0x81B5, 0x81BF, 0x01BA, 0x81AB, 0x01AE,
-						0x01A4, 0x81A1, 0x01E0, 0x81E5, 0x81EF, 0x01EA, 0x81FB,
-						0x01FE, 0x01F4, 0x81F1, 0x81D3, 0x01D6, 0x01DC, 0x81D9,
-						0x01C8, 0x81CD, 0x81C7, 0x01C2, 0x0140, 0x8145, 0x814F,
-						0x014A, 0x815B, 0x015E, 0x0154, 0x8151, 0x8173, 0x0176,
-						0x017C, 0x8179, 0x0168, 0x816D, 0x8167, 0x0162, 0x8123,
-						0x0126, 0x012C, 0x8129, 0x0138, 0x813D, 0x8137, 0x0132,
-						0x0110, 0x8115, 0x811F, 0x011A, 0x810B, 0x010E, 0x0104,
-						0x8101, 0x8303, 0x0306, 0x030C, 0x8309, 0x0318, 0x831D,
-						0x8317, 0x0312, 0x0330, 0x8335, 0x833F, 0x033A, 0x832B,
-						0x032E, 0x0324, 0x8321, 0x0360, 0x8365, 0x836F, 0x036A,
-						0x837B, 0x037E, 0x0374, 0x8371, 0x8353, 0x0356, 0x035C,
-						0x8359, 0x0348, 0x834D, 0x8347, 0x0342, 0x03C0, 0x83C5,
-						0x83CF, 0x03CA, 0x83DB, 0x03DE, 0x03D4, 0x83D1, 0x83F3,
-						0x03F6, 0x03FC, 0x83F9, 0x03E8, 0x83ED, 0x83E7, 0x03E2,
-						0x83A3, 0x03A6, 0x03AC, 0x83A9, 0x03B8, 0x83BD, 0x83B7,
-						0x03B2, 0x0390, 0x8395, 0x839F, 0x039A, 0x838B, 0x038E,
-						0x0384, 0x8381, 0x0280, 0x8285, 0x828F, 0x028A, 0x829B,
-						0x029E, 0x0294, 0x8291, 0x82B3, 0x02B6, 0x02BC, 0x82B9,
-						0x02A8, 0x82AD, 0x82A7, 0x02A2, 0x82E3, 0x02E6, 0x02EC,
-						0x82E9, 0x02F8, 0x82FD, 0x82F7, 0x02F2, 0x02D0, 0x82D5,
-						0x82DF, 0x02DA, 0x82CB, 0x02CE, 0x02C4, 0x82C1, 0x8243,
-						0x0246, 0x024C, 0x8249, 0x0258, 0x825D, 0x8257, 0x0252,
-						0x0270, 0x8275, 0x827F, 0x027A, 0x826B, 0x026E, 0x0264,
-						0x8261, 0x0220, 0x8225, 0x822F, 0x022A, 0x823B, 0x023E,
-						0x0234, 0x8231, 0x8213, 0x0216, 0x021C, 0x8219, 0x0208,
-						0x820D, 0x8207, 0x0202
-					       };
+	uint16_t DynamixelProtocol::updateCRC(uint16_t crc_accum, uint8_t *data_blk_ptr, uint16_t data_blk_size) {
+		uint16_t i;
+		static const uint16_t crc_table[256] = {0x0000,
+							0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
+							0x8033, 0x0036, 0x003C, 0x8039, 0x0028, 0x802D, 0x8027,
+							0x0022, 0x8063, 0x0066, 0x006C, 0x8069, 0x0078, 0x807D,
+							0x8077, 0x0072, 0x0050, 0x8055, 0x805F, 0x005A, 0x804B,
+							0x004E, 0x0044, 0x8041, 0x80C3, 0x00C6, 0x00CC, 0x80C9,
+							0x00D8, 0x80DD, 0x80D7, 0x00D2, 0x00F0, 0x80F5, 0x80FF,
+							0x00FA, 0x80EB, 0x00EE, 0x00E4, 0x80E1, 0x00A0, 0x80A5,
+							0x80AF, 0x00AA, 0x80BB, 0x00BE, 0x00B4, 0x80B1, 0x8093,
+							0x0096, 0x009C, 0x8099, 0x0088, 0x808D, 0x8087, 0x0082,
+							0x8183, 0x0186, 0x018C, 0x8189, 0x0198, 0x819D, 0x8197,
+							0x0192, 0x01B0, 0x81B5, 0x81BF, 0x01BA, 0x81AB, 0x01AE,
+							0x01A4, 0x81A1, 0x01E0, 0x81E5, 0x81EF, 0x01EA, 0x81FB,
+							0x01FE, 0x01F4, 0x81F1, 0x81D3, 0x01D6, 0x01DC, 0x81D9,
+							0x01C8, 0x81CD, 0x81C7, 0x01C2, 0x0140, 0x8145, 0x814F,
+							0x014A, 0x815B, 0x015E, 0x0154, 0x8151, 0x8173, 0x0176,
+							0x017C, 0x8179, 0x0168, 0x816D, 0x8167, 0x0162, 0x8123,
+							0x0126, 0x012C, 0x8129, 0x0138, 0x813D, 0x8137, 0x0132,
+							0x0110, 0x8115, 0x811F, 0x011A, 0x810B, 0x010E, 0x0104,
+							0x8101, 0x8303, 0x0306, 0x030C, 0x8309, 0x0318, 0x831D,
+							0x8317, 0x0312, 0x0330, 0x8335, 0x833F, 0x033A, 0x832B,
+							0x032E, 0x0324, 0x8321, 0x0360, 0x8365, 0x836F, 0x036A,
+							0x837B, 0x037E, 0x0374, 0x8371, 0x8353, 0x0356, 0x035C,
+							0x8359, 0x0348, 0x834D, 0x8347, 0x0342, 0x03C0, 0x83C5,
+							0x83CF, 0x03CA, 0x83DB, 0x03DE, 0x03D4, 0x83D1, 0x83F3,
+							0x03F6, 0x03FC, 0x83F9, 0x03E8, 0x83ED, 0x83E7, 0x03E2,
+							0x83A3, 0x03A6, 0x03AC, 0x83A9, 0x03B8, 0x83BD, 0x83B7,
+							0x03B2, 0x0390, 0x8395, 0x839F, 0x039A, 0x838B, 0x038E,
+							0x0384, 0x8381, 0x0280, 0x8285, 0x828F, 0x028A, 0x829B,
+							0x029E, 0x0294, 0x8291, 0x82B3, 0x02B6, 0x02BC, 0x82B9,
+							0x02A8, 0x82AD, 0x82A7, 0x02A2, 0x82E3, 0x02E6, 0x02EC,
+							0x82E9, 0x02F8, 0x82FD, 0x82F7, 0x02F2, 0x02D0, 0x82D5,
+							0x82DF, 0x02DA, 0x82CB, 0x02CE, 0x02C4, 0x82C1, 0x8243,
+							0x0246, 0x024C, 0x8249, 0x0258, 0x825D, 0x8257, 0x0252,
+							0x0270, 0x8275, 0x827F, 0x027A, 0x826B, 0x026E, 0x0264,
+							0x8261, 0x0220, 0x8225, 0x822F, 0x022A, 0x823B, 0x023E,
+							0x0234, 0x8231, 0x8213, 0x0216, 0x021C, 0x8219, 0x0208,
+							0x820D, 0x8207, 0x0202
+						       };
 
-	for (uint16_t j = 0; j < data_blk_size; j++) {
-		i = ((uint16_t)(crc_accum >> 8) ^ *data_blk_ptr++) & 0xFF;
-		crc_accum = (crc_accum << 8) ^ crc_table[i];
+		for (uint16_t j = 0; j < data_blk_size; j++) {
+			i = ((uint16_t)(crc_accum >> 8) ^ *data_blk_ptr++) & 0xFF;
+			crc_accum = (crc_accum << 8) ^ crc_table[i];
+		}
+
+		return crc_accum;
 	}
-
-	return crc_accum;
-}
