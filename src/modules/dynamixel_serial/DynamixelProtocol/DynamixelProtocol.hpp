@@ -43,6 +43,7 @@
 
 #include <sys/types.h>
 #include <stdbool.h>
+#include <drivers/drv_hrt.h>
 
 #define BROADCAST_ID        0xFE    // 254
 #define MAX_ID              0xFC    // 252
@@ -166,6 +167,7 @@ enum class Reg : uint16_t {
 
 };
 
+using namespace time_literals;
 
 class DynamixelProtocol
 {
@@ -174,10 +176,12 @@ public:
 	DynamixelProtocol() = default;
 	~DynamixelProtocol() = default;
 
-
-	void update(uint32_t n, unsigned short int pos, unsigned short int led);
-	int get_uart() {return uart;}
 	void init(const int serial_uart, uint32_t serial_baud);
+	void update();
+
+	void set_setpoints(int i, uint32_t val, uint32_t led, uint32_t mode);
+	int get_uart() {return uart;}
+
 
 private:
 
@@ -190,7 +194,7 @@ private:
 
 	void add_stuffing(uint8_t *packet);
 	void send_packet(uint8_t *txpacket);
-	void read_bytes(uint32_t n);
+	void read_bytes();
 	void process_packet(const uint8_t *pkt, uint8_t length);
 	void send_command(uint8_t id,Reg reg_addr, uint32_t value);
 	void configure_servos(void);
@@ -198,17 +202,20 @@ private:
 	uint8_t get_size(Reg reg);
 
 	// auto-detected mask of available servos, from a broadcast ping
-	uint16_t servo_mask;
+	uint16_t servo_mask{0};
 	uint8_t detection_count{0};
-	uint8_t configured_servos;
+	uint8_t configured_servos{0};
 	bool initialised;
 
-	uint8_t pktbuf[64];
+	uint8_t pktbuf[72];
 	uint8_t pktbuf_ofs;
 
-	// servo position limits
-	uint32_t pos_min;
-	uint32_t pos_max;
+	uint32_t op_mode{3};
+
+	uint32_t val_sp[17] = {0}; //setpoint array
+	uint32_t led_sp[17] = {0}; //setpoint array
+
+	bool broadcast;           //broadcast flag
 
 	uint32_t last_send_us;
 	uint32_t delay_time_us;

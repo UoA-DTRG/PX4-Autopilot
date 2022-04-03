@@ -205,23 +205,44 @@ int DynamixelSerial::custom_command(int argc, char *argv[])
 
 	if (!strcmp(argv[0], "send")) {
 
-		if (argc > 3) {
-			_servo_id_cmd = atof(argv[1]);
-			_pos_cmd = atof(argv[2]);
-			_led_cmd = atof(argv[3]);
+		if (argc > 4) {
+			_servo_id_cmd = atof(argv[2]);
+			_val_cmd = atof(argv[3]);
+			_led_cmd = atof(argv[4]);
 
-			if (_servo_id_cmd > 255) {
-				PX4_ERR("Invalid ID '%s'...\n Setting to ID to 1.", argv[1]);
+			//TODO:LIMITS INPUTS - CURRENT DANGER!
+
+			if (!strcmp(argv[1], "position")) {
+				_mode_cmd = 3;
+
+			} else if (!strcmp(argv[1], "extposition")) {
+				_mode_cmd = 4;
+
+			} else if (!strcmp(argv[1], "velocity")) {
+				_mode_cmd = 1;
+
+			} else if (!strcmp(argv[1], "current")) {
+				_mode_cmd = 0;
+
+			} else {
+				PX4_ERR("Invalid Mode '%s'...\n Setting to Position Control", argv[1]);
+				_mode_cmd = 3;
+			}
+
+			PX4_INFO("Mode is: %u - %s", _mode_cmd, argv[1]);
+
+			if (_servo_id_cmd < 1 || (_servo_id_cmd > 16 && _servo_id_cmd != 254)) {
+				PX4_ERR("Invalid ID '%s'...\n Setting ID to 1. Valid range: 1-16 or 254 for broadcast", argv[2]);
 				_servo_id_cmd = 1;
 			}
 
-			if (_pos_cmd > 4095) {
-				PX4_ERR("Invalid goal position '%s'...\n Setting to 512.", argv[2]);
-				_pos_cmd = 512;
+			if (_val_cmd > 10000) {
+				PX4_ERR("Invalid goal position '%s'...\n Setting to 0.", argv[3]);
+				_val_cmd = 0;
 			}
 
 			if (_led_cmd > 1) {
-				PX4_ERR("Invalid LED switch '%s'...\n Setting to 1.", argv[3]);
+				PX4_ERR("Invalid LED switch '%s'...\n Setting to 1.", argv[4]);
 				_led_cmd = 1;
 			}
 
@@ -340,6 +361,7 @@ void DynamixelSerial::run()
 	DynamixelProtocol dynamixel;
 
 	dynamixel.init(_uart, _baudrate);
+	_comm_state = false;
 
 	px4_pollfd_struct_t fds[1];
 	fds[0].fd = dynamixel.get_uart();
@@ -356,69 +378,15 @@ void DynamixelSerial::run()
 
 	while (!should_exit()) {
 
-
 		int status = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), 50);
 
+		if ((status < 1) && _comm_state) { continue; }
 
-		// //Scan for packets
-		// if (!_comm_state) {
+		dynamixel.set_setpoints(_servo_id_cmd, _val_cmd, _led_cmd, _mode_cmd);
 
-		// 	if (status == 0) {
-		// 		// Timeout: let the loop run anyway, don't do `continue` here
-		// 		PX4_INFO("status == 0");
+		read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
 
-
-		// 	} else if (status < 0) {
-		// 		// this is undesirable but not much we can do
-		// 		PX4_ERR("poll error %d, %d", status, errno);
-		// 		px4_usleep(50000);
-		// 		continue;
-
-		// 	} else if (status > 0) {
-
-		// 		usleep(50_ms);
-		// 		int nbytes = read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-		// 		PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1], sbuf[2], sbuf[3], sbuf[4], sbuf[5]);
-
-
-		// 		if (nbytes > 5) {
-		// 			_comm_state = true;
-		// 			PX4_INFO("SCAN: packet found!");
-		// 			//This is only being found when Dynamixel connected to computer
-		// 			//ttsy1 second cable (next to red)
-		// 			//After that the module stops running
-		// 		}
-
-		// 	}
-
-		// 	//PX4_INFO("EXIT comm_state false");
-
-		// 	// usleep(100_ms);
-		// 	// // flush buffer
-		// 	// read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-
-		// } else {
-
-			//usleep(200_ms);
-			// flush buffer
-			read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-			usleep(200_ms);
-			//PX4_INFO("flushed buffer");
-
-			//PX4_INFO("sending Dynamixel commands");
-
-			dynamixel.update((uint32_t) status, _pos_cmd, _led_cmd);
-
-
-			//int nbytes = read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-			//PX4_INFO("dynamixel input: %d bytes: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", nbytes, sbuf[0], sbuf[1],
-			//	 sbuf[2], sbuf[3], sbuf[4], sbuf[5], sbuf[6], sbuf[7], sbuf[8], sbuf[9], sbuf[10], sbuf[11], sbuf[12], sbuf[13],
-			//	 sbuf[14], sbuf[15]);
-
-			// usleep(100_ms);
-			// write(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
-			// PX4_INFO("dwrote to port");
-		// }
+		dynamixel.update();
 
 		parameters_update();
 	}
@@ -459,9 +427,15 @@ This module implements the usage of Dynamixel commands using a serial port.
 Start dynamixel communication on ttyS3 serial with baudrate 57600
 $ dynamixel_serial start -d /dev/ttyS3 -b 57600
 
-Send Dynamixel Write Goal Position and Switch LED:
-Servo_ID = 1 (set to 214 for all), Goal_Position = 512, Turn LED On = 1
-$ dynamixel_serial send 1 512 1
+### Send Dynamixel Write and Switch LED:
+Available modes: (position,extposition,velocity,current)
+
+Position Control Mode = position
+Servo_ID = 1 (214 for brodcast all)
+Setpoint = 512
+Turn LED On = 1
+
+$ dynamixel_serial send position 1 512 1
 
 )DESCR_STR");
 
@@ -471,8 +445,8 @@ $ dynamixel_serial send 1 512 1
 	PRINT_MODULE_USAGE_PARAM_INT('b', 57600, 9600, 3000000, "Baudrate", true);
 
 	PRINT_MODULE_USAGE_COMMAND("send");
-	PRINT_MODULE_USAGE_ARG("ID, POSITION, LED", "Servo ID, Goal Position, Switch LED", false);
-	PRINT_MODULE_USAGE_COMMAND_DESCR("ID|POSITION|LED", "Send Dynamixel Write Goal Position");
+	PRINT_MODULE_USAGE_ARG("MODE, ID, SETPOINT, LED", "Mode, Servo ID, Setpoint, Switch LED", false);
+	PRINT_MODULE_USAGE_COMMAND_DESCR("MODE|ID|SETPOINT|LED", "Send Dynamixel Write");
 
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
