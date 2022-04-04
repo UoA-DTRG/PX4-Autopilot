@@ -59,9 +59,6 @@
 #include <drivers/drv_hrt.h>
 #include <math.h>
 
-#include <uORB/topics/parameter_update.h>
-#include <uORB/topics/sensor_combined.h>
-
 /**
  * Opens the UART device and sets all required serial parameters.
  */
@@ -195,6 +192,76 @@ int DynamixelSerial::print_status()
 	return 0;
 }
 
+bool DynamixelSerial::constrain_input(int val, unsigned short mode)
+{
+	bool constrain = false;
+
+	//return true if input is constrained
+	if (mode == 3) { // Position mode
+
+		if (val > _param_dyn_posmax.get()) {
+			_val_cmd = _param_dyn_posmax.get();
+			constrain = true;
+
+		} else if (val < _param_dyn_posmin.get()) {
+			_val_cmd = _param_dyn_posmin.get();
+			constrain = true;
+
+		} else {
+			_val_cmd = val;
+			constrain = false;
+		}
+
+	} else if (mode == 4) { // Extended Position mode
+
+		if (val > _param_dyn_extmax.get()) {
+			_val_cmd = _param_dyn_extmax.get();
+			constrain = true;
+
+		} else if (val < -_param_dyn_extmax.get()) {
+			_val_cmd = -_param_dyn_extmax.get();
+			constrain = true;
+
+		} else {
+			_val_cmd = val;
+			constrain = false;
+		}
+
+	} else if (mode == 1) { // Velocity mode
+
+		if (val > _param_dyn_velmax.get()) {
+			_val_cmd = _param_dyn_velmax.get();
+			constrain = true;
+
+		} else if (val < -_param_dyn_velmax.get()) {
+			_val_cmd = -_param_dyn_velmax.get();
+			constrain = true;
+
+		} else {
+			_val_cmd = val;
+			constrain = false;
+		}
+
+	} else if (mode == 0) { // Current mode
+
+		if (val > _param_dyn_curmax.get()) {
+			_val_cmd = _param_dyn_curmax.get();
+			constrain = true;
+
+		} else if (val < -_param_dyn_curmax.get()) {
+			_val_cmd = -_param_dyn_curmax.get();
+			constrain = true;
+
+		} else {
+			_val_cmd = val;
+			constrain = false;
+		}
+
+	}
+
+	return constrain;
+}
+
 int DynamixelSerial::custom_command(int argc, char *argv[])
 {
 
@@ -210,8 +277,6 @@ int DynamixelSerial::custom_command(int argc, char *argv[])
 			_val_cmd = atof(argv[3]);
 			_led_cmd = atof(argv[4]);
 
-			//TODO:LIMITS INPUTS - CURRENT DANGER!
-
 			if (!strcmp(argv[1], "position")) {
 				_mode_cmd = 3;
 
@@ -225,24 +290,19 @@ int DynamixelSerial::custom_command(int argc, char *argv[])
 				_mode_cmd = 0;
 
 			} else {
-				PX4_ERR("Invalid Mode '%s'...\n Setting to Position Control", argv[1]);
+				PX4_WARN("Invalid Mode '%s'...\n Setting to Position Control", argv[1]);
 				_mode_cmd = 3;
 			}
 
 			PX4_INFO("Mode is: %u - %s", _mode_cmd, argv[1]);
 
 			if (_servo_id_cmd < 1 || (_servo_id_cmd > 16 && _servo_id_cmd != 254)) {
-				PX4_ERR("Invalid ID '%s'...\n Setting ID to 1. Valid range: 1-16 or 254 for broadcast", argv[2]);
+				PX4_WARN("Invalid ID '%s'...\n Setting ID to 1. Valid range: 1-16 or 254 for broadcast", argv[2]);
 				_servo_id_cmd = 1;
 			}
 
-			if (_val_cmd > 10000) {
-				PX4_ERR("Invalid goal position '%s'...\n Setting to 0.", argv[3]);
-				_val_cmd = 0;
-			}
-
 			if (_led_cmd > 1) {
-				PX4_ERR("Invalid LED switch '%s'...\n Setting to 1.", argv[4]);
+				PX4_WARN("Invalid LED switch '%s'...\n Setting to 1.", argv[4]);
 				_led_cmd = 1;
 			}
 
@@ -278,18 +338,22 @@ int DynamixelSerial::task_spawn(int argc, char *argv[])
 
 DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 {
-	const char *device_name = "/dev/ttyS3"; /* default device*/;
+	const char *device_name = DEFAULT_DEVICE_NAME; /* default device*/;
 	int baud = 57600;  			/* default baudrate */;
+	sentPackets = 0;
 
 	bool error_flag = false;
 	int myoptind = 1;
 	int ch;
 	const char *myoptarg = nullptr;
 
-	while ((ch = px4_getopt(argc, argv, "d:b", &myoptind, &myoptarg)) != EOF) {
+	while ((ch = px4_getopt(argc, argv, "d:b:", &myoptind, &myoptarg)) != EOF) {
 		switch (ch) {
+
 		case 'd':
 			device_name = myoptarg;
+
+			PX4_INFO("Device %s selected", device_name);
 
 			if (access(device_name, F_OK) == -1) {
 				PX4_ERR("Device %s does not exist", device_name);
@@ -299,10 +363,13 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 			break;
 
 		case 'b':
-			baud = (int)strtol(myoptarg, nullptr, 10);
+			if (px4_get_parameter_value(myoptarg, baud) != 0) {
+				PX4_ERR("baudrate parsing failed");
+				error_flag = true;
+			}
 
-			if (baud < 9600 || baud > 3000000) {
-				PX4_ERR("Invalid baud rate '%s'", myoptarg);
+			if (baud  < 9600 || baud > 3000000) {
+				PX4_ERR("invalid baud rate '%s'", myoptarg);
 				error_flag = true;
 			}
 
@@ -323,8 +390,10 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 		return nullptr;
 	}
 
-	/* Open UART */
+	//make a copy of device_name to be used in status command
+	_device_name = device_name;
 
+	/* Open UART */
 	struct termios uart_config;
 	const int uart = dynamixel_open_uart(baud, device_name, &uart_config, &_uart_config_original);
 
@@ -335,9 +404,6 @@ DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 
 	} else {
 		DynamixelSerial *instance = new DynamixelSerial(uart, baud);
-
-		//make a copy of device_name to be used in status command
-		memcpy(_device_name, device_name, ((strlen(device_name) < 10) ? strlen(device_name) : 10));
 
 		if (instance == nullptr) {
 			PX4_ERR("alloc failed");
@@ -362,6 +428,7 @@ void DynamixelSerial::run()
 
 	dynamixel.init(_uart, _baudrate);
 	_comm_state = false;
+	_ext_flag = false;
 
 	px4_pollfd_struct_t fds[1];
 	fds[0].fd = dynamixel.get_uart();
@@ -376,20 +443,58 @@ void DynamixelSerial::run()
 	// initialize parameters
 	parameters_update(true);
 
+	debug_vect_s flags_vect;
+	int ext_stop = 1; //Stop flag for timeout when external link lost
+
 	while (!should_exit()) {
 
 		int status = px4_poll(fds, sizeof(fds) / sizeof(fds[0]), 50);
 
 		if ((status < 1) && _comm_state) { continue; }
 
+		//Using debug_vect for dynamixel setpoints(flags_vect.y > 1)
+		if (_debug_vect_sub.updated()) {
+
+			_debug_vect_sub.copy(&flags_vect);
+
+			_ext_setpoint = (flags_vect.y - 1.f);
+			_ext_setpoint = (_ext_setpoint > 0.f) ? _ext_setpoint : 0.f;
+			_ext_flag = true;
+			ext_stop = 1;
+
+			_debug_timestamp_last = hrt_absolute_time();
+		}
+
+		if (hrt_elapsed_time(&_debug_timestamp_last) > 1_s) {
+			//timeout case external link lost
+			_ext_flag = false;
+		}
+
+		if (_ext_flag) {
+			_val_cmd = static_cast<int>(_ext_setpoint * 4095);
+
+		} else if (ext_stop > 0) {
+			_val_cmd = 0;
+			ext_stop--;
+		}
+
+		if (constrain_input(_val_cmd, _mode_cmd)) {
+			PX4_WARN("Setpoint outside limits...\n Setting to %i.", _val_cmd);
+		}
+
 		dynamixel.set_setpoints(_servo_id_cmd, _val_cmd, _led_cmd, _mode_cmd);
 
 		read(dynamixel.get_uart(), &sbuf[0], sizeof(sbuf));
 
-		dynamixel.update();
+		if (dynamixel.update()) {
+			_comm_state = true;
+			sentPackets++;
+		}
 
 		parameters_update();
 	}
+
+	_comm_state = false;
 
 	/* Reset the UART flags to original state */
 	tcsetattr(dynamixel.get_uart(), TCSANOW, &_uart_config_original);
@@ -409,6 +514,8 @@ void DynamixelSerial::parameters_update(bool force)
 
 		// update parameters from storage
 		updateParams();
+
+		_mode_cmd = _param_dyn_mode.get();
 	}
 }
 
@@ -445,7 +552,7 @@ $ dynamixel_serial send position 1 512 1
 	PRINT_MODULE_USAGE_PARAM_INT('b', 57600, 9600, 3000000, "Baudrate", true);
 
 	PRINT_MODULE_USAGE_COMMAND("send");
-	PRINT_MODULE_USAGE_ARG("MODE, ID, SETPOINT, LED", "Mode, Servo ID, Setpoint, Switch LED", false);
+	PRINT_MODULE_USAGE_ARG("MODE, ID, SETPOINT, LED", "Mode:(position,extposition,velocity,current), Servo ID, Setpoint, Switch LED", false);
 	PRINT_MODULE_USAGE_COMMAND_DESCR("MODE|ID|SETPOINT|LED", "Send Dynamixel Write");
 
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();

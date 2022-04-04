@@ -43,18 +43,24 @@
 
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
+#include <px4_platform_common/cli.h>
+
 #include <uORB/SubscriptionInterval.hpp>
 #include <uORB/topics/parameter_update.h>
+#include <uORB/topics/debug_vect.h>
 
 #include <termios.h>
 #include "DynamixelProtocol/DynamixelProtocol.hpp"
+
+#define DEFAULT_DEVICE_NAME     "/dev/ttyS3"
 
 using namespace time_literals;
 
 extern "C" __EXPORT int dynamixel_serial_main(int argc, char *argv[]);
 
-const char* _device_name[10];
+const char *_device_name{DEFAULT_DEVICE_NAME};
 struct termios _uart_config_original; //save original uart config
+static unsigned long int sentPackets = 0;
 
 int _val_cmd = 0;  //custom command
 unsigned short int _led_cmd = 1;    //custom command
@@ -90,17 +96,14 @@ public:
 
 private:
 
-	// int dynamixel_open_uart(const int baud, const char *uart_name, struct termios *uart_config, struct termios *uart_config_original);
-	// int set_uart_speed(int uart, struct termios *uart_config, unsigned int speed);
-	// void set_uart_single_wire(int uart, bool single_wire);
-	// void set_uart_invert(int uart, bool invert);
-
-	unsigned long int sentPackets = 0;
 	/* Default values for arguments */
 	int _uart {};
 	int _baudrate {};
 	bool _comm_state = false;
 
+	float _ext_setpoint{0};  //Need to receive value from mavlink
+	bool _ext_flag = false;
+	hrt_abstime _debug_timestamp_last{};
 
 	/**
 	 * Check for parameter changes and update them if needed.
@@ -108,16 +111,20 @@ private:
 	 * @param force for a parameter update
 	 */
 	void parameters_update(bool force = false);
+	bool constrain_input(int val, unsigned short mode);
 
 
 	DEFINE_PARAMETERS(
-		(ParamInt<px4::params::DYN_SER_CONFIG>) _param_dyn_config,
-		(ParamInt<px4::params::DYN_SER_POSMIN>) _param_dyn_posmin,
-		(ParamInt<px4::params::DYN_SER_POSMAX>) _param_dyn_posmax
+		(ParamInt<px4::params::DYN_SER_MODE>)   _param_dyn_mode,
+		(ParamInt<px4::params::DYN_SER_POS_MIN>) _param_dyn_posmin,
+		(ParamInt<px4::params::DYN_SER_POS_MAX>) _param_dyn_posmax,
+		(ParamInt<px4::params::DYN_SER_VEL_MAX>) _param_dyn_velmax,
+		(ParamInt<px4::params::DYN_SER_CUR_MAX>) _param_dyn_curmax,
+		(ParamInt<px4::params::DYN_SER_EXT_MAX>) _param_dyn_extmax
 	)
 
 	// Subscriptions
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
-
+	uORB::Subscription _debug_vect_sub{ORB_ID(debug_vect)};
 };
 

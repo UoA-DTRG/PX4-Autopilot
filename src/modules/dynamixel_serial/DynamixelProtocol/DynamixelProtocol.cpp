@@ -311,30 +311,6 @@ void DynamixelProtocol::process_packet(const uint8_t *pkt, uint8_t length)
 void DynamixelProtocol::set_setpoints(int i, uint32_t val, uint32_t led, uint32_t mode)
 {
 
-
-	// switch (mode) {
-	// case OPMODE_CURR_CONTROL:
-	// 	op_mode = OPMODE_CURR_CONTROL;
-	// 	//Applying high current to the motor for long period of time might damage the motor
-	// 	break;
-
-	// case OPMODE_EXT_POS_CONTROL:
-	// 	op_mode = OPMODE_EXT_POS_CONTROL;
-	// 	break;
-
-	// case OPMODE_POS_CONTROL:
-	// 	op_mode = OPMODE_POS_CONTROL;
-	// 	break;
-
-	// case OPMODE_VEL_CONTROL:
-	// 	op_mode = OPMODE_VEL_CONTROL;
-	// 	break;
-
-	// default:
-	// 	op_mode = OPMODE_POS_CONTROL;
-	// 	break;
-	// }
-
 	if (mode != op_mode) {
 		op_mode = mode;
 		configure_servos();
@@ -355,13 +331,13 @@ void DynamixelProtocol::set_setpoints(int i, uint32_t val, uint32_t led, uint32_
 	}
 }
 
-void DynamixelProtocol::update()
+bool DynamixelProtocol::update()
 {
 	hrt_abstime now = hrt_absolute_time();
 
 	if (last_send_us != 0 && now - last_send_us < delay_time_us) {
 		// waiting for last send to complete
-		return;
+		return false;
 	}
 
 	if (detection_count < DETECT_SERVO_COUNT) {
@@ -370,14 +346,14 @@ void DynamixelProtocol::update()
 	}
 
 	if (servo_mask == 0) {
-		return;
+		return false;
 	}
 
 	if (configured_servos < CONFIGURE_SERVO_COUNT) {
 		configured_servos++;
 		last_send_us = now;
 		configure_servos();
-		return;
+		return false;
 	}
 
 	last_send_us = now;
@@ -410,7 +386,6 @@ void DynamixelProtocol::update()
 				break;
 			}
 
-
 			send_command(BROADCAST_ID, Reg::LED, led_sp[16]);
 			continue;
 
@@ -437,8 +412,10 @@ void DynamixelProtocol::update()
 			send_command(i + 1, Reg::LED, led_sp[i]);
 		}
 
+		return true;
 	}
 
+	return false;
 }
 
 //MX series Control Table

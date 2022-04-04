@@ -40,4 +40,6 @@ px4_add_module(
 		dynamixel_serial.cpp
 	DEPENDS
 		DynamixelProtocol
+	MODULE_CONFIG
+		module.yaml
 	)

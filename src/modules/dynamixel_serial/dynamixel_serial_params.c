@@ -40,33 +40,58 @@
  */
 
 /**
- * Serial Configuration for Dynamixel Serial communication
+ * Position Minimum - Dynamixel
  *
- * Configure on which serial port to run Dynamixel communication
- *
- * @group Dynamixel
- * @reboot_required true
- */
-PARAM_DEFINE_INT32(DYN_SER_CONFIG, 0);
-
-/**
- *  Robotis servo position min
- *
- *  Position minimum at servo min value. This should be within the position control range of the servos, normally 0 to 4095
+ * Minimum desired position for Position Control Mode(3) within the range of 1 rotation.
+ * Goal Position(116) should be configured within the position limit range.
  *
  * @group Dynamixel
  * @min 0
  * @max 4095
  */
-PARAM_DEFINE_INT32(DYN_SER_POSMIN, 0);
+PARAM_DEFINE_INT32(DYN_SER_POS_MIN, 0);
 
 /**
- *  Robotis servo position max
+ * Position Maximum - Dynamixel
  *
- *  Position maximum at servo max value. This should be within the position control range of the servos, normally 0 to 4095
+ * Maximum desired position for Position Control Mode(3) within the range of 1 rotation.
+ * Goal Position(116) should be configured within the position limit range.
  *
  * @group Dynamixel
  * @min 0
  * @max 4095
  */
-PARAM_DEFINE_INT32(DYN_SER_POSMAX, 4095);
+PARAM_DEFINE_INT32(DYN_SER_POS_MAX, 4095);
+
+/**
+ * Velocity Maximum - Dynamixel
+ *
+ * Maximum desired velocity for Goal Velocity(104) in Velocity Control Mode(1).
+ *
+ * @group Dynamixel
+ * @min 0
+ * @max 285
+ */
+PARAM_DEFINE_INT32(DYN_SER_VEL_MAX, 285);
+
+/**
+ * Robotis servo position max
+ *
+ * Position maximum at servo max value. This should be within the position control range of the servos, normally 0 to 4095
+ *
+ * @group Dynamixel
+ * @min 0
+ * @max 1941
+ */
+PARAM_DEFINE_INT32(DYN_SER_CUR_MAX, 1941);
+
+/**
+ * Robotis servo position max
+ *
+ * Position maximum at servo max value. This should be within the position control range of the servos, normally 0 to 4095
+ *
+ * @group Dynamixel
+ * @min 0
+ * @max 1048575
+ */
+PARAM_DEFINE_INT32(DYN_SER_EXT_MAX, 1048575);

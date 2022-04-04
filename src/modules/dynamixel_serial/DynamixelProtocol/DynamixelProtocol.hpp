@@ -177,7 +177,7 @@ public:
 	~DynamixelProtocol() = default;
 
 	void init(const int serial_uart, uint32_t serial_baud);
-	void update();
+	bool update();
 
 	void set_setpoints(int i, uint32_t val, uint32_t led, uint32_t mode);
 	int get_uart() {return uart;}
@@ -196,7 +196,7 @@ private:
 	void send_packet(uint8_t *txpacket);
 	void read_bytes();
 	void process_packet(const uint8_t *pkt, uint8_t length);
-	void send_command(uint8_t id,Reg reg_addr, uint32_t value);
+	void send_command(uint8_t id, Reg reg_addr, uint32_t value);
 	void configure_servos(void);
 	uint16_t updateCRC(uint16_t crc_accum, uint8_t *data_blk_ptr, uint16_t data_blk_size);
 	uint8_t get_size(Reg reg);
