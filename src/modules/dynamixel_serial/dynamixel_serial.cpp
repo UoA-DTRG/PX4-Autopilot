@@ -531,8 +531,8 @@ int DynamixelSerial::print_usage(const char *reason)
 This module implements the usage of Dynamixel commands using a serial port.
 
 ### Examples
-Start dynamixel communication on ttyS3 serial with baudrate 57600
-$ dynamixel_serial start -d /dev/ttyS3 -b 57600
+Start dynamixel communication on ttyS2 serial with baudrate 57600
+$ dynamixel_serial start -d /dev/ttyS2 -b 57600
 
 ### Send Dynamixel Write and Switch LED:
 Available modes: (position,extposition,velocity,current)
@@ -548,7 +548,7 @@ $ dynamixel_serial send position 1 512 1
 
 	PRINT_MODULE_USAGE_NAME("dynamixel_serial", "communication");
 	PRINT_MODULE_USAGE_COMMAND("start");
-	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS3", "<file:dev>", "Select Serial Device", true);
+	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS2", "<file:dev>", "Select Serial Device", true);
 	PRINT_MODULE_USAGE_PARAM_INT('b', 57600, 9600, 3000000, "Baudrate", true);
 
 	PRINT_MODULE_USAGE_COMMAND("send");

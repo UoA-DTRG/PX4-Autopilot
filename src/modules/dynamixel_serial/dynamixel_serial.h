@@ -52,7 +52,7 @@
 #include <termios.h>
 #include "DynamixelProtocol/DynamixelProtocol.hpp"
 
-#define DEFAULT_DEVICE_NAME     "/dev/ttyS3"
+#define DEFAULT_DEVICE_NAME     "/dev/ttyS2"
 
 using namespace time_literals;
 
