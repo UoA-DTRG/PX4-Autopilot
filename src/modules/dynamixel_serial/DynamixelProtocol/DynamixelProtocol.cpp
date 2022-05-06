@@ -308,7 +308,7 @@ void DynamixelProtocol::process_packet(const uint8_t *pkt, uint8_t length)
 	}
 }
 
-void DynamixelProtocol::set_setpoints(int i, uint32_t val, uint32_t led, uint32_t mode)
+void DynamixelProtocol::set_setpoints(int i, int32_t val, uint32_t led, uint32_t mode)
 {
 
 	if (mode != op_mode) {
@@ -358,6 +358,7 @@ bool DynamixelProtocol::update()
 
 	last_send_us = now;
 	delay_time_us = 0;
+	bool flag = false;
 
 	// loop for all 16 channels
 	for (uint8_t i = 0; i < 16; i++) {
@@ -412,10 +413,10 @@ bool DynamixelProtocol::update()
 			send_command(i + 1, Reg::LED, led_sp[i]);
 		}
 
-		return true;
+		flag = true;
 	}
 
-	return false;
+	return flag;
 }
 
 //MX series Control Table

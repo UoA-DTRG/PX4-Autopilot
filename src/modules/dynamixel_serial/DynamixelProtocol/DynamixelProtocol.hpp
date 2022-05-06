@@ -179,7 +179,7 @@ public:
 	void init(const int serial_uart, uint32_t serial_baud);
 	bool update();
 
-	void set_setpoints(int i, uint32_t val, uint32_t led, uint32_t mode);
+	void set_setpoints(int i, int32_t val, uint32_t led, uint32_t mode);
 	int get_uart() {return uart;}
 
 
@@ -212,7 +212,7 @@ private:
 
 	uint32_t op_mode{3};
 
-	uint32_t val_sp[17] = {0}; //setpoint array
+	int32_t val_sp[17] = {0}; //setpoint array
 	uint32_t led_sp[17] = {0}; //setpoint array
 
 	bool broadcast;           //broadcast flag
