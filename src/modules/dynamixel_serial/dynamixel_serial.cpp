@@ -259,6 +259,22 @@ bool DynamixelSerial::constrain_input(int val, unsigned short mode)
 
 	}
 
+	switch (_param_dyn_trim.get())
+	{
+	case 0
+		break;
+	case 1 //Trim negative setpoints
+		if (_val_cmd < 0) {
+			_val_cmd = 0;
+		}
+		break;
+	case 2 //Trim positive setpoints
+		if (_val_cmd > 0) {
+			_val_cmd = 0;
+		}
+		break;
+	}
+
 	return constrain;
 }
 
@@ -452,13 +468,13 @@ void DynamixelSerial::run()
 
 		if ((status < 1) && _comm_state) { continue; }
 
-		//Using debug_vect for dynamixel setpoints(flags_vect.y > 1)
+		//Using debug_vect for dynamixel setpoints(flags_vect.y >= 1)
 		if (_debug_vect_sub.updated()) {
 
 			_debug_vect_sub.copy(&flags_vect);
 
 			_ext_setpoint = (flags_vect.y - 1.f);
-			_ext_setpoint = (_ext_setpoint > 0.f) ? _ext_setpoint : 0.f;
+			_ext_setpoint = (_ext_setpoint >= 0.f) ? _ext_setpoint : 0.f;
 			_ext_flag = true;
 			ext_stop = 1;
 
@@ -471,7 +487,7 @@ void DynamixelSerial::run()
 		}
 
 		if (_ext_flag) {
-			_val_cmd = static_cast<int>(_ext_setpoint * 4095);
+			_val_cmd = -(static_cast<int>(_ext_setpoint * 4095));
 
 		} else if (ext_stop > 0) {
 			_val_cmd = 0;

@@ -23,3 +23,18 @@ parameters:
                 4: Extended Position Control Mode(Multi-turn)
             reboot_required: false
             default: 3
+
+        DYN_SER_TRIM:
+            description:
+                short: Trim unwanted positive or negative setpoint values
+                long: |
+                    Defines if values are trimmed. (Default) setpoints are not trimmed.
+
+            type: enum
+            values:
+                0: No trimming
+                1: Trim negative values
+                2: Trim positive values
+            reboot_required: false
+            default: 0
+

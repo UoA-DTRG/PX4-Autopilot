@@ -116,6 +116,7 @@ private:
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::DYN_SER_MODE>)   _param_dyn_mode,
+		(ParamInt<px4::params::DYN_SER_TRIM>)   _param_dyn_trim,
 		(ParamInt<px4::params::DYN_SER_POS_MIN>) _param_dyn_posmin,
 		(ParamInt<px4::params::DYN_SER_POS_MAX>) _param_dyn_posmax,
 		(ParamInt<px4::params::DYN_SER_VEL_MAX>) _param_dyn_velmax,
