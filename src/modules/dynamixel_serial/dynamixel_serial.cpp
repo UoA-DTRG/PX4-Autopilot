@@ -261,14 +261,14 @@ bool DynamixelSerial::constrain_input(int val, unsigned short mode)
 
 	switch (_param_dyn_trim.get())
 	{
-	case 0
+	case 0:
 		break;
-	case 1 //Trim negative setpoints
+	case 1 ://Trim negative setpoints
 		if (_val_cmd < 0) {
 			_val_cmd = 0;
 		}
 		break;
-	case 2 //Trim positive setpoints
+	case 2 ://Trim positive setpoints
 		if (_val_cmd > 0) {
 			_val_cmd = 0;
 		}
