@@ -66,13 +66,13 @@ int dynamixel_open_uart(const int baud, const char *uart_name, struct termios *u
 			struct termios *uart_config_original)
 {
 	/* Set baud rate */
-	// Dynamixel works on 9600 19200 57600(default) 115200 1M 2M 3M
+	// Dynamixel works on 9600 19200 57600 (default)115200 1M 2M 3M
 
 #ifndef B1000000
 #define B1000000 1000000
 #endif
 
-	unsigned int speed = B57600; //default
+	unsigned int speed = B115200; //default
 
 	switch (baud) {
 	case 9600:   speed = B9600;   break;
@@ -96,7 +96,7 @@ int dynamixel_open_uart(const int baud, const char *uart_name, struct termios *u
 #endif
 
 	default:
-		PX4_ERR("Unsupported baudrate: %d\n\tsupported examples:\n\t9600, 19200, (default) 57600\t\n115200\n1000000\n",
+		PX4_ERR("Unsupported baudrate: %d\n\tsupported examples:\n\t9600, 19200, 57600\t\n (default) 115200\n1000000\n",
 			baud);
 		return -EINVAL;
 	}
@@ -339,7 +339,7 @@ int DynamixelSerial::task_spawn(int argc, char *argv[])
 DynamixelSerial *DynamixelSerial::instantiate(int argc, char *argv[])
 {
 	const char *device_name = DEFAULT_DEVICE_NAME; /* default device*/;
-	int baud = 57600;  			/* default baudrate */;
+	int baud = 115200;  			/* default baudrate */;
 	sentPackets = 0;
 
 	bool error_flag = false;
@@ -531,8 +531,8 @@ int DynamixelSerial::print_usage(const char *reason)
 This module implements the usage of Dynamixel commands using a serial port.
 
 ### Examples
-Start dynamixel communication on ttyS2 serial with baudrate 57600
-$ dynamixel_serial start -d /dev/ttyS2 -b 57600
+Start dynamixel communication on ttyS2 serial with baudrate 115200
+$ dynamixel_serial start -d /dev/ttyS3 -b 115200
 
 ### Send Dynamixel Write and Switch LED:
 Available modes: (position,extposition,velocity,current)
@@ -548,8 +548,8 @@ $ dynamixel_serial send position 1 512 1
 
 	PRINT_MODULE_USAGE_NAME("dynamixel_serial", "communication");
 	PRINT_MODULE_USAGE_COMMAND("start");
-	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS2", "<file:dev>", "Select Serial Device", true);
-	PRINT_MODULE_USAGE_PARAM_INT('b', 57600, 9600, 3000000, "Baudrate", true);
+	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS3", "<file:dev>", "Select Serial Device", true);
+	PRINT_MODULE_USAGE_PARAM_INT('b', 115200, 9600, 3000000, "Baudrate", true);
 
 	PRINT_MODULE_USAGE_COMMAND("send");
 	PRINT_MODULE_USAGE_ARG("MODE, ID, SETPOINT, LED", "Mode:(position,extposition,velocity,current), Servo ID, Setpoint, Switch LED", false);
