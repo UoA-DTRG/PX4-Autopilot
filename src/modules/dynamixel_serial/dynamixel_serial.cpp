@@ -468,12 +468,12 @@ void DynamixelSerial::run()
 
 		if ((status < 1) && _comm_state) { continue; }
 
-		//Using debug_vect for dynamixel setpoints(flags_vect.y >= 1)
+		//Using debug_vect for dynamixel setpoints(flags_vect.x >= 1)
 		if (_debug_vect_sub.updated()) {
 
 			_debug_vect_sub.copy(&flags_vect);
 
-			_ext_setpoint = (flags_vect.y - 1.f);
+			_ext_setpoint = (flags_vect.x - 1.f);
 			_ext_setpoint = (_ext_setpoint >= 0.f) ? _ext_setpoint : 0.f;
 			_ext_flag = true;
 			ext_stop = 1;
