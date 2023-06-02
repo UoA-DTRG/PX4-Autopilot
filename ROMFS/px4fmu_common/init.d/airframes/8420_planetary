@@ -1,0 +1,107 @@
+# !/bin/sh
+#
+# @name Planetary Hex geometry
+#
+# @type Octorotor x
+# @class Copter
+#
+# @output MAIN1 motor 1
+# @output MAIN2 motor 2
+# @output MAIN3 motor 3
+# @output MAIN4 motor 4
+# @output MAIN5 motor 5
+# @output MAIN6 motor 6
+# @output MAIN7 motor 7
+# @output MAIN8 motor 8
+#
+# @output AUX1 feed-through of RC AUX1 channel
+# @output AUX2 feed-through of RC AUX2 channel
+# @output AUX3 feed-through of RC AUX3 channel
+#
+# @maintainer salz167
+#
+
+
+. ${R}etc/init.d/rc.mc_defaults
+
+# MAV_TYPE_OCTOROTOR 14
+param set-default MAV_TYPE 14
+
+param set-default CA_ROTOR_COUNT 8
+param set-default CA_ROTOR0_CT 0.1
+param set-default CA_ROTOR0_KM -0.05
+param set-default CA_ROTOR0_PX 0.3
+param set-default CA_ROTOR0_PY 0
+param set-default CA_ROTOR0_PZ 0
+param set-default CA_ROTOR0_AX 0
+param set-default CA_ROTOR0_AY -0.6820
+param set-default CA_ROTOR0_AZ 0.7314
+
+param set-default CA_ROTOR1_CT 0.1
+param set-default CA_ROTOR1_KM -0.05
+param set-default CA_ROTOR1_PX 0.15
+param set-default CA_ROTOR1_PY 0.26
+param set-default CA_ROTOR1_PZ 0
+param set-default CA_ROTOR1_AX -0.5906
+param set-default CA_ROTOR1_AY 0.3410
+param set-default CA_ROTOR1_AZ 0.7314
+
+param set-default CA_ROTOR2_CT 0.1
+param set-default CA_ROTOR2_KM -0.05
+param set-default CA_ROTOR2_PX -0.15
+param set-default CA_ROTOR2_PY 0.26
+param set-default CA_ROTOR2_PZ 0
+param set-default CA_ROTOR2_AX 0.5906
+param set-default CA_ROTOR2_AY 0.3410
+param set-default CA_ROTOR2_AZ 0.7314
+
+param set-default CA_ROTOR3_CT 0.1
+param set-default CA_ROTOR3_KM -0.05
+param set-default CA_ROTOR3_PX -0.3
+param set-default CA_ROTOR3_PY 0
+param set-default CA_ROTOR3_PZ 0
+param set-default CA_ROTOR3_AX 0
+param set-default CA_ROTOR3_AY -0.6820
+param set-default CA_ROTOR3_AZ 0.7314
+
+param set-default CA_ROTOR4_CT 0.1
+param set-default CA_ROTOR4_KM -0.05
+param set-default CA_ROTOR4_PX -0.15
+param set-default CA_ROTOR4_PY -0.26
+param set-default CA_ROTOR4_PZ 0
+param set-default CA_ROTOR4_AX -0.5906
+param set-default CA_ROTOR4_AY 0.3410
+param set-default CA_ROTOR4_AZ 0.7314
+
+param set-default CA_ROTOR5_CT 0.1
+param set-default CA_ROTOR5_KM -0.05
+param set-default CA_ROTOR5_PX 0.15
+param set-default CA_ROTOR5_PY -0.26
+param set-default CA_ROTOR5_PZ 0
+param set-default CA_ROTOR5_AX 0.5906
+param set-default CA_ROTOR5_AY 0.3410
+param set-default CA_ROTOR5_AZ 0.7314
+
+param set-default CA_ROTOR6_CT 0.1
+param set-default CA_ROTOR6_KM -0.05
+param set-default CA_ROTOR6_PX 0
+param set-default CA_ROTOR6_PY 0
+param set-default CA_ROTOR6_PZ 0.125
+param set-default CA_ROTOR6_AX 1
+param set-default CA_ROTOR6_AY 0
+param set-default CA_ROTOR6_AZ 0
+
+param set-default CA_ROTOR7_CT 0.1
+param set-default CA_ROTOR7_KM -0.05
+param set-default CA_ROTOR7_PX 0
+param set-default CA_ROTOR7_PY 0
+param set-default CA_ROTOR7_PZ -0.125
+param set-default CA_ROTOR7_AX 0.8
+param set-default CA_ROTOR7_AY 0
+param set-default CA_ROTOR7_AZ 0
+
+set MIXER_FILE etc/mixers/planetary.main.mix
+set MIXER custom
+# set MIXER planetary
+
+set PWM_OUT 12345678
