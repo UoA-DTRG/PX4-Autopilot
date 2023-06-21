@@ -1,4 +1,4 @@
-# !/bin/sh
+#!/bin/sh
 #
 # @name Planetary Hex geometry
 #
@@ -18,9 +18,10 @@
 # @output AUX2 feed-through of RC AUX2 channel
 # @output AUX3 feed-through of RC AUX3 channel
 #
-# @maintainer salz167
+# @maintainer Lorenz Meier <lorenz@px4.io>
 #
-
+# @board bitcraze_crazyflie exclude
+#
 
 . ${R}etc/init.d/rc.mc_defaults
 
@@ -100,8 +101,7 @@ param set-default CA_ROTOR7_AX 0.8
 param set-default CA_ROTOR7_AY 0
 param set-default CA_ROTOR7_AZ 0
 
-set MIXER_FILE etc/mixers/planetary.main.mix
-set MIXER custom
-# set MIXER planetary
+set MIXER planetary
+# set MIXER octo_x
 
 set PWM_OUT 12345678

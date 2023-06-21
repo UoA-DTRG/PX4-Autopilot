@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# @name Generic Octocopter X geometry
+# @name Test Generic Octocopter X geometry
 #
 # @type Octorotor x
 # @class Copter
