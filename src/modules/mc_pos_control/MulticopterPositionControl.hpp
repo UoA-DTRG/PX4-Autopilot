@@ -67,6 +67,9 @@
 #include <uORB/topics/vehicle_vector_thrust_setpoint.h>
 #include <uORB/topics/rc_channels.h>
 
+# include <uORB/topics/debug_array.h> //Joao changed here
+// # include <uORB/topics/debug_key_value.h> //Joao changed here
+
 using namespace time_literals;
 
 class MulticopterPositionControl : public ModuleBase<MulticopterPositionControl>, public control::SuperBlock,
@@ -110,6 +113,8 @@ private:
 	uORB::Subscription _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)}; //Joao changed here
+	// uORB::Subscription _debug_key_value_sub{ORB_ID(debug_key_value)}; //Joao changed here
 
 	hrt_abstime	_time_stamp_last_loop{0};		/**< time stamp of last loop iteration */
 
@@ -126,6 +131,9 @@ private:
 	};
 	rc_channels_s _rc_channels{}; /**< PMEN RC channels*/
 	vehicle_vector_thrust_setpoint_s _vt_sp{};	/**< vehicle vector thrust setpoint */
+	debug_array_s _debug_array{}; //Joao changed here
+	float roll_setpoint = 0.0f;
+	float pitch_setpoint = 0.0f;
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,

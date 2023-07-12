@@ -451,6 +451,22 @@ void MulticopterPositionControl::Run()
 			_local_pos_sp_pub.publish(local_pos_sp);
 
 			// PMEN - MODIFICATIONS TO INCLUDE VECTOR THRUST
+			//Joao changed here START
+			// only do these checks if the switch is flipped
+			if (_rc_channels.channels[5] > 0.0f)
+			{
+				//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
+				//corresponds to the debug_array uorb msg
+				if (_debug_array_sub.update(&_debug_array))
+				{
+					roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
+					pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
+					// PX4_INFO("roll: %8.4f", (double)roll_setpoint);
+					// PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
+				}
+			}
+			//Joao changed here END
+
 			float vec_thr_scl = ((float)_param_mpc_vec_thr_en.get() * _param_mpc_vec_thr_scl.get()); // PMEN Changes
 			_vt_sp.thrust_f = 0.f;
 			_vt_sp.thrust_r = 0.f;
@@ -460,11 +476,36 @@ void MulticopterPositionControl::Run()
 
 			if ((_param_mpc_vec_thr_en.get() == 1) && (_param_mpc_vec_thr_scl.get() >= 1.0f) && (_rc_channels.channels[5] > 0.0f)){
 
-				float vec_thr_ang = 0.0f;
+				// float vec_thr_ang = 0.0f;
 
-				vec_thr_ang = _param_mpc_vec_thr_ang.get();
-				attitude_setpoint.roll_body = vec_thr_ang*cosf(((_rc_channels.channels[6] + 1.0f)/2.0f)*6.2857142f);
-				attitude_setpoint.pitch_body = vec_thr_ang*sinf(((_rc_channels.channels[6] + 1.0f)/2.0f)*6.2857142f);
+				// vec_thr_ang = _param_mpc_vec_thr_ang.get();
+				// attitude_setpoint.roll_body = vec_thr_ang*cosf(((_rc_channels.channels[6] + 1.0f)/2.0f)*(float)M_PI); //Joao changed here
+				// attitude_setpoint.pitch_body = vec_thr_ang*sinf(((_rc_channels.channels[6] + 1.0f)/2.0f)*(float)M_PI); //Joao changed here
+				//constrain the angle //Joao changed here
+				// if (abs(roll_setpoint) < abs(vec_thr_ang))
+				// {
+				// 	attitude_setpoint.roll_body = roll_setpoint;
+				// }
+				// else
+				// {
+				// 	attitude_setpoint.roll_body = vec_thr_ang*(roll_setpoint/abs(roll_setpoint));
+				// }
+
+				// if (abs(pitch_setpoint) < abs(vec_thr_ang))
+				// {
+				// 	attitude_setpoint.pitch_body = pitch_setpoint;
+				// }
+				// else
+				// {
+				// 	attitude_setpoint.pitch_body = vec_thr_ang*(pitch_setpoint/abs(pitch_setpoint));
+				// }
+				attitude_setpoint.roll_body = roll_setpoint;
+				attitude_setpoint.pitch_body = pitch_setpoint;
+				PX4_INFO("roll: %8.4f", (double)roll_setpoint);
+				PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
+
+
+
 				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
 
 				Vector3f thrust_frd = q_sp.conjugate_inversed(Vector3f(local_pos_sp.thrust[0] * vec_thr_scl, local_pos_sp.thrust[1] * vec_thr_scl, local_pos_sp.thrust[2]));
