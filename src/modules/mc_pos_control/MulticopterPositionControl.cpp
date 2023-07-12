@@ -461,8 +461,6 @@ void MulticopterPositionControl::Run()
 				{
 					roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
 					pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
-					// PX4_INFO("roll: %8.4f", (double)roll_setpoint);
-					// PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
 				}
 			}
 			//Joao changed here END
@@ -480,26 +478,8 @@ void MulticopterPositionControl::Run()
 
 				// vec_thr_ang = _param_mpc_vec_thr_ang.get();
 				// attitude_setpoint.roll_body = vec_thr_ang*cosf(((_rc_channels.channels[6] + 1.0f)/2.0f)*(float)M_PI); //Joao changed here
-				// attitude_setpoint.pitch_body = vec_thr_ang*sinf(((_rc_channels.channels[6] + 1.0f)/2.0f)*(float)M_PI); //Joao changed here
-				//constrain the angle //Joao changed here
-				// if (abs(roll_setpoint) < abs(vec_thr_ang))
-				// {
-				// 	attitude_setpoint.roll_body = roll_setpoint;
-				// }
-				// else
-				// {
-				// 	attitude_setpoint.roll_body = vec_thr_ang*(roll_setpoint/abs(roll_setpoint));
-				// }
-
-				// if (abs(pitch_setpoint) < abs(vec_thr_ang))
-				// {
-				// 	attitude_setpoint.pitch_body = pitch_setpoint;
-				// }
-				// else
-				// {
-				// 	attitude_setpoint.pitch_body = vec_thr_ang*(pitch_setpoint/abs(pitch_setpoint));
-				// }
-				attitude_setpoint.roll_body = roll_setpoint;
+				// attitude_setpoint.pitch_body = vec_thr_ang*sinf(((_rc_channels.channels[6] + 1.0f)/2.0f)*(float)M_PI);
+				attitude_setpoint.roll_body = roll_setpoint; //Joao changed here
 				attitude_setpoint.pitch_body = pitch_setpoint;
 				PX4_INFO("roll: %8.4f", (double)roll_setpoint);
 				PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
