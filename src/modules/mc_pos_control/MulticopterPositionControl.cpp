@@ -481,8 +481,8 @@ void MulticopterPositionControl::Run()
 				// attitude_setpoint.pitch_body = vec_thr_ang*sinf(((_rc_channels.channels[6] + 1.0f)/2.0f)*(float)M_PI);
 				attitude_setpoint.roll_body = roll_setpoint; //Joao changed here
 				attitude_setpoint.pitch_body = pitch_setpoint;
-				PX4_INFO("roll: %8.4f", (double)roll_setpoint);
-				PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
+				// PX4_INFO("roll: %8.4f", (double)roll_setpoint);
+				// PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
 
 
 
