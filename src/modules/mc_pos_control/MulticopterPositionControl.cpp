@@ -452,17 +452,14 @@ void MulticopterPositionControl::Run()
 
 			// PMEN - MODIFICATIONS TO INCLUDE VECTOR THRUST
 			//Joao changed here START
-			// only do these checks if the switch is flipped
-			if (_rc_channels.channels[5] > 0.0f)
+			//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
+			//corresponds to the debug_array uorb msg
+			if (_debug_array_sub.update(&_debug_array))
 			{
-				//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
-				//corresponds to the debug_array uorb msg
-				if (_debug_array_sub.update(&_debug_array))
-				{
-					roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
-					pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
-				}
+				roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
+				pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
 			}
+
 			//Joao changed here END
 
 			float vec_thr_scl = ((float)_param_mpc_vec_thr_en.get() * _param_mpc_vec_thr_scl.get()); // PMEN Changes
