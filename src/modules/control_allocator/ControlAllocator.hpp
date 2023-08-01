@@ -136,7 +136,7 @@ private:
 	void publish_actuator_controls();
 
 	AllocationMethod _allocation_method_id{AllocationMethod::NONE};
-	ControlAllocation *_control_allocation[ActuatorEffectiveness::MAX_NUM_MATRICES] {}; 	///< class for control allocation calculations
+	ControlAllocationPseudoInverse *_control_allocation[ActuatorEffectiveness::MAX_NUM_MATRICES] {}; 	///< class for control allocation calculations
 	int _num_control_allocation{0};
 	hrt_abstime _last_effectiveness_update{0};
 

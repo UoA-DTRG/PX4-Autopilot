@@ -349,6 +349,10 @@ void MulticopterPositionControl::Run()
 		}
 
 		_trajectory_setpoint_sub.update(&_setpoint);
+		//jspa778: subscribe to rc
+		_rc_channels_sub.update(&_rc_channels);
+		//trial
+		_vehicle_attitude_sub.update(&v_att);
 
 		// adjust existing (or older) setpoint with any EKF reset deltas
 		if ((_setpoint.timestamp != 0) && (_setpoint.timestamp < vehicle_local_position.timestamp)) {
@@ -531,7 +535,86 @@ void MulticopterPositionControl::Run()
 
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
-			_control.getAttitudeSetpoint(attitude_setpoint);
+
+			// jspa778: Horizontal Thrust Changes
+			if (_rc_channels.channels[7] > 0.0f){ //if aux8 is high - use vectored thrust
+
+
+				Quatf q_curr = Quatf(v_att.q[0],v_att.q[1],v_att.q[2],v_att.q[3]);
+
+				attitude_setpoint.roll_body = 0.0f;
+				attitude_setpoint.pitch_body = 0.0f;
+				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
+
+				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
+
+				Vector3f thrust_frd = q_curr.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0], local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
+
+				q_sp.copyTo(attitude_setpoint.q_d);
+
+				// half of p gain that pedro had (as horizontal thrusts are normalized around 1 not 0.5)
+				attitude_setpoint.thrust_body[0] = math::constrain(thrust_frd(0) * 0.5f * 1.40f, -1.0f, 1.0f);
+				attitude_setpoint.thrust_body[1] = math::constrain(thrust_frd(1) * 0.5f * 1.40f, -1.0f, 1.0f);
+
+				attitude_setpoint.thrust_body[2] = thrust_frd(2);
+
+				/*
+				 // half-half
+				ControlMath::thrustToAttitude(Vector3f(local_pos_sp.thrust[0] * (0.5f),
+								local_pos_sp.thrust[1] * (0.5f),
+								local_pos_sp.thrust[2]), local_pos_sp.yaw, attitude_setpoint);
+				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
+
+				Quatf q_curr = Quatf(v_att.q[0],v_att.q[1],v_att.q[2],v_att.q[3]);
+
+				Vector3f thrust_frd = q_curr.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0] * 0.5f, local_pos_sp.thrust[1] * 0.5f, local_pos_sp.thrust[2]));
+
+				attitude_setpoint.thrust_body[0] = math::constrain(thrust_frd(0) * 1.40f, -1.0f, 1.0f);
+				attitude_setpoint.thrust_body[1] = math::constrain(thrust_frd(1) * 1.40f, -1.0f, 1.0f);
+				attitude_setpoint.thrust_body[2] = thrust_frd(2);
+				*/
+
+				/*
+				float angle_hold_rad = 0.21f; //12 degrees ish
+
+				float roll_sp = 0.0f;
+				float pitch_sp = 0.0f;
+
+				if ((_rc_channels.channels[6] > -0.95f) && (_rc_channels.channels[6] < -0.825f)){
+					roll_sp = angle_hold_rad;
+				} else if ((_rc_channels.channels[6] > -0.7f) && (_rc_channels.channels[6] < -0.575f)){
+					roll_sp = -angle_hold_rad;
+				} else if ((_rc_channels.channels[6] > -0.45f) && (_rc_channels.channels[6] < -0.3f)){
+					pitch_sp = angle_hold_rad;
+				} else if ((_rc_channels.channels[6] > -0.1f) && (_rc_channels.channels[6] < 0.1f)){
+					pitch_sp = -angle_hold_rad;
+				}
+
+				//trial - rotate thrust by current pose
+				Quatf q_curr = Quatf(v_att.q[0],v_att.q[1],v_att.q[2],v_att.q[3]);
+
+				attitude_setpoint.roll_body = roll_sp;
+				attitude_setpoint.pitch_body = pitch_sp;
+
+				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
+
+				Vector3f thrust_frd = q_curr.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0], local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
+
+				q_sp.copyTo(attitude_setpoint.q_d);
+
+				attitude_setpoint.thrust_body[0] = math::constrain(thrust_frd(0) * 1.40f, -1.0f, 1.0f);
+				attitude_setpoint.thrust_body[1] = math::constrain(thrust_frd(1) * 1.40f, -1.0f, 1.0f);
+
+				attitude_setpoint.thrust_body[2] = thrust_frd(2);
+				*/
+
+
+			} else {
+				_control.getAttitudeSetpoint(attitude_setpoint);
+				attitude_setpoint.thrust_body[0] = 0.0f; //zero for safety
+				attitude_setpoint.thrust_body[1] = 0.0f;
+			}
+
 			attitude_setpoint.timestamp = hrt_absolute_time();
 			_vehicle_attitude_setpoint_pub.publish(attitude_setpoint);
 

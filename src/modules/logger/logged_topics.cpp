@@ -118,7 +118,7 @@ void LoggedTopics::add_default_topics()
 	add_topic("wind", 1000);
 
 	// multi topics
-	add_optional_topic_multi("actuator_outputs", 100, 3);
+	add_optional_topic_multi("actuator_outputs", 0, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);
 	add_optional_topic_multi("control_allocator_status", 200, 2);
 	add_optional_topic_multi("rate_ctrl_status", 200, 2);
@@ -167,8 +167,8 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic_multi("estimator_visual_odometry_aligned", 200, MAX_ESTIMATOR_INSTANCES);
 	add_optional_topic_multi("yaw_estimator_status", 1000, MAX_ESTIMATOR_INSTANCES);
 
-	// log all raw sensors at minimal rate (at least 1 Hz)
-	add_topic_multi("battery_status", 200, 2);
+	// log all raw sensors at minimal rate (at least 1 Hz) - max rate battery
+	add_topic_multi("battery_status", 0, 2);
 	add_topic_multi("differential_pressure", 1000, 2);
 	add_topic_multi("distance_sensor", 1000, 2);
 	add_topic_multi("optical_flow", 1000, 1);
@@ -190,12 +190,18 @@ void LoggedTopics::add_default_topics()
 	_dynamic_control_allocation = sys_ctrl_alloc >= 1;
 
 	if (_dynamic_control_allocation) {
-		add_topic("actuator_motors", 100);
+		add_topic("actuator_motors", 0);
 		add_topic("actuator_servos", 100);
 		add_topic("vehicle_angular_acceleration", 20);
-		add_topic_multi("vehicle_thrust_setpoint", 20, 1);
-		add_topic_multi("vehicle_torque_setpoint", 20, 2);
+		add_topic_multi("vehicle_thrust_setpoint", 0, 1);
+		add_topic_multi("vehicle_torque_setpoint", 0, 2);
 	}
+
+	//jspa778: additional setpoint logging topics
+	add_topic_multi("vehicle_attitude_setpoint", 0, 1);
+	add_topic_multi("vehicle_rates_setpoint", 0, 1);
+
+	add_topic_multi("rc_channels", 20, 1);
 
 	// SYS_HITL: default ground truth logging for simulation
 	int32_t sys_hitl = 0;
@@ -314,10 +320,10 @@ void LoggedTopics::add_vision_and_avoidance_topics()
 {
 	add_topic("collision_constraints");
 	add_topic("obstacle_distance_fused");
-	add_topic("vehicle_mocap_odometry", 30);
+	add_topic("vehicle_mocap_odometry", 0);
 	add_topic("vehicle_trajectory_waypoint", 200);
 	add_topic("vehicle_trajectory_waypoint_desired", 200);
-	add_topic("vehicle_visual_odometry", 30);
+	add_topic("vehicle_visual_odometry", 0);
 }
 
 void LoggedTopics::add_raw_imu_gyro_fifo()

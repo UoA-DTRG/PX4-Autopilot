@@ -788,12 +788,20 @@ int ControlAllocator::print_status()
 	for (int i = 0; i < _num_control_allocation; ++i) {
 		const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
 
+		//jspa778 print mixer changes
+		const matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer = _control_allocation[i]->getMixer();
+
 		if (_num_control_allocation > 1) {
 			PX4_INFO("Instance: %i", i);
 		}
 
-		PX4_INFO("  Effectiveness.T =");
+		PX4_INFO("  Effectiveness Transpose =");
 		effectiveness.T().print();
+
+		//jspa778 print mixer changes
+		PX4_INFO("Normalised Mixer Transpose =");
+		mixer.T().print();
+
 		PX4_INFO("  minimum =");
 		_control_allocation[i]->getActuatorMin().T().print();
 		PX4_INFO("  maximum =");

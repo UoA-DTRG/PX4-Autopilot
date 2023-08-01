@@ -166,6 +166,28 @@ ControlAllocationPseudoInverse::normalizeControlAllocationMatrix()
 			}
 		}
 	}
+
+
+	// //jspa778: testing with different horizontal thrust components - better way to do this
+	// _mix(0,3) = -0.5f;
+	// _mix(1,3) = -0.5f;
+	// _mix(2,3) = 0.5f;
+	// _mix(3,3) = 0.5f;
+	// _mix(4,3) = 0.5f;
+	// _mix(5,3) = 0.5f;
+	// _mix(6,3) = -0.5f;
+	// _mix(7,3) = -0.5f;
+
+	// _mix(0,4) = 0.5f;
+	// _mix(1,4) = -0.5f;
+	// _mix(2,4) = -0.5f;
+	// _mix(3,4) = 0.5f;
+	// _mix(4,4) = 0.5f;
+	// _mix(5,4) = -0.5f;
+	// _mix(6,4) = -0.5f;
+	// _mix(7,4) = 0.5f;
+
+
 }
 
 void

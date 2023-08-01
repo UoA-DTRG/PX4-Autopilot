@@ -65,6 +65,11 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 
+//jspa778: subscribe to rc
+#include <uORB/topics/rc_channels.h>
+//trial
+#include <uORB/topics/vehicle_attitude.h>
+
 using namespace time_literals;
 
 class MulticopterPositionControl : public ModuleBase<MulticopterPositionControl>, public control::SuperBlock,
@@ -106,6 +111,11 @@ private:
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
+	//jspa778: subscribe to rc
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	//trial
+	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
+
 	hrt_abstime _time_stamp_last_loop{0};		/**< time stamp of last loop iteration */
 	hrt_abstime _time_position_control_enabled{0};
 
@@ -118,6 +128,10 @@ private:
 		.speed_down = NAN,
 		.want_takeoff = false,
 	};
+
+	//jspa778: subscribe to rc
+	rc_channels_s _rc_channels{};
+	vehicle_attitude_s v_att{};
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
