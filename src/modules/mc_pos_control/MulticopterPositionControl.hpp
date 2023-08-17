@@ -65,10 +65,10 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 
-//jspa778: subscribe to rc
+//jspa778: subscribe to rc, attitude est, and mavlink debug array
 #include <uORB/topics/rc_channels.h>
-//trial
 #include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/debug_array.h>
 
 using namespace time_literals;
 
@@ -111,10 +111,10 @@ private:
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
-	//jspa778: subscribe to rc
+	//jspa778: subscribe to rc, attitude est, and mavlink debug array
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
-	//trial
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
+	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)};
 
 	hrt_abstime _time_stamp_last_loop{0};		/**< time stamp of last loop iteration */
 	hrt_abstime _time_position_control_enabled{0};
@@ -129,9 +129,12 @@ private:
 		.want_takeoff = false,
 	};
 
-	//jspa778: subscribe to rc
+	//jspa778: subscribe to rc, attitude est, and mavlink debug array
 	rc_channels_s _rc_channels{};
 	vehicle_attitude_s v_att{};
+	debug_array_s _debug_array{}; //Joao changed here
+	float roll_setpoint = 0.0f;
+	float pitch_setpoint = 0.0f;
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
