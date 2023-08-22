@@ -469,7 +469,7 @@ void MulticopterPositionControl::Run()
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
 
-			if ((_param_mpc_vec_thr_en.get() == 1) && (_param_mpc_vec_thr_scl.get() >= 1.0f) && (_rc_channels.channels[5] > 0.0f)){
+			if ((_param_mpc_vec_thr_en.get() == 1) && (_param_mpc_vec_thr_scl.get() >= 1.0f)){
 
 				// float vec_thr_ang = 0.0f;
 
