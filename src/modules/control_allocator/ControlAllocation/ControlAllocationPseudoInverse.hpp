@@ -58,6 +58,8 @@ public:
 				    const ActuatorVector &actuator_trim, const ActuatorVector &linearization_point, int num_actuators,
 				    bool update_normalization_scale) override;
 
+	bool update_once = true;
+
 protected:
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _mix;
 
@@ -73,4 +75,5 @@ private:
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
 	bool _normalization_needs_update{false};
+
 };
