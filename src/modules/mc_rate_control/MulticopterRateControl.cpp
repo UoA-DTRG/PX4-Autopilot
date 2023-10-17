@@ -181,7 +181,9 @@ MulticopterRateControl::Run()
 					math::superexpo(manual_control_setpoint.r, _param_mc_acro_expo_y.get(), _param_mc_acro_supexpoy.get())};
 
 				_rates_sp = man_rate_sp.emult(_acro_rate_max);
-				_thrust_sp = math::constrain(manual_control_setpoint.z, 0.0f, 1.0f);
+				// _thrust_sp = math::constrain(manual_control_setpoint.z, 0.0f, 1.0f);
+				_thrust_sp(2) = -math::constrain(manual_control_setpoint.z, 0.0f, 1.0f);
+				_thrust_sp(0) = _thrust_sp(1) = 0.f;
 
 				// publish rate setpoint
 				vehicle_rates_setpoint_s v_rates_sp{};
@@ -190,7 +192,7 @@ MulticopterRateControl::Run()
 				v_rates_sp.yaw = _rates_sp(2);
 				v_rates_sp.thrust_body[0] = 0.0f;
 				v_rates_sp.thrust_body[1] = 0.0f;
-				v_rates_sp.thrust_body[2] = -_thrust_sp;
+				v_rates_sp.thrust_body[2] = -_thrust_sp(2);
 				v_rates_sp.timestamp = hrt_absolute_time();
 
 				_v_rates_sp_pub.publish(v_rates_sp);
@@ -204,7 +206,10 @@ MulticopterRateControl::Run()
 				_rates_sp(0) = PX4_ISFINITE(v_rates_sp.roll)  ? v_rates_sp.roll  : rates(0);
 				_rates_sp(1) = PX4_ISFINITE(v_rates_sp.pitch) ? v_rates_sp.pitch : rates(1);
 				_rates_sp(2) = PX4_ISFINITE(v_rates_sp.yaw)   ? v_rates_sp.yaw   : rates(2);
-				_thrust_sp = -v_rates_sp.thrust_body[2];
+				// _thrust_sp = -v_rates_sp.thrust_body[2];
+				_thrust_sp(0) = v_rates_sp.thrust_body[0];
+				_thrust_sp(1) = v_rates_sp.thrust_body[1];
+				_thrust_sp(2) = v_rates_sp.thrust_body[2];
 			}
 		}
 
@@ -252,7 +257,7 @@ MulticopterRateControl::Run()
 			actuators.control[actuator_controls_s::INDEX_ROLL] = PX4_ISFINITE(att_control(0)) ? att_control(0) : 0.0f;
 			actuators.control[actuator_controls_s::INDEX_PITCH] = PX4_ISFINITE(att_control(1)) ? att_control(1) : 0.0f;
 			actuators.control[actuator_controls_s::INDEX_YAW] = PX4_ISFINITE(att_control(2)) ? att_control(2) : 0.0f;
-			actuators.control[actuator_controls_s::INDEX_THROTTLE] = PX4_ISFINITE(_thrust_sp) ? _thrust_sp : 0.0f;
+			actuators.control[actuator_controls_s::INDEX_THROTTLE] = PX4_ISFINITE(_thrust_sp(2)) ? _thrust_sp(2) : 0.0f;
 			actuators.control[actuator_controls_s::INDEX_LANDING_GEAR] = _landing_gear;
 			actuators.timestamp_sample = angular_velocity.timestamp_sample;
 
@@ -313,9 +318,10 @@ void MulticopterRateControl::publishThrustSetpoint(const hrt_abstime &timestamp_
 	vehicle_thrust_setpoint_s v_thrust_sp = {};
 	v_thrust_sp.timestamp = hrt_absolute_time();
 	v_thrust_sp.timestamp_sample = timestamp_sample;
-	v_thrust_sp.xyz[0] = 0.0f;
-	v_thrust_sp.xyz[1] = 0.0f;
-	v_thrust_sp.xyz[2] = PX4_ISFINITE(_thrust_sp) ? -_thrust_sp : 0.0f; // Z is Down
+	// v_thrust_sp.xyz[0] = 0.0f;
+	// v_thrust_sp.xyz[1] = 0.0f;
+	// v_thrust_sp.xyz[2] = PX4_ISFINITE(_thrust_sp) ? -_thrust_sp : 0.0f; // Z is Down
+	_thrust_sp.copyTo(v_thrust_sp.xyz);
 
 	_vehicle_thrust_setpoint_pub.publish(v_thrust_sp);
 }

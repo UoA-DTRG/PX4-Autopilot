@@ -57,6 +57,8 @@
 #include <vtol_att_control/vtol_type.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
 
+#include <uORB/topics/rc_channels.h>
+
 #include <AttitudeControl.hpp>
 
 using namespace time_literals;
@@ -109,6 +111,8 @@ private:
 	uORB::Subscription _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};	/**< manual control setpoint subscription */
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};			/**< vehicle status subscription */
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};	/**< vehicle land detected subscription */
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	struct rc_channels_s _rc_channels{};
 
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 
