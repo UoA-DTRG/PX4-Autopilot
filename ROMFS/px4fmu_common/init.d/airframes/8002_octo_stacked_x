@@ -1,0 +1,149 @@
+#!/bin/sh
+#
+# @name Stacked Octocopter X geometry
+#
+# @type Octorotor x
+# @class Copter
+#
+# @board bitcraze_crazyflie exclude
+#
+
+
+
+. ${R}etc/init.d/rc.mc_defaults
+
+# Controller Params
+param set-default MC_ROLLRATE_K 1.3
+param set-default MC_ROLLRATE_D 0.0032
+param set-default MC_ROLLRATE_I 0.1
+param set-default MC_PITCHRATE_K 1.3
+param set-default MC_PITCHRATE_D 0.0032
+param set-default MC_PITCHRATE_I 0.1
+param set-default MC_YAWRATE_K 1
+param set-default MC_YAWRATE_I 0.08
+
+param set-default MC_ROLL_P 6.5
+param set-default MC_PITCH_P 6.5
+param set-default MC_YAW_P 1.7
+
+param set-default MPC_XY_VEL_P_ACC 4.25
+param set-default MPC_XY_VEL_I_ACC 7
+param set-default MPC_XY_VEL_D_ACC 0.4
+param set-default MPC_Z_VEL_P_ACC 4
+param set-default MPC_Z_VEL_I_ACC 2
+param set-default MPC_Z_VEL_D_ACC 0
+
+param set-default MPC_XY_P 1
+param set-default MPC_Z_P 1
+
+# Airframe Params
+# MAV_TYPE_OCTOROTOR 14
+param set-default MAV_TYPE 14
+param set-default CA_ROTOR_COUNT 8
+
+param set-default CA_ROTOR0_PX 0.0831
+param set-default CA_ROTOR0_PY 0.0937
+param set-default CA_ROTOR0_PZ -0.0625
+param set-default CA_ROTOR0_AX -0.515
+param set-default CA_ROTOR0_AY 0.00
+param set-default CA_ROTOR0_AZ -0.857
+param set-default CA_ROTOR0_CT 6.5
+param set-default CA_ROTOR0_KM 0.0
+#0.05
+
+param set-default CA_ROTOR1_PX 0.0831
+param set-default CA_ROTOR1_PY -0.0937
+param set-default CA_ROTOR1_PZ -0.0625
+param set-default CA_ROTOR1_AX -0.515
+param set-default CA_ROTOR1_AY 0.00
+param set-default CA_ROTOR1_AZ -0.857
+param set-default CA_ROTOR1_CT 6.5
+param set-default CA_ROTOR1_KM 0.0
+#-0.05
+
+param set-default CA_ROTOR2_PX -0.0831
+param set-default CA_ROTOR2_PY -0.0937
+param set-default CA_ROTOR2_PZ -0.0625
+param set-default CA_ROTOR2_AX 0.515
+param set-default CA_ROTOR2_AY 0.00
+param set-default CA_ROTOR2_AZ -0.857
+param set-default CA_ROTOR2_CT 6.5
+param set-default CA_ROTOR2_KM 0.0
+#0.05
+
+param set-default CA_ROTOR3_PX -0.0831
+param set-default CA_ROTOR3_PY 0.0937
+param set-default CA_ROTOR3_PZ -0.0625
+param set-default CA_ROTOR3_AX 0.515
+param set-default CA_ROTOR3_AY 0.00
+param set-default CA_ROTOR3_AZ -0.857
+param set-default CA_ROTOR3_CT 6.5
+param set-default CA_ROTOR3_KM 0.0
+#-0.05
+
+param set-default CA_ROTOR4_PX 0.0937
+param set-default CA_ROTOR4_PY -0.1060
+param set-default CA_ROTOR4_PZ 0.0273
+param set-default CA_ROTOR4_AX 0.00
+param set-default CA_ROTOR4_AY 0.515
+param set-default CA_ROTOR4_AZ -0.857
+param set-default CA_ROTOR4_CT 6.5
+param set-default CA_ROTOR4_KM 0.0
+#0.05
+
+param set-default CA_ROTOR5_PX 0.0937
+param set-default CA_ROTOR5_PY 0.1060
+param set-default CA_ROTOR5_PZ 0.0273
+param set-default CA_ROTOR5_AX 0.00
+param set-default CA_ROTOR5_AY -0.515
+param set-default CA_ROTOR5_AZ -0.857
+param set-default CA_ROTOR5_CT 6.5
+param set-default CA_ROTOR5_KM 0.0
+#-0.05
+
+param set-default CA_ROTOR6_PX -0.0937
+param set-default CA_ROTOR6_PY 0.1060
+param set-default CA_ROTOR6_PZ 0.0273
+param set-default CA_ROTOR6_AX 0.00
+param set-default CA_ROTOR6_AY -0.515
+param set-default CA_ROTOR6_AZ -0.857
+param set-default CA_ROTOR6_CT 6.5
+param set-default CA_ROTOR6_KM 0.0
+#0.05
+
+param set-default CA_ROTOR7_PX -0.0937
+param set-default CA_ROTOR7_PY -0.1060
+param set-default CA_ROTOR7_PZ 0.0273
+param set-default CA_ROTOR7_AX 0.00
+param set-default CA_ROTOR7_AY 0.515
+param set-default CA_ROTOR7_AZ -0.857
+param set-default CA_ROTOR7_CT 6.5
+param set-default CA_ROTOR7_KM 0.0
+#-0.05
+
+# MAIN OUTPUT Values
+param set-default PWM_MAIN_MIN1 1050
+param set-default PWM_MAIN_MIN2 1050
+param set-default PWM_MAIN_MIN3 1050
+param set-default PWM_MAIN_MIN4 1050
+param set-default PWM_MAIN_MIN5 1050
+param set-default PWM_MAIN_MIN6 1050
+param set-default PWM_MAIN_MIN7 1050
+param set-default PWM_MAIN_MIN8 1050
+
+param set-default PWM_MAIN_FUNC1 101
+param set-default PWM_MAIN_FUNC2 102
+param set-default PWM_MAIN_FUNC3 103
+param set-default PWM_MAIN_FUNC4 104
+param set-default PWM_MAIN_FUNC5 105
+param set-default PWM_MAIN_FUNC6 106
+param set-default PWM_MAIN_FUNC7 107
+param set-default PWM_MAIN_FUNC8 108
+
+#Other Params
+param set-default SER_TEL1_BAUD 115200
+param set-default SYS_CTRL_ALLOC 1
+param set-default EKF2_AID_MASK 24
+param set-default EKF2_HGT_MODE 3
+param set-default COM_DISARM_PRFLT -1
+param set-default COM_DISARM_LAND -1
