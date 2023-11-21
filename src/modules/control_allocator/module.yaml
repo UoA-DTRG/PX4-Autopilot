@@ -11,7 +11,8 @@ parameters:
             description:
                 short: Mixer CSV Overide
                 long: |
-                  Skips the Gen Inverse method for generating mixing matrix from effectiveness / geometry and reads matrix from csv file stored on the SD card with path "".
+                  Skips the Gen Inverse method for generating mixing matrix from effectiveness / geometry and reads
+                  matrix from csv file stored on the SD card with path "/etc/mixer.csv".
             type: enum
             values:
                 0: Disabled
