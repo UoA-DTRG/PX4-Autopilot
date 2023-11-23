@@ -818,25 +818,34 @@ int ControlAllocator::print_status()
 		PX4_WARN("Error: Could not open the mixer file");
 
 	} else {
-		char value[100]; // Adjust size as needed
+		char value[100]; //  just needs to be rougly > 70
 		int row = 0;
 
 		while (row < NUM_ACTUATORS && fgets(value, sizeof(value), file) != NULL) {
+			size_t len = strlen(value);
+
+			// Check and remove newline character if present
+			if (len > 0 && value[len - 1] == '\n') {
+				value[len - 1] = '\0';
+			}
+
 			// strtok function is used to split the string into tokens
 			char *token = strtok(value, ",");
 			int col = 0;
 
-			while (token != NULL) {
+			while (token != NULL && col < NUM_AXES) {
 				if (strlen(token) > 0) {
-					printf("%s\n", token);
-					mixer(row, col) = atof(token);
+					printf("Row %d, Col %d: %0.8f\n", row, col, strtod(token, nullptr));
+					mixer(row, col) =  strtod(token, nullptr);
 				}
 
 				token = strtok(NULL, ",");
 				col++;
 			}
 
-			row++;
+			if (col > 0) { //row protection
+				row++;
+			}
 		}
 	}
 
@@ -898,7 +907,7 @@ int ControlAllocator::print_status()
 	// 	const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
 
 	// 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> mixer;
-	matrix::geninv(effectiveness, mixer);
+	// matrix::geninv(effectiveness, mixer);
 
 	// 	if (_num_control_allocation > 1) {
 	// 		PX4_INFO("Instance: %i", i);
@@ -917,7 +926,7 @@ int ControlAllocator::print_status()
 
 
 	// Print perf
-	perf_print_counter(_loop_perf);
+	// perf_print_counter(_loop_perf);
 
 	return 0;
 }
