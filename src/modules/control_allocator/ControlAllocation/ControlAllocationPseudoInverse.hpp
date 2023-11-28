@@ -47,7 +47,11 @@
 
 #include "ControlAllocation.hpp"
 
-class ControlAllocationPseudoInverse: public ControlAllocation
+#include <px4_platform_common/module_params.h>
+#include <uORB/topics/parameter_update.h>
+#include <uORB/topics/parameter_update.h>
+
+class ControlAllocationPseudoInverse: public ControlAllocation, public ModuleParams
 {
 public:
 	ControlAllocationPseudoInverse() = default;
@@ -57,7 +61,10 @@ public:
 	void setEffectivenessMatrix(const matrix::Matrix<float, NUM_AXES, NUM_ACTUATORS> &effectiveness,
 				    const ActuatorVector &actuator_trim, const ActuatorVector &linearization_point, int num_actuators,
 				    bool update_normalization_scale) override;
+	bool readMixerFromCSV(const char *filename,
+			      matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
 
+	bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
 protected:
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _mix;
 
@@ -73,4 +80,12 @@ private:
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
 	bool _normalization_needs_update{false};
+
+	void parameters_updated();
+
+	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
+
+	DEFINE_PARAMETERS(
+		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer
+	);
 };

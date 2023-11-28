@@ -798,93 +798,10 @@ int ControlAllocator::print_status()
 		PX4_INFO("Effectiveness Source: %s", _actuator_effectiveness->name());
 	}
 
-
-
-
-
 	//Is Overide Used
 	PX4_INFO("DTRG CSV OVERIDE IS %s", (_csv_mixer.get() == 1) ? "Enabled" : "Disabled");
 
-	// Specify the CSV file path
-	const char *filename = "/fs/microsd/etc/mixer.csv";
-	//create matrix
-	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> mixer;
-	// Open the CSV file
-	FILE *file = fopen(filename, "r");
-
-	if (file == NULL) {
-		PX4_WARN("Error: Could not open the mixer file");
-
-	} else {
-		char value[100]; //  just needs to be rougly > 70
-		int row = 0;
-
-		while (row < NUM_ACTUATORS && fgets(value, sizeof(value), file) != NULL) {
-			size_t len = strlen(value);
-
-			// Check and remove newline character if present
-			if (len > 0 && value[len - 1] == '\n') {
-				value[len - 1] = '\0';
-			}
-
-			// Check and remove BOM
-			if (row == 0 && len > 3 && (uint8_t)value[0] == 0xEF && (uint8_t)value[1] == 0xBB && (uint8_t)value[2] == 0xBF) {
-				// This is a UTF-8 BOM
-				len -= 3;
-				memmove(value, &value[3], len);
-			}
-
-			// strtok function is used to split the string into tokens
-			char *token = strtok(value, ",");
-			int col = 0;
-
-			while (token != NULL && col < NUM_AXES) {
-				if (strlen(token) > 0) {
-					printf("Row %d, Col %d: %f\n", row, col, strtod(token, NULL));
-					mixer(row, col) =  strtof(token, NULL);
-				}
-
-				token = strtok(NULL, ",");
-				col++;
-			}
-
-			if (col > 0) { //row protection
-				row++;
-			}
-		}
-	}
-
-
-	// Read data from the CSV file and populate the matrix
-	// for (int row = 0; row < NUM_ACTUATORS; ++row) {
-	// 	for (int col = 0; col < NUM_AXES; ++col) {
-
-	// 		if (fscanf(file, "%f", &mixerMatrix(row, col)) != 1) {
-	// 			PX4_WARN("Error reading from CSV file");
-	// 			break;
-	// 		}
-
-	// 		// Check for the delimiter (comma) and consume it
-	// 		if (col < NUM_AXES - 1) {
-	// 			char comma;
-
-	// 			if (fscanf(file, " %c", &comma) != 1 || comma != ',') {
-	// 				PX4_WARN("Error: Expected comma as delimiter");
-	// 				break;
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// Close the file
-	fclose(file);
-
-	// Display the imported matrix
-	PX4_INFO("Imported Matrix:");
-	mixer.T().print();
-
-
-
+	//todo update this to actually print the _mix matrix from the ControlAllocation
 	// Print current effectiveness matrix
 	// for (int i = 0; i < _num_control_allocation; ++i) {
 	// const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
