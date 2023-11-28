@@ -807,10 +807,8 @@ int ControlAllocator::print_status()
 
 	// Specify the CSV file path
 	const char *filename = "/fs/microsd/etc/mixer.csv";
-
-
+	//create matrix
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> mixer;
-
 	// Open the CSV file
 	FILE *file = fopen(filename, "r");
 
@@ -829,14 +827,21 @@ int ControlAllocator::print_status()
 				value[len - 1] = '\0';
 			}
 
+			// Check and remove BOM
+			if (row == 0 && len > 3 && (uint8_t)value[0] == 0xEF && (uint8_t)value[1] == 0xBB && (uint8_t)value[2] == 0xBF) {
+				// This is a UTF-8 BOM
+				len -= 3;
+				memmove(value, &value[3], len);
+			}
+
 			// strtok function is used to split the string into tokens
 			char *token = strtok(value, ",");
 			int col = 0;
 
 			while (token != NULL && col < NUM_AXES) {
 				if (strlen(token) > 0) {
-					printf("Row %d, Col %d: %0.8f\n", row, col, strtod(token, nullptr));
-					mixer(row, col) =  strtod(token, nullptr);
+					printf("Row %d, Col %d: %f\n", row, col, strtod(token, NULL));
+					mixer(row, col) =  strtof(token, NULL);
 				}
 
 				token = strtok(NULL, ",");
