@@ -42,19 +42,6 @@
 #include <cstdlib>
 #include "ControlAllocationPseudoInverse.hpp"
 
-void ControlAllocationPseudoInverse::parameters_updated()
-{
-	if (_parameter_update_sub.updated()) {
-		parameter_update_s param_update;
-		_parameter_update_sub.copy(&param_update);
-
-		// If any parameter updated, call updateParams() to check if
-		// this class attributes need updating (and do so).
-		updateParams();
-	}
-}
-
-
 void
 ControlAllocationPseudoInverse::setEffectivenessMatrix(
 	const matrix::Matrix<float, ControlAllocation::NUM_AXES, ControlAllocation::NUM_ACTUATORS> &effectiveness,
@@ -74,7 +61,7 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		//csv ovveride
 		if (_csv_mixer.get()) {
 			// PX4_INFO("loading mixer from csv file using DTRG mixer override");
-			if (readMixerFromCSV(_csv_mixer.get(), _mix)) {
+			if (readMixerFromCSV("/fs/microsd/etc/mixer.csv", _mix)) {
 				_normalization_needs_update = false; //check if this is desired
 
 			} else {
@@ -104,6 +91,7 @@ ControlAllocationPseudoInverse::readMixerFromCSV(const char *filename,
 
 	if (file == NULL) {
 		// PX4_WARN("Error: Could not open the mixer file");
+		return 0;
 
 	} else {
 		char value[100]; //  just needs to be rougly > 70
@@ -146,6 +134,7 @@ ControlAllocationPseudoInverse::readMixerFromCSV(const char *filename,
 
 	// Close the file
 	fclose(file);
+	return 1;
 
 }
 

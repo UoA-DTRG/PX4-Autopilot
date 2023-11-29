@@ -49,12 +49,12 @@
 
 #include <px4_platform_common/module_params.h>
 #include <uORB/topics/parameter_update.h>
-#include <uORB/topics/parameter_update.h>
+
 
 class ControlAllocationPseudoInverse: public ControlAllocation, public ModuleParams
 {
 public:
-	ControlAllocationPseudoInverse() = default;
+	ControlAllocationPseudoInverse() : ModuleParams(nullptr) {};
 	virtual ~ControlAllocationPseudoInverse() = default;
 
 	void allocate() override;
@@ -76,16 +76,15 @@ protected:
 	 */
 	void updatePseudoInverse();
 
+	void updateParams() override { ModuleParams::updateParams(); }
+
 private:
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
 	bool _normalization_needs_update{false};
 
-	void parameters_updated();
-
-	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
-
-	DEFINE_PARAMETERS(
+	DEFINE_PARAMETERS_CUSTOM_PARENT(
+		ControlAllocationPseudoInverse,
 		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer
 	);
 };
