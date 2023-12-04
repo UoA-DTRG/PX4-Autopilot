@@ -801,50 +801,58 @@ int ControlAllocator::print_status()
 	//Is Overide Used
 	PX4_INFO("DTRG CSV OVERIDE IS %s", (_csv_mixer.get() == 1) ? "Enabled" : "Disabled");
 
-	//todo update this to actually print the _mix matrix from the ControlAllocation
-	// Print current effectiveness matrix
-	// for (int i = 0; i < _num_control_allocation; ++i) {
-	// const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
+	///Print current effectiveness matrix
+	for (int i = 0; i < _num_control_allocation; ++i) {
+		const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
 
-	// 	if (_num_control_allocation > 1) {
-	// 		PX4_INFO("Instance: %i", i);
-	// 	}
+		if (_num_control_allocation > 1) {
+			PX4_INFO("Instance: %i", i);
+		}
 
-	// 	PX4_INFO("  Effectiveness.T =");
-	// 	effectiveness.T().print();
-	// 	PX4_INFO("  minimum =");
-	// 	_control_allocation[i]->getActuatorMin().T().print();
-	// 	PX4_INFO("  maximum =");
-	// 	_control_allocation[i]->getActuatorMax().T().print();
-	// 	PX4_INFO("  Configured actuators: %i", _control_allocation[i]->numConfiguredActuators());
-	// }
+		PX4_INFO("  Effectiveness.T =");
+		effectiveness.T().print();
+		PX4_INFO("  minimum =");
+		_control_allocation[i]->getActuatorMin().T().print();
+		PX4_INFO("  maximum =");
+		_control_allocation[i]->getActuatorMax().T().print();
+		PX4_INFO("  Configured actuators: %i", _control_allocation[i]->numConfiguredActuators());
+	}
 
-	// if (_handled_motor_failure_bitmask) {
-	// 	PX4_INFO("Failed motors: %i (0x%x)", math::countSetBits(_handled_motor_failure_bitmask),
-	// 		 _handled_motor_failure_bitmask);
-	// }
+	if (_handled_motor_failure_bitmask) {
+		PX4_INFO("Failed motors: %i (0x%x)", math::countSetBits(_handled_motor_failure_bitmask),
+			 _handled_motor_failure_bitmask);
+	}
 
-	// Print current effectiveness matrix
-	// for (int i = 0; i < _num_control_allocation; ++i) {
-	// 	const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
 
-	// 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> mixer;
-	// matrix::geninv(effectiveness, mixer);
 
-	// 	if (_num_control_allocation > 1) {
-	// 		PX4_INFO("Instance: %i", i);
-	// 	}
+	// Print current mixer matrix
+	for (int i = 0; i < _num_control_allocation; ++i) {
+		matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> mixer;
 
-	// 	PX4_INFO("  Effectiveness transpose=");
-	// 	effectiveness.T().print();
-	// 	PX4_INFO("PX4 C++ Mixer transpose=");
-	// 	mixer.T().print();
-	// 	PX4_INFO("Actuator minimum =");
-	// 	_control_allocation[i]->getActuatorMin().T().print();
-	// 	PX4_INFO("Actuator maximum =");
-	// 	_control_allocation[i]->getActuatorMax().T().print();
-	// 	PX4_INFO("num of Configured actuators= %i", _control_allocation[i]->numConfiguredActuators());
-	// }
+		if (_csv_mixer.get() == 1) {
+			if (!_control_allocation[i]->getMixer(mixer)) {
+				PX4_ERR("Failed to get csv mixer");
+			}
+
+		} else {
+			const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
+			matrix::geninv(effectiveness, mixer);
+		}
+
+		if (_num_control_allocation > 1) {
+			PX4_INFO("Instance: %i", i);
+		}
+
+		PX4_INFO("PX4 C++ Mixer transpose=");
+		mixer.T().print();
+
+		//sort out what to do with minimums and maximums for the csv mixer
+		// PX4_INFO("Actuator minimum =");
+		// _control_allocation[i]->getActuatorMin().T().print();
+		// PX4_INFO("Actuator maximum =");
+		// _control_allocation[i]->getActuatorMax().T().print();
+		// PX4_INFO("num of Configured actuators= %i", _control_allocation[i]->numConfiguredActuators());
+	}
 
 
 	// Print perf

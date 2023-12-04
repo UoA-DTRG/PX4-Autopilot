@@ -138,6 +138,17 @@ ControlAllocationPseudoInverse::readMixerFromCSV(const char *filename,
 
 }
 
+bool
+ControlAllocationPseudoInverse::getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer)
+{
+	if (_mix_update_needed) {
+		updatePseudoInverse();
+	}
+
+	mixer = _mix;
+	return true;
+}
+
 void
 ControlAllocationPseudoInverse::updateControlAllocationMatrixScale()
 {
