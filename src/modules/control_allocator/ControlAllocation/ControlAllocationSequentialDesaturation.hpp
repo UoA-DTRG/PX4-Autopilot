@@ -51,7 +51,7 @@ class ControlAllocationSequentialDesaturation: public ControlAllocationPseudoInv
 {
 public:
 
-	ControlAllocationSequentialDesaturation();
+	ControlAllocationSequentialDesaturation() = default;
 	virtual ~ControlAllocationSequentialDesaturation() = default;
 
 	void allocate() override;
