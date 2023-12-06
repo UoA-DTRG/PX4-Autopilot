@@ -64,7 +64,7 @@ public:
 	bool readMixerFromCSV(const char *filename,
 			      matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
 
-	bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
+	bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) final;
 protected:
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _mix;
 
@@ -84,7 +84,7 @@ private:
 	bool _normalization_needs_update{false};
 
 	DEFINE_PARAMETERS_CUSTOM_PARENT(
-		ControlAllocationPseudoInverse,
+		ModuleParams,
 		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer
 	);
 };
