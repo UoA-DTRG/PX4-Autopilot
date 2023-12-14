@@ -62,7 +62,11 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		if (_csv_mixer.get()) {
 			// PX4_INFO("loading mixer from csv file using DTRG mixer override");
 			if (readMixerFromCSV("/fs/microsd/etc/mixer.csv", _mix)) {
-				_normalization_needs_update = false; //check if this is desired
+				//check for disabled normalization
+				if (!_mixer_normalization.get()) {
+					// PX4_INFO("mixer normalization disabled");
+					_normalization_needs_update = false;
+				}
 
 			} else {
 				// PX4_ERR("failed to load mixer from csv file");
@@ -79,6 +83,7 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 
 		normalizeControlAllocationMatrix();
 		_mix_update_needed = false;
+
 	}
 }
 

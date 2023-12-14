@@ -85,6 +85,7 @@ private:
 
 	DEFINE_PARAMETERS_CUSTOM_PARENT(
 		ModuleParams,
-		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer
+		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer,
+		(ParamInt<px4::params::DTRG_MIXER_NORM>) _mixer_normalization
 	);
 };

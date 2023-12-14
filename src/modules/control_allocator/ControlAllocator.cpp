@@ -829,15 +829,15 @@ int ControlAllocator::print_status()
 	for (int i = 0; i < _num_control_allocation; ++i) {
 		matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> mixer;
 
-		if (_csv_mixer.get() == 1) {
-			if (!_control_allocation[i]->getMixer(mixer)) {
-				PX4_ERR("Failed to get csv mixer");
-			}
-
-		} else {
-			const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
-			matrix::geninv(effectiveness, mixer);
+		// if (_csv_mixer.get() == 1) {
+		if (!_control_allocation[i]->getMixer(mixer)) {
+			PX4_ERR("Failed to get csv mixer");
 		}
+
+		// } else {
+		// 	const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = _control_allocation[i]->getEffectivenessMatrix();
+		// 	matrix::geninv(effectiveness, mixer);
+		// }
 
 		if (_num_control_allocation > 1) {
 			PX4_INFO("Instance: %i", i);

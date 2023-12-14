@@ -18,7 +18,16 @@ parameters:
                 0: Disabled
                 1: Enabled
             default: 0
-
+        DTRG_MIXER_NORM:
+            description:
+                short: Mixer Normalisation
+                long: |
+                  Enables / Disables control matrix normalization for the DTRG CSV Mixer (only)
+            type: enum
+            values:
+                0: Disabled
+                1: Enabled
+            default: 0
         CA_AIRFRAME:
             description:
                 short: Airframe selection
