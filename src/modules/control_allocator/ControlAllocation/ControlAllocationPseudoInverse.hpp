@@ -47,17 +47,24 @@
 
 #include "ControlAllocation.hpp"
 
-class ControlAllocationPseudoInverse: public ControlAllocation
+#include <px4_platform_common/module_params.h>
+#include <uORB/topics/parameter_update.h>
+
+
+class ControlAllocationPseudoInverse: public ControlAllocation, public ModuleParams
 {
 public:
-	ControlAllocationPseudoInverse() = default;
+	ControlAllocationPseudoInverse() : ModuleParams(nullptr) {};
 	virtual ~ControlAllocationPseudoInverse() = default;
 
 	void allocate() override;
 	void setEffectivenessMatrix(const matrix::Matrix<float, NUM_AXES, NUM_ACTUATORS> &effectiveness,
 				    const ActuatorVector &actuator_trim, const ActuatorVector &linearization_point, int num_actuators,
 				    bool update_normalization_scale) override;
+	bool readMixerFromCSV(const char *filename,
+			      matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
 
+	bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) final;
 protected:
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _mix;
 
@@ -69,8 +76,16 @@ protected:
 	 */
 	void updatePseudoInverse();
 
+	void updateParams() override { ModuleParams::updateParams(); }
+
 private:
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
 	bool _normalization_needs_update{false};
+
+	DEFINE_PARAMETERS_CUSTOM_PARENT(
+		ModuleParams,
+		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer,
+		(ParamInt<px4::params::DTRG_MIXER_NORM>) _mixer_normalization
+	);
 };

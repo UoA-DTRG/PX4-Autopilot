@@ -38,7 +38,8 @@
  *
  * @author Julien Lecoeur <julien.lecoeur@gmail.com>
  */
-
+#include <cstdio>
+#include <cstdlib>
 #include "ControlAllocationPseudoInverse.hpp"
 
 void
@@ -57,7 +58,23 @@ void
 ControlAllocationPseudoInverse::updatePseudoInverse()
 {
 	if (_mix_update_needed) {
-		matrix::geninv(_effectiveness, _mix);
+		//csv ovveride
+		if (_csv_mixer.get()) {
+			// PX4_INFO("loading mixer from csv file using DTRG mixer override");
+			if (readMixerFromCSV("/fs/microsd/etc/mixer.csv", _mix)) {
+				//check for disabled normalization
+				if (!_mixer_normalization.get()) {
+					// PX4_INFO("mixer normalization disabled");
+					_normalization_needs_update = false;
+				}
+
+			} else {
+				// PX4_ERR("failed to load mixer from csv file");
+			}
+
+		} else {
+			matrix::geninv(_effectiveness, _mix);
+		}
 
 		if (_normalization_needs_update && !_had_actuator_failure) {
 			updateControlAllocationMatrixScale();
@@ -66,7 +83,75 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 
 		normalizeControlAllocationMatrix();
 		_mix_update_needed = false;
+
 	}
+}
+
+bool
+ControlAllocationPseudoInverse::readMixerFromCSV(const char *filename,
+		matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer)
+{
+	// Open the CSV file
+	FILE *file = fopen(filename, "r");
+
+	if (file == NULL) {
+		// PX4_WARN("Error: Could not open the mixer file");
+		return 0;
+
+	} else {
+		char value[100]; //  just needs to be rougly > 70
+		int row = 0;
+
+		while (row < NUM_ACTUATORS && fgets(value, sizeof(value), file) != NULL) {
+			size_t len = strlen(value);
+
+			// Check and remove newline character if present
+			if (len > 0 && value[len - 1] == '\n') {
+				value[len - 1] = '\0';
+			}
+
+			// Check and remove BOM
+			if (row == 0 && len > 3 && (uint8_t)value[0] == 0xEF && (uint8_t)value[1] == 0xBB && (uint8_t)value[2] == 0xBF) {
+				// This is a UTF-8 BOM
+				len -= 3;
+				memmove(value, &value[3], len);
+			}
+
+			// strtok function is used to split the string into tokens
+			char *token = strtok(value, ",");
+			int col = 0;
+
+			while (token != NULL && col < NUM_AXES) {
+				if (strlen(token) > 0) {
+					printf("Row %d, Col %d: %f\n", row, col, strtod(token, NULL));
+					mixer(row, col) =  strtof(token, NULL);
+				}
+
+				token = strtok(NULL, ",");
+				col++;
+			}
+
+			if (col > 0) { //row protection
+				row++;
+			}
+		}
+	}
+
+	// Close the file
+	fclose(file);
+	return 1;
+
+}
+
+bool
+ControlAllocationPseudoInverse::getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer)
+{
+	if (_mix_update_needed) {
+		updatePseudoInverse();
+	}
+
+	mixer = _mix;
+	return true;
 }
 
 void

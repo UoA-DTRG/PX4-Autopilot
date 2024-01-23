@@ -7,6 +7,27 @@ module_name: Control Allocation
 parameters:
     - group: Geometry
       definitions:
+        DTRG_CSV_MIXER:
+            description:
+                short: Mixer CSV Overide
+                long: |
+                  Skips the Gen Inverse method for generating mixing matrix from effectiveness / geometry and reads
+                  matrix from csv file stored on the SD card with path "/etc/mixer.csv".
+            type: enum
+            values:
+                0: Disabled
+                1: Enabled
+            default: 0
+        DTRG_MIXER_NORM:
+            description:
+                short: Mixer Normalisation
+                long: |
+                  Enables / Disables control matrix normalization for the DTRG CSV Mixer (only)
+            type: enum
+            values:
+                0: Disabled
+                1: Enabled
+            default: 0
         CA_AIRFRAME:
             description:
                 short: Airframe selection

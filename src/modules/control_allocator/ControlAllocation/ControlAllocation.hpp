@@ -228,6 +228,9 @@ public:
 
 	void setNormalizeRPY(bool normalize_rpy) { _normalize_rpy = normalize_rpy; }
 
+	//used by print status to get actual used mixer
+	virtual bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) = 0;
+
 protected:
 	friend class ControlAllocator; // for _actuator_sp
 
