@@ -64,6 +64,18 @@
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/vehicle_torque_setpoint.h>
 
+//========== omnirotor includes ===============//
+#include <uORB/topics/rc_channels.h>
+#include <uORB/topics/debug_key_value.h>
+#include <uORB/topics/debug_value.h>
+#include <uORB/topics/debug_vect.h>
+#include <uORB/topics/debug_array.h>
+// #include <lib/ecl/AlphaFilter/AlphaFilter.hpp>
+#include <uORB/topics/vehicle_local_position_setpoint.h>
+// #include <uORB/topics/vehicle_attitude_setpoint.h>
+#include <uORB/topics/vehicle_attitude.h>
+//========== omnirotor includes END ===========//
+
 using namespace time_literals;
 
 class MulticopterRateControl : public ModuleBase<MulticopterRateControl>, public ModuleParams, public px4::WorkItem
@@ -119,10 +131,50 @@ private:
 	uORB::Publication<vehicle_thrust_setpoint_s>	_vehicle_thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::Publication<vehicle_torque_setpoint_s>	_vehicle_torque_setpoint_pub{ORB_ID(vehicle_torque_setpoint)};
 
+	//========== omnirotor subscriptions ===================//
+	uORB::Subscription _debug_vect_sub{ORB_ID(debug_vect)};
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	uORB::Subscription _vehicle_local_position_setpoint_sub{ORB_ID(vehicle_local_position_setpoint)};
+	// uORB::Subscription _vehicle_attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
+	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
+	//========== omnirotor subscriptions END ===============//
+
+	//========== omnirotor publications ===================//
+	uORB::Publication<debug_vect_s>			_debug_vect_pub{ORB_ID(debug_vect)};
+	//========== omnirotor publications END ===============//
+
 	orb_advert_t _mavlink_log_pub{nullptr};
 
 	vehicle_control_mode_s		_v_control_mode{};
 	vehicle_status_s		_vehicle_status{};
+
+	//========== omnirotor uORB msg structures ===================//
+	debug_vect_s			_dynxls{};     //incoming current setpoint
+	debug_vect_s			_dynxls_d{};   //desired setpoint
+	double dyxl_pos1 = 0;
+	double dyxl_pos2 = 0;
+	double grd_mode_pos1_old = 0;
+	double grd_mode_pos2_old = 0;
+	double grd_mode_pos2_next_vertical = 0;
+	double dyxl_pos1_d = 0;
+	double dyxl_pos2_d = 0;
+	// AlphaFilter<float> pos_fork_filter{};
+	rc_channels_s			_rc_channels{};
+	// vehicle_local_position_setpoint_s _local_pos_setpoint{};
+	vehicle_local_position_setpoint_s _local_pos_setpoint{};
+	vehicle_attitude_s vehicle_att{};
+	//========== omnirotor uORB msg structures END ===============//
+	//========== omnirotor functions ===================//
+	void update_dynxl_pos();
+	matrix::Vector3f torque_CG_map_inv(matrix::Vector3f Ce_ang_);
+	matrix::Vector3f rotor_IK_no_sing(matrix::Vector3f T_d_);
+	void inverted_ctrl(matrix::Vector3f att_control_);
+	void hanging_ctrl(matrix::Vector3f att_control_);
+	void ground_ctrl(matrix::Vector3f att_control_);
+	void ground_ctrl_position(matrix::Vector3f att_control_);
+	void free_rotation_ctrl(matrix::Vector3f att_control_);
+	void ground_restore(matrix::Vector3f att_control_);
+	//========== omnirotor functions END ===============//
 
 	bool _actuators_0_circuit_breaker_enabled{false};	/**< circuit breaker to suppress output */
 	bool _landed{true};

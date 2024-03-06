@@ -98,7 +98,7 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		normalizeControlAllocationMatrix();
 		_mix_update_needed = false;
 
-		PX4_INFO("Passed at update");
+		// PX4_INFO("Passed at update");
 	}
 }
 

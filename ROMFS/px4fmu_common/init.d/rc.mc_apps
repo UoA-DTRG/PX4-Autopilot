@@ -82,3 +82,6 @@ mc_pos_control start
 # Start Multicopter Land Detector.
 #
 land_detector start multicopter
+
+#start dynamixel
+# dynamixel_serial start

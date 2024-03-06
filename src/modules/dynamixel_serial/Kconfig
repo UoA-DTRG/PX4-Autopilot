@@ -1,0 +1,5 @@
+menuconfig MODULES_DYNAMIXEL_SERIAL
+	bool "dynamixel_serial"
+	default n
+	---help---
+		Enable support for dynamixel_serial

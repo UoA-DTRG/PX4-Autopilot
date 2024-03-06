@@ -213,6 +213,16 @@ MulticopterRateControl::Run()
 			}
 		}
 
+		//==================================================================//
+		//============== here starts your main code/loop ===================//
+		//=== check your subscription here
+		//get update on dynamixels' position
+		update_dynxl_pos();
+		//read the rc channels you need
+		_rc_channels_sub.update(&_rc_channels);
+		//put channel 8 value into debug vector
+		//_dynxls_d.x = _rc_channels.channels[5];
+
 		// run the rate controller
 		if (_v_control_mode.flag_control_rates_enabled && !_actuators_0_circuit_breaker_enabled) {
 
@@ -245,6 +255,20 @@ MulticopterRateControl::Run()
 
 			// run rate controller
 			const Vector3f att_control = _rate_control.update(rates, _rates_sp, angular_accel, dt, _maybe_landed || _landed);
+			Vector3f u;
+			if ((_rc_channels.channels[5] > (float)-0.1))
+			{
+				_dynxls_d.x = _rc_channels.channels[1];
+				_dynxls_d.y = _rc_channels.channels[3];
+				_dynxls_d.z = 1;
+				_dynxls_d.timestamp = hrt_absolute_time();
+				_debug_vect_pub.publish(_dynxls_d);
+				// PX4_INFO("rc 2: %5.2f", (double)_dynxls_d.x);
+				// PX4_INFO("rc 4: %5.2f", (double)_dynxls_d.y);
+			}
+
+			//==================================================================//
+			//============== here ENDS your main code/loop ===================//
 
 			// publish rate controller status
 			rate_ctrl_status_s rate_ctrl_status{};
@@ -383,6 +407,18 @@ int MulticopterRateControl::task_spawn(int argc, char *argv[])
 int MulticopterRateControl::custom_command(int argc, char *argv[])
 {
 	return print_usage("unknown command");
+}
+
+void MulticopterRateControl::update_dynxl_pos()
+{
+	if (_debug_vect_sub.update(&_dynxls))
+	{
+			if (_dynxls.z >= (float)1.95 && _dynxls.z <= (float)2.05)
+			{
+				// dyxl_pos1 = _dynxls.x;
+				// dyxl_pos2 = _dynxls.y; //If not commentted, it stops working.
+			}
+	}
 }
 
 int MulticopterRateControl::print_usage(const char *reason)
