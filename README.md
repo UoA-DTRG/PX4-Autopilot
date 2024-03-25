@@ -1,5 +1,5 @@
 # DTRG - PX4 Autopilot Firmware
-<a href="https://dtrg.org" style="padding:20px" ><img src="https://dtrg.org/wp-content/uploads/2023/03/drone_logo-v2-300x81.png" alt="DTRG Logo" width="110px"/></a>
+<a href="https://dtrg.org" style="padding:20px" ><img src="https://dtrg.org/wp-content/uploads/2023/03/drone_logo-v2-300x81.png" alt="DTRG Logo" width="250px"/></a>
 
 This repository holds the [DTRG](https://dtrg.org/) fork of the [PX4](http://px4.io) flight control solution for drones, with the main applications located in the [src/modules](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules) directory. It also contains the PX4 Drone Middleware Platform, which provides drivers and middleware to run drones.
 
