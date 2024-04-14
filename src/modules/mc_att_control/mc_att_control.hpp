@@ -54,6 +54,7 @@
 #include <uORB/topics/vehicle_rates_setpoint.h>
 #include <uORB/topics/vehicle_status.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
+#include <uORB/topics/rc_channels.h>
 
 #include <AttitudeControl.hpp>
 
@@ -103,6 +104,10 @@ private:
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 
+	//for horitontal thrust switch
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	struct rc_channels_s _rc_channels{};
+
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 
 	uORB::Publication<vehicle_rates_setpoint_s>     _vehicle_rates_setpoint_pub{ORB_ID(vehicle_rates_setpoint)};    /**< rate setpoint publication */
@@ -133,6 +138,8 @@ private:
 
 	uint8_t _quat_reset_counter{0};
 
+
+	//TODO implement param for horiztonal thrust switch
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::MC_AIRMODE>)         _param_mc_airmode,
 		(ParamFloat<px4::params::MC_MAN_TILT_TAU>)  _param_mc_man_tilt_tau,

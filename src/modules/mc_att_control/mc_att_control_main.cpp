@@ -167,10 +167,29 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 		AttitudeControlMath::correctTiltSetpointForYawError(q_sp_rp, q, q_sp_yaw);
 	}
 
+	//DTRG horizontal thrust switch
+	//TODO implement param check
+	_rc_channels_sub.update(&_rc_channels);
+	if (_rc_channels.channels[5] < (float)0.2)
+	{
+		//Do nothing
+		// PX4_INFO("Passed at do nothing");
+	}
+	else
+	{
+		//
+		attitude_setpoint.roll_body = 0;
+		attitude_setpoint.pitch_body = 0;
+		// PX4_INFO("Passed at flat");
+	}
+
+
+
 	// Align the desired tilt with the yaw setpoint
 	Quatf q_sp = q_sp_yaw * q_sp_rp;
 
 	q_sp.copyTo(attitude_setpoint.q_d);
+
 
 	// Transform to euler angles for logging only
 	const Eulerf euler_sp(q_sp);
@@ -178,6 +197,8 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	attitude_setpoint.pitch_body = euler_sp(1);
 	attitude_setpoint.yaw_body = euler_sp(2);
 
+	attitude_setpoint.thrust_body[0] = _manual_control_setpoint.x * _man_tilt_max;
+	attitude_setpoint.thrust_body[1] = _manual_control_setpoint.y * _man_tilt_max;
 	attitude_setpoint.thrust_body[2] = -throttle_curve((_manual_control_setpoint.throttle + 1.f) * .5f);
 	attitude_setpoint.timestamp = hrt_absolute_time();
 
