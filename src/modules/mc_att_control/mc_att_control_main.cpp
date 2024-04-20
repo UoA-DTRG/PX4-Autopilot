@@ -197,8 +197,8 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	attitude_setpoint.pitch_body = euler_sp(1);
 	attitude_setpoint.yaw_body = euler_sp(2);
 
-	attitude_setpoint.thrust_body[0] = _manual_control_setpoint.x * _man_tilt_max;
-	attitude_setpoint.thrust_body[1] = _manual_control_setpoint.y * _man_tilt_max;
+	attitude_setpoint.thrust_body[0] = _manual_control_setpoint.roll * _man_tilt_max;
+	attitude_setpoint.thrust_body[1] = _manual_control_setpoint.pitch * _man_tilt_max;
 	attitude_setpoint.thrust_body[2] = -throttle_curve((_manual_control_setpoint.throttle + 1.f) * .5f);
 	attitude_setpoint.timestamp = hrt_absolute_time();
 

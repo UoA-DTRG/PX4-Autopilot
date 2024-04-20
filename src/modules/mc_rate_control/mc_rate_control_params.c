@@ -44,13 +44,11 @@
  *
  * Enable the horizontal thrust control for manual flight. Roll and pitch stick inputs will be used to control horizontal thrust.
  *
- * 0 Off
- * 1 On
- *
+ * @reboot_required true
  * @boolean
  * @group DTRG
  */
-PARAM_DEFINE_INT32(MC_DTRG_H_T, 0);
+PARAM_DEFINE_INT32(MC_DTRG_HT_EN, 0);
 /**
  * DTRG Horizontal Thrust Switch
  *
