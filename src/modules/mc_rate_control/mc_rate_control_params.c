@@ -40,6 +40,32 @@
  */
 
 /**
+ * DTRG Horizontal Thrust
+ *
+ * Enable the horizontal thrust control for manual flight. Roll and pitch stick inputs will be used to control horizontal thrust.
+ *
+ * 0 Off
+ * 1 On
+ *
+ * @boolean
+ * @group DTRG
+ */
+PARAM_DEFINE_INT32(MC_DTRG_H_T, 0);
+/**
+ * DTRG Horizontal Thrust Switch
+ *
+ * Define which aux channel will be used to switch the horizontal thrust control on and off (must not overlap with existing aux channels)
+ *
+ * @min 0
+ * @max 10
+ * @decimal 0
+ * @increment 1
+ * @reboot_required true
+ * @group DTRG
+ */
+PARAM_DEFINE_INT32(DTRG_H_T_AUX, 0);
+
+/**
  * Roll rate P gain
  *
  * Roll rate proportional gain, i.e. control output for angular speed error 1 rad/s.
