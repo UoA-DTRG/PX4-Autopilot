@@ -46,6 +46,8 @@
 #pragma once
 
 #include "ControlAllocation.hpp"
+#include <uORB/Subscription.hpp>
+#include <uORB/topics/rc_channels.h>
 
 class ControlAllocationPseudoInverse: public ControlAllocation
 {
@@ -74,6 +76,9 @@ protected:
 private:
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
+	float prev_val;
 	bool _normalization_needs_update{false};
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	struct rc_channels_s _rc_channels{};
 
 };

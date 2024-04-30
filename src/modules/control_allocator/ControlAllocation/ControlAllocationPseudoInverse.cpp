@@ -56,6 +56,15 @@ ControlAllocationPseudoInverse::setEffectivenessMatrix(
 void
 ControlAllocationPseudoInverse::updatePseudoInverse()
 {
+
+	_rc_channels_sub.update(&_rc_channels);
+
+	if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.2){
+		_mix_update_needed = true;
+		PX4_INFO("Changed");
+	}
+
+
 	if (_mix_update_needed) {
 		matrix::geninv(_effectiveness, _mix);
 
@@ -70,12 +79,25 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		_mix(7,0) = 0;                  _mix(7,1) = 0;          _mix(7,2) = 0;                 _mix(7,3) = 0;                 _mix(7,4) = 0;                  _mix(7,5) = -0.132227282372558;
 
 
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
+		// Motor 47 deg
+		for (int motor=0;motor<6;motor++){
+			// for (int side=0;side<5;side++){
+			int side = 2;
+			_mix(motor,side)= -_mix(motor,side);
+			// }
+		}
+
+		if(_rc_channels.channels[7]>(float)0.2){
+			_mix(6,5) = -0.22;
+			_mix(7,5) = -0.22;
+		}
+
+		_mix(0,4) = 0; _mix(0,3) = 0;
+		_mix(0,4) = 0; _mix(0,3) = 0;
+		_mix(0,4) = 0; _mix(0,3) = 0;
+		_mix(0,4) = 0; _mix(0,3) = 0;
+		_mix(0,4) = 0; _mix(0,3) = 0;
+		_mix(0,4) = 0; _mix(0,3) = 0;
 		_normalization_needs_update = true;
 		if (_normalization_needs_update) {
 			updateControlAllocationMatrixScale();
@@ -191,6 +213,13 @@ ControlAllocationPseudoInverse::normalizeControlAllocationMatrix()
 void
 ControlAllocationPseudoInverse::allocate()
 {
+
+
+	if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.1){
+		_mix_update_needed = true;
+		PX4_INFO("Changed");
+
+	}
 	//Compute new gains if needed
 	if (update_once)
 	{
@@ -199,6 +228,8 @@ ControlAllocationPseudoInverse::allocate()
 		update_once = false;
 		PX4_INFO("Passed at mix");
 	}
+
+	prev_val=_rc_channels.channels[7];
 
 	updatePseudoInverse();
 
