@@ -160,8 +160,9 @@ private:
 		(ParamFloat<px4::params::MPC_THR_MAX>)      _param_mpc_thr_max,         /**< maximum throttle for stabilized */
 		(ParamFloat<px4::params::MPC_THR_HOVER>)    _param_mpc_thr_hover,       /**< throttle at stationary hover */
 		(ParamInt<px4::params::MPC_THR_CURVE>)      _param_mpc_thr_curve,       /**< throttle curve behavior */
-		(ParamInt<px4::params::MC_DTRG_HT_EN>)     _param_mc_dtrg_ht_en,	/**< horizontal thrust feature */
-		(ParamInt<px4::params::DTRG_H_T_AUX>)  	    _param_dtrg_h_t_aux 	/**< horizontal thrust aux channel for switch */
+		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
+		(ParamInt<px4::params::DTRG_H_T_X>)  	    _param_dtrg_h_t_X ,		/**< horizontal thrust X channel */
+		(ParamInt<px4::params::DTRG_H_T_Y>)  	    _param_dtrg_h_t_Y		/**< horizontal thrust Y channel */
 
 
 

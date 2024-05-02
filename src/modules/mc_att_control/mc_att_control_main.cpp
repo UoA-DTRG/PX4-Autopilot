@@ -168,24 +168,12 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	}
 
 	//DTRG horizontal thrust switch
-	if(_param_mc_dtrg_ht_en.get())
+	if(_param_dtrg_ht_en.get())
 	{
-		// PX4_INFO("Passed at dtrg");
 		_rc_channels_sub.update(&_rc_channels);
-		if (_rc_channels.channels[_param_dtrg_h_t_aux.get()] > (float)0.2)
-		{
-			//todo get roll and yaw from seperate channels
-			attitude_setpoint.roll_body = 0;
-			attitude_setpoint.pitch_body = 0;
 
-			//todo test that i want this nested in here
-			attitude_setpoint.thrust_body[0] = _manual_control_setpoint.roll * _man_tilt_max;
-			attitude_setpoint.thrust_body[1] = _manual_control_setpoint.pitch * _man_tilt_max;
-
-
-		}
-
-
+		attitude_setpoint.thrust_body[0] = _rc_channels.channels[_param_dtrg_h_t_X.get()] * _man_tilt_max;
+		attitude_setpoint.thrust_body[1] = _rc_channels.channels[_param_dtrg_h_t_Y.get()] * _man_tilt_max;
 
 	}
 
