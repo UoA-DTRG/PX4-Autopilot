@@ -51,6 +51,7 @@ MulticopterRateControl::MulticopterRateControl(bool vtol) :
 {
 	_vehicle_status.vehicle_type = vehicle_status_s::VEHICLE_TYPE_ROTARY_WING;
 
+	_vector_thrust_sp.setAll(0.f);
 	parameters_updated();
 	_controller_status_pub.advertise();
 }
@@ -96,6 +97,8 @@ MulticopterRateControl::parameters_updated()
 				  radians(_param_mc_acro_y_max.get()));
 
 	_actuators_0_circuit_breaker_enabled = circuit_breaker_enabled_by_val(_param_cbrk_rate_ctrl.get(), CBRK_RATE_CTRL_KEY);
+
+	_vec_thr_xy_p = _param_mpc_vec_thr_xy_p.get();
 }
 
 void
@@ -181,7 +184,9 @@ MulticopterRateControl::Run()
 					math::superexpo(manual_control_setpoint.r, _param_mc_acro_expo_y.get(), _param_mc_acro_supexpoy.get())};
 
 				_rates_sp = man_rate_sp.emult(_acro_rate_max);
+				///Horiz NO
 				// _thrust_sp = math::constrain(manual_control_setpoint.z, 0.0f, 1.0f);
+				//Horiz
 				_thrust_sp(2) = -math::constrain(manual_control_setpoint.z, 0.0f, 1.0f);
 				_thrust_sp(0) = _thrust_sp(1) = 0.f;
 
@@ -192,6 +197,9 @@ MulticopterRateControl::Run()
 				v_rates_sp.yaw = _rates_sp(2);
 				v_rates_sp.thrust_body[0] = 0.0f;
 				v_rates_sp.thrust_body[1] = 0.0f;
+				//Horiz NO
+				// v_rates_sp.thrust_body[2] = -_thrust_sp;
+				//Horiz
 				v_rates_sp.thrust_body[2] = -_thrust_sp(2);
 				v_rates_sp.timestamp = hrt_absolute_time();
 
@@ -206,7 +214,9 @@ MulticopterRateControl::Run()
 				_rates_sp(0) = PX4_ISFINITE(v_rates_sp.roll)  ? v_rates_sp.roll  : rates(0);
 				_rates_sp(1) = PX4_ISFINITE(v_rates_sp.pitch) ? v_rates_sp.pitch : rates(1);
 				_rates_sp(2) = PX4_ISFINITE(v_rates_sp.yaw)   ? v_rates_sp.yaw   : rates(2);
+				//Horiz No
 				// _thrust_sp = -v_rates_sp.thrust_body[2];
+				//Horiz
 				_thrust_sp(0) = v_rates_sp.thrust_body[0];
 				_thrust_sp(1) = v_rates_sp.thrust_body[1];
 				_thrust_sp(2) = v_rates_sp.thrust_body[2];
@@ -251,6 +261,8 @@ MulticopterRateControl::Run()
 			_rate_control.getRateControlStatus(rate_ctrl_status);
 			rate_ctrl_status.timestamp = hrt_absolute_time();
 			_controller_status_pub.publish(rate_ctrl_status);
+
+			control_vector_thrust();
 
 			// publish actuator controls
 			actuator_controls_s actuators{};
@@ -301,6 +313,31 @@ MulticopterRateControl::Run()
 	perf_end(_loop_perf);
 }
 
+
+/**
+ * Vector Thrust controller.
+ * Input: 'vehicle_vector_thrust_setpoint'
+ * Output: '_rates_sp' vector, '_thrust_sp'
+ */
+void
+MulticopterRateControl::control_vector_thrust()
+{
+	_v_vt_sp_sub.update(&_v_vt_sp);
+
+	// reinitialize the setpoint while not armed to make sure no value from the last mode or flight is still kept
+	if (!_v_control_mode.flag_armed || (!_v_control_mode.flag_control_position_enabled
+					    && !_v_control_mode.flag_control_velocity_enabled && !_v_control_mode.flag_control_altitude_enabled)) {
+		_v_vt_sp.thrust_f = 0.f;
+		_v_vt_sp.thrust_r = 0.f;
+
+	}
+
+	_vector_thrust_sp.setAll(0.f);
+	_vector_thrust_sp(0) = math::constrain(_v_vt_sp.thrust_f * _vec_thr_xy_p, -1.0f, 1.0f);
+	_vector_thrust_sp(1) = math::constrain(_v_vt_sp.thrust_r * _vec_thr_xy_p, -1.0f, 1.0f);
+
+}
+
 void MulticopterRateControl::publishTorqueSetpoint(const Vector3f &torque_sp, const hrt_abstime &timestamp_sample)
 {
 	vehicle_torque_setpoint_s v_torque_sp = {};
@@ -318,9 +355,11 @@ void MulticopterRateControl::publishThrustSetpoint(const hrt_abstime &timestamp_
 	vehicle_thrust_setpoint_s v_thrust_sp = {};
 	v_thrust_sp.timestamp = hrt_absolute_time();
 	v_thrust_sp.timestamp_sample = timestamp_sample;
+	//Horiz No
 	// v_thrust_sp.xyz[0] = 0.0f;
 	// v_thrust_sp.xyz[1] = 0.0f;
 	// v_thrust_sp.xyz[2] = PX4_ISFINITE(_thrust_sp) ? -_thrust_sp : 0.0f; // Z is Down
+	//Horiz
 	_thrust_sp.copyTo(v_thrust_sp.xyz);
 
 	_vehicle_thrust_setpoint_pub.publish(v_thrust_sp);

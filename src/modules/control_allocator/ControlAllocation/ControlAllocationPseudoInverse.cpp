@@ -80,24 +80,24 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 
 
 		// Motor 47 deg
-		for (int motor=0;motor<6;motor++){
-			// for (int side=0;side<5;side++){
-			int side = 2;
-			_mix(motor,side)= -_mix(motor,side);
-			// }
-		}
+		// for (int motor=0;motor<6;motor++){
+		// 	// for (int side=0;side<5;side++){
+		// 	int side = 2;
+		// 	_mix(motor,side)= -_mix(motor,side);
+		// 	// }
+		// }
 
 		if(_rc_channels.channels[7]>(float)0.2){
 			_mix(6,5) = -0.22;
 			_mix(7,5) = -0.22;
 		}
 
-		_mix(0,4) = 0; _mix(0,3) = 0;
-		_mix(0,4) = 0; _mix(0,3) = 0;
-		_mix(0,4) = 0; _mix(0,3) = 0;
-		_mix(0,4) = 0; _mix(0,3) = 0;
-		_mix(0,4) = 0; _mix(0,3) = 0;
-		_mix(0,4) = 0; _mix(0,3) = 0;
+		// _mix(0,4) = 0; _mix(0,3) = 0;
+		// _mix(0,4) = 0; _mix(0,3) = 0;
+		// _mix(0,4) = 0; _mix(0,3) = 0;
+		// _mix(0,4) = 0; _mix(0,3) = 0;
+		// _mix(0,4) = 0; _mix(0,3) = 0;
+		// _mix(0,4) = 0; _mix(0,3) = 0;
 		_normalization_needs_update = true;
 		if (_normalization_needs_update) {
 			updateControlAllocationMatrixScale();

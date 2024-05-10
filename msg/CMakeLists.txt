@@ -119,6 +119,7 @@ set(msg_files
 	offboard_control_mode.msg
 	onboard_computer_status.msg
 	optical_flow.msg
+	orb_test.msg
 	orbit_status.msg
 	parameter_update.msg
 	ping.msg
@@ -135,6 +136,8 @@ set(msg_files
 	rate_ctrl_status.msg
 	rc_channels.msg
 	rc_parameter_map.msg
+	rls_wrench_estimator.msg
+	vehicle_vector_thrust_setpoint.msg
 	rpm.msg
 	rtl_time_estimate.msg
 	safety.msg
