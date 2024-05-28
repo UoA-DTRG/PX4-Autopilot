@@ -66,17 +66,21 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 
 
 	if (_mix_update_needed) {
+
+
+
+
 		matrix::geninv(_effectiveness, _mix);
 
 		//Add the control allocation matrix here #Joao NOTE: thrusts are above the torque in this matrix - For the planetary hex
-		_mix(0,0) = 0;                  _mix(0,1) = 1;  	_mix(0,2) = 0.814599547577570;_mix(0,3) = 0; 	              _mix(0,4) = 0.488759728546542; _mix(0,5) = -0.132227282372558;
-		_mix(1,0) = 0.866;   		_mix(1,1) = 0.5;	_mix(1,2) = -0.814599547577570; _mix(1,3) = -0.423278341268091;_mix(1,4) = -0.244379864273271;  _mix(1,5) = -0.132227282372558;
-		_mix(2,0) = 0.866;   		_mix(2,1) = -0.5;  	_mix(2,2) = 0.814599547577570;_mix(2,3) = 0.423278341268091; _mix(2,4) = -0.244379864273271;  _mix(2,5) = -0.132227282372558;
-		_mix(3,0) = 0;                  _mix(3,1) = -1;   	_mix(3,2) = -0.814599547577569; _mix(3,3) = 0;                 _mix(3,4) = 0.488759728546542; _mix(3,5) = -0.132227282372558;
-		_mix(4,0) = -0.866;  		_mix(4,1) = -0.5;  	_mix(4,2) = 0.814599547577570;_mix(4,3) = -0.423278341268091;_mix(4,4) = -0.244379864273271;  _mix(4,5) = -0.132227282372558;
-		_mix(5,0) = -0.866;  		_mix(5,1) = 0.5; 	_mix(5,2) = -0.814599547577570; _mix(5,3) = 0.423278341268091; _mix(5,4) = -0.244379864273271;  _mix(5,5) = -0.132227282372558;
-		_mix(6,0) = 0;                  _mix(6,1) = 0;          _mix(6,2) = 0;                 _mix(6,3) = 0;                 _mix(6,4) = 0;                  _mix(6,5) = -0.132227282372558;
-		_mix(7,0) = 0;                  _mix(7,1) = 0;          _mix(7,2) = 0;                 _mix(7,3) = 0;                 _mix(7,4) = 0;                  _mix(7,5) = -0.132227282372558;
+		_mix(0,0) =  0;                 _mix(0,1) = 1;  	_mix(0,2) =  0.76;	_mix(0,3) = 0;		_mix(0,4) =  0.46; 	_mix(0,5) = -0.13;
+		_mix(1,0) =  0.87;   		_mix(1,1) = 0.5;	_mix(1,2) = -0.76; 	_mix(1,3) = -0.39;	_mix(1,4) = -0.23; 	_mix(1,5) = -0.13;
+		_mix(2,0) =  0.87;   		_mix(2,1) = -0.5;  	_mix(2,2) =  0.76;	_mix(2,3) =  0.39; 	_mix(2,4) = -0.23;  	_mix(2,5) = -0.13;
+		_mix(3,0) =  0;                 _mix(3,1) = -1;   	_mix(3,2) = -0.76; 	_mix(3,3) =  0;        	_mix(3,4) =  0.46; 	_mix(3,5) = -0.13;
+		_mix(4,0) = -0.87;  		_mix(4,1) = -0.5;  	_mix(4,2) =  0.76;	_mix(4,3) = -0.39;	_mix(4,4) = -0.23;  	_mix(4,5) = -0.13;
+		_mix(5,0) = -0.87;  		_mix(5,1) = 0.5; 	_mix(5,2) = -0.76; 	_mix(5,3) =  0.39; 	_mix(5,4) = -0.23;  	_mix(5,5) = -0.13;
+		_mix(6,0) =  0;                 _mix(6,1) = 0;          _mix(6,2) = 0;          _mix(6,3) =  0;         _mix(6,4) =  0;         _mix(6,5) = -0.30;
+		_mix(7,0) =  0;                 _mix(7,1) = 0;          _mix(7,2) = 0;          _mix(7,3) =  0;         _mix(7,4) =  0;         _mix(7,5) = -0.30;
 
 
 		// Motor 47 deg
@@ -88,8 +92,14 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		// }
 
 		if(_rc_channels.channels[7]>(float)0.2){
-			_mix(6,5) = -0.22;
-			_mix(7,5) = -0.22;
+			_mix(0,5) = -0.09;
+			_mix(1,5) = -0.09;
+			_mix(2,5) = -0.09;
+			_mix(3,5) = -0.09;
+			_mix(4,5) = -0.09;
+			_mix(5,5) = -0.09;
+			_mix(6,5) = -0.43;
+			_mix(7,5) = -0.43;
 		}
 
 		// _mix(0,4) = 0; _mix(0,3) = 0;
@@ -229,6 +239,8 @@ ControlAllocationPseudoInverse::allocate()
 		PX4_INFO("Passed at mix");
 	}
 
+
+
 	prev_val=_rc_channels.channels[7];
 
 	updatePseudoInverse();
@@ -239,4 +251,7 @@ ControlAllocationPseudoInverse::allocate()
 
 	// Allocate
 	_actuator_sp = _actuator_trim + _mix * (_control_sp - _control_trim);
+
+
 }
+

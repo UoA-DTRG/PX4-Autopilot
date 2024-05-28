@@ -39,6 +39,7 @@ include(px4_list_make_absolute)
 set(msg_files
 	action_request.msg
 	actuator_armed.msg
+	actuator_commands.msg
 	actuator_controls.msg
 	actuator_controls_status.msg
 	actuator_motors.msg

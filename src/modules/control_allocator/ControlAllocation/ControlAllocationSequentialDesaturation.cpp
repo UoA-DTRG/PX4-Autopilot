@@ -64,6 +64,33 @@ ControlAllocationSequentialDesaturation::allocate()
 	}
 }
 
+void
+ControlAllocationSequentialDesaturation::publish_actuator_commands(matrix::Vector<float, NUM_ACTUATORS> priorToSQRT)
+{
+	actuator_commands_s actuator_commands{};
+	actuator_commands.timestamp= hrt_absolute_time();
+
+	for (int i=0;i<8;i++){
+		// actuator_commands.actuator_trim[i]=_actuator_trim(i);
+		actuator_commands.prior_to_sqrt[i]=priorToSQRT(i);
+		actuator_commands.actuator_sp[i]=_actuator_sp(i);
+		actuator_commands.mix1[i]=_mix(i,0);
+		actuator_commands.mix2[i]=_mix(i,1);
+		actuator_commands.mix3[i]=_mix(i,2);
+		actuator_commands.mix4[i]=_mix(i,3);
+		actuator_commands.mix5[i]=_mix(i,4);
+		actuator_commands.mix6[i]=_mix(i,5);
+
+	}
+
+	for (int i=0;i<6;i++){
+		actuator_commands.control_sp[i]=_control_sp(i);
+		// actuator_commands.control_trim[i]=_control_trim(i);
+	}
+
+	_actuator_commands_pub.publish(actuator_commands);
+}
+
 void ControlAllocationSequentialDesaturation::desaturateActuators(
 	ActuatorVector &actuator_sp,
 	const ActuatorVector &desaturation_vector, bool increase_only)
@@ -180,6 +207,11 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 	ActuatorVector roll;
 	ActuatorVector pitch;
 
+// 	if (!_actuator_commands_pub.advertised()) {
+//                _actuator_commands_pub.advertise(); // Advertise publishing of the topic
+//        }
+
+
 	for (int i = 0; i < _num_actuators; i++) {
 		_actuator_sp(i) = _actuator_trim(i) +
 				  _mix(i, ControlAxis::ROLL) * (_control_sp(ControlAxis::ROLL) - _control_trim(ControlAxis::ROLL)) +
@@ -195,12 +227,23 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 	// only reduce thrust
 	desaturateActuators(_actuator_sp, thrust_z, true);
 
-	// Reduce roll/pitch acceleration if needed to unsaturate
+	// // Reduce roll/pitch acceleration if needed to unsaturate
 	desaturateActuators(_actuator_sp, roll);
 	desaturateActuators(_actuator_sp, pitch);
 
 	// Mix yaw independently
 	mixYaw();
+	matrix::Vector<float, NUM_ACTUATORS> priorToSQRT;
+
+	for (int i=0;i<8;i++){
+		priorToSQRT(i)=_actuator_sp(i);
+		_actuator_sp(i)=sqrtf(_actuator_sp(i));
+	}
+	// for (int i=0;i<_actuator_sp.length();i++){
+	// 	_actuator_sp(i)=sqrtf(_actuator_sp(i));
+	// }
+	// publish_actuator_commands(priorToSQRT);
+
 }
 
 void

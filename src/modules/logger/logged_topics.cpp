@@ -257,6 +257,7 @@ void LoggedTopics::add_high_rate_topics()
 	add_topic("rls_wrench_estimator");
 	add_topic("admittance_setpoint");
 	add_topic("vehicle_vector_thrust_setpoint");
+	add_topic("actuator_commands");
 	add_topic("debug_vect");
 }
 

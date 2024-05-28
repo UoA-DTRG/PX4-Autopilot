@@ -208,27 +208,31 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	}
 
 	//Horiz
-	// _rc_channels_sub.update(&_rc_channels);
-	// if (_rc_channels.channels[5] < (float)0.2)
-	// {
-	// 	//Do nothing
-	// 	// PX4_INFO("Passed at do nothing");
-	// }
-	// else
-	// {
-	// 	//
-	// 	attitude_setpoint.roll_body = 0;
-	// 	attitude_setpoint.pitch_body = 0;
-	// 	// PX4_INFO("Passed at flat");
-	// }
+	_rc_channels_sub.update(&_rc_channels);
+	if (_rc_channels.channels[5] < (float)0.2)
+	{
+		//Do nothing
+		// PX4_INFO("Passed at do nothing");
+			attitude_setpoint.thrust_body[0] = 0;//_manual_control_setpoint.x * _man_tilt_max;
+			attitude_setpoint.thrust_body[1] = 0;//_manual_control_setpoint.y * _man_tilt_max;
+	}
+	else
+	{
+		//
+		attitude_setpoint.roll_body = 0;
+		attitude_setpoint.pitch_body = 0;
+		attitude_setpoint.thrust_body[0] = _manual_control_setpoint.x * _man_tilt_max;
+		attitude_setpoint.thrust_body[1] = _manual_control_setpoint.y * _man_tilt_max;
+		// PX4_INFO("Passed at flat");
+	}
 
 	/* copy quaternion setpoint to attitude setpoint topic */
 	Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, attitude_setpoint.yaw_body);
 	q_sp.copyTo(attitude_setpoint.q_d);
 
 	//Horiz
-	attitude_setpoint.thrust_body[0] = _manual_control_setpoint.x * _man_tilt_max;
-	attitude_setpoint.thrust_body[1] = _manual_control_setpoint.y * _man_tilt_max;
+	// attitude_setpoint.thrust_body[0] = 0;//_manual_control_setpoint.x * _man_tilt_max;
+	// attitude_setpoint.thrust_body[1] = 0;//_manual_control_setpoint.y * _man_tilt_max;
 	attitude_setpoint.thrust_body[2] = -throttle_curve(math::constrain(_manual_control_setpoint.z, 0.f, 1.f));
 	attitude_setpoint.timestamp = hrt_absolute_time();
 

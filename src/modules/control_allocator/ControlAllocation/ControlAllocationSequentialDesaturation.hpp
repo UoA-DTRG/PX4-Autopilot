@@ -47,6 +47,10 @@
 
 #include <px4_platform_common/module_params.h>
 
+#include <uORB/Publication.hpp>
+#include <uORB/topics/actuator_commands.h>
+
+
 class ControlAllocationSequentialDesaturation: public ControlAllocationPseudoInverse, public ModuleParams
 {
 public:
@@ -125,4 +129,10 @@ private:
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::MC_AIRMODE>) _param_mc_airmode   ///< air-mode
 	);
+
+
+
+	void publish_actuator_commands(matrix::Vector<float, NUM_ACTUATORS> priorToSQRT);
+	uORB::Publication<actuator_commands_s>	_actuator_commands_pub{ORB_ID(actuator_commands)};
+
 };
