@@ -121,9 +121,9 @@ void AdmittanceControl::update(const float &dt, const Vector<float, 4> &We, cons
 	_y = _integrate();
 
 	//Rotate back to NED
-	pos_sp = q.conjugate(Vector3f(_y(0),_y(2),_y(4)));
-	vel_sp = q.conjugate(Vector3f(_y(1),_y(3),_y(5)));
-	acc_sp = q.conjugate(_acc_sp);
+	pos_sp = q.rotateVector(Vector3f(_y(0),_y(2),_y(4)));
+	vel_sp = q.rotateVector(Vector3f(_y(1),_y(3),_y(5)));
+	acc_sp = q.rotateVector(_acc_sp);
 
 	_admittance_sp_ned.timestamp = setpoint.timestamp;
 	_admittance_sp_ned.x = pos_sp(0);

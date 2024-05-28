@@ -1,0 +1,12 @@
+menuconfig MODULES_ADMITTANCE_CONTROL
+	bool "admittance_control"
+	default n
+	---help---
+		Enable support for admittance_control
+
+menuconfig USER_MODULES_ADMITTANCE_CONTROL
+	bool "admittance_control running as userspace module"
+	default y
+	depends on BOARD_PROTECTED && MODULES_ADMITTANCE_CONTROL
+	---help---
+		Put admittance_control in userspace memory

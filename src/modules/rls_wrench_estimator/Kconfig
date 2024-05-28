@@ -1,0 +1,12 @@
+menuconfig MODULES_RLS_WRENCH_ESTIMATOR
+	bool "rls_wrench_estimator"
+	default n
+	---help---
+		Enable support for rls_wrench_estimator
+
+menuconfig USER_MODULES_RLS_WRENCH_ESTIMATOR
+	bool "rls_wrench_estimator running as userspace module"
+	default y
+	depends on BOARD_PROTECTED && MODULES_RLS_WRENCH_ESTIMATOR
+	---help---
+		Put rls_wrench_estimator in userspace memory

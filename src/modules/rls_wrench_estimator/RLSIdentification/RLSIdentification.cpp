@@ -300,11 +300,11 @@ inline void RLSIdentification::_createMomentVector()
 			q = Quatf(tilt_aa);
 		}
 
-		Fi = q.conjugate(Vector3f(0.f, 0.f, -_xp_thrust(0) * _kf_multiplier * (w_lpf(i) * w_lpf(i))));
+		Fi = q.rotateVector(Vector3f(0.f, 0.f, -_xp_thrust(0) * _kf_multiplier * (w_lpf(i) * w_lpf(i))));
 		Fi += Vector3f(0.f, 0.f, Fr[i]);
 		Ft += Fi;
 		Pi = Vector3f(.5f * _diameter * sinf(A[i]), .5f * _diameter * cosf(A[i]), H[i]);
-		Qi += Pi.cross(Fi) + q.conjugate(Vector3f(0.f, 0.f, -_km * _km_multiplier * R[i] * (w_lpf(i) * w_lpf(i))));
+		Qi += Pi.cross(Fi) + q.rotateVector(Vector3f(0.f, 0.f, -_km * _km_multiplier * R[i] * (w_lpf(i) * w_lpf(i))));
 	}
 
 	_moment_vector = Qi;

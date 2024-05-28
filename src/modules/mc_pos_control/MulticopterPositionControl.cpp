@@ -340,8 +340,8 @@ void MulticopterPositionControl::Run()
 
 		if (_vehicle_control_mode.flag_multicopter_position_control_enabled) {
 
-			const bool is_trajectory_setpoint_updated = _trajectory_setpoint_sub.update(&_setpoint);
-			// const bool is_trajectory_setpoint_updated = _admittance_setpoint_sub.update(&_setpoint);
+			// const bool is_trajectory_setpoint_updated = _trajectory_setpoint_sub.update(&_setpoint);
+			const bool is_trajectory_setpoint_updated = _admittance_setpoint_sub.update(&_setpoint);
 			// adjust existing (or older) setpoint with any EKF reset deltas
 			if (_setpoint.timestamp < local_pos.timestamp) {
 				if (local_pos.vxy_reset_counter != _vxy_reset_counter) {
