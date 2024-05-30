@@ -233,15 +233,17 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 
 	// Mix yaw independently
 	mixYaw();
-	matrix::Vector<float, NUM_ACTUATORS> priorToSQRT;
+	// matrix::Vector<float, NUM_ACTUATORS> priorToSQRT;
 
 	for (int i=0;i<8;i++){
-		priorToSQRT(i)=_actuator_sp(i);
-		_actuator_sp(i)=sqrtf(_actuator_sp(i));
+		// priorToSQRT(i)=_actuator_sp(i);
+		float value=0;
+		float inc=0.01;
+		while(value*value<_actuator_sp(i)){
+			value+=inc;
+		}
+		_actuator_sp(i)=value;
 	}
-	// for (int i=0;i<_actuator_sp.length();i++){
-	// 	_actuator_sp(i)=sqrtf(_actuator_sp(i));
-	// }
 	// publish_actuator_commands(priorToSQRT);
 
 }
