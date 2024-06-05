@@ -122,6 +122,8 @@ private:
 
 	float _man_yaw_sp{0.f};                 /**< current yaw setpoint in manual mode */
 	float _man_tilt_max;                    /**< maximum tilt allowed for manual flight [rad] */
+	float _ht_rate;                    	/**< DTRG horizontal thrust rate */
+
 
 	AlphaFilter<float> _man_roll_input_filter;
 	AlphaFilter<float> _man_pitch_input_filter;
@@ -161,10 +163,9 @@ private:
 		(ParamFloat<px4::params::MPC_THR_HOVER>)    _param_mpc_thr_hover,       /**< throttle at stationary hover */
 		(ParamInt<px4::params::MPC_THR_CURVE>)      _param_mpc_thr_curve,       /**< throttle curve behavior */
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
-		(ParamInt<px4::params::DTRG_H_T_X>)  	    _param_dtrg_h_t_X ,		/**< horizontal thrust X channel */
-		(ParamInt<px4::params::DTRG_H_T_Y>)  	    _param_dtrg_h_t_Y		/**< horizontal thrust Y channel */
-
-
+		(ParamInt<px4::params::DTRG_H_T_X>)  	    _param_dtrg_h_t_X,		/**< horizontal thrust X channel */
+		(ParamInt<px4::params::DTRG_H_T_Y>)  	    _param_dtrg_h_t_Y,		/**< horizontal thrust Y channel */
+	(	ParamFloat<px4::params::DTRG_HT_RATE>)      _param_dtrg_h_t_rate	/**< horizontal thrust Y channel */
 
 	)
 };

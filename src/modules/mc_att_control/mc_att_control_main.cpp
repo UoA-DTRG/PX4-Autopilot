@@ -93,6 +93,7 @@ MulticopterAttitudeControl::parameters_updated()
 						radians(_param_mc_yawrate_max.get())));
 
 	_man_tilt_max = math::radians(_param_mpc_man_tilt_max.get());
+	_ht_rate  = _param_dtrg_h_t_rate.get();
 }
 
 float
@@ -172,11 +173,8 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	{
 		_rc_channels_sub.update(&_rc_channels);
 
-		// PX4_INFO("DTRG horizontal thrust switch enabled");
-		// PX4_INFO("DTRG horizontal thrust value X: %f", (double)_rc_channels.channels[_param_dtrg_h_t_X.get()-1]);
-
-		attitude_setpoint.thrust_body[0] = _rc_channels.channels[_param_dtrg_h_t_X.get()-1] * _man_tilt_max;
-		attitude_setpoint.thrust_body[1] = _rc_channels.channels[_param_dtrg_h_t_Y.get()-1] * _man_tilt_max;
+		attitude_setpoint.thrust_body[0] = _rc_channels.channels[_param_dtrg_h_t_X.get()-1] * _ht_rate;
+		attitude_setpoint.thrust_body[1] = _rc_channels.channels[_param_dtrg_h_t_Y.get()-1] * _ht_rate;
 
 	}
 

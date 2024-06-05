@@ -40,57 +40,6 @@
  */
 
 /**
- * DTRG Horizontal Thrust
- *
- *
- *
- * Enable the horizontal thrust control for manual flight. Roll and pitch stick inputs will be used to control horizontal thrust.
- *
- * @reboot_required true
- * @boolean
- * @group DTRG
- */
-PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
-/**
- * DTRG Horizontal Thrust Switch
- *
- * Define which aux channel will be used for the horizontal thrust control in the X direction. (default is channel 8)
- *
- * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio, typically use channels 8 -13 for this function as they are unlikely to be used for other functions.
- * @value 5 Aux 4 (channel 5)
- * @value 6 Aux 5 (channel 6)
- * @value 7 Aux 6 (channel 7)
- * @value 8 Aux 1 (channel 8)
- * @value 9 Aux 2 (channel 9)
- * @value 10 Aux 3 (channel 10)
- * @value 11 Aux 4 (channel 11)
- * @value 12 Aux 5 (channel 12)
- * @value 13 Aux 6 (channel 13)
- * @reboot_required true
- * @group DTRG
- */
-PARAM_DEFINE_INT32(DTRG_H_T_X, 8);
-/**
- * DTRG Horizontal Thrust Switch
- *
- * Define which aux channel will be used for the horizontal thrust control in the Y direction. (default is channel 9)
- *
- * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio, typically use channels 8 -13 for this function as they are unlikely to be used for other functions.
- * @value 5 Aux 4 (channel 5)
- * @value 6 Aux 5 (channel 6)
- * @value 7 Aux 6 (channel 7)
- * @value 8 Aux 1 (channel 8)
- * @value 9 Aux 2 (channel 9)
- * @value 10 Aux 3 (channel 10)
- * @value 11 Aux 4 (channel 11)
- * @value 12 Aux 5 (channel 12)
- * @value 13 Aux 6 (channel 13)
- * @reboot_required true
- * @group DTRG
- */
-PARAM_DEFINE_INT32(DTRG_H_T_Y, 9);
-
-/**
  * Roll rate P gain
  *
  * Roll rate proportional gain, i.e. control output for angular speed error 1 rad/s.
