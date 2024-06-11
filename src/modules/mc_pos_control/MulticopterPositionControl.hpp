@@ -104,11 +104,11 @@ private:
 	uORB::SubscriptionInterval _parameter_update_sub {ORB_ID(parameter_update), 1_s};
 
 	uORB::Subscription _hover_thrust_estimate_sub {ORB_ID(hover_thrust_estimate)};
-	// uORB::Subscription _trajectory_setpoint_sub {ORB_ID(trajectory_setpoint)};
+	uORB::Subscription _trajectory_setpoint_sub {ORB_ID(trajectory_setpoint)};
 	uORB::Subscription _vehicle_constraints_sub {ORB_ID(vehicle_constraints)};
 	uORB::Subscription _vehicle_control_mode_sub {ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub {ORB_ID(vehicle_land_detected)};
-	uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
+	// uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
 
 
