@@ -258,8 +258,8 @@ MulticopterRateControl::Run()
 			Vector3f u;
 			if ((_rc_channels.channels[5] > (float)-0.1))
 			{
-				_dynxls_d.x = _rc_channels.channels[1];
-				_dynxls_d.y = _rc_channels.channels[3];
+				_dynxls_d.x = _rc_channels.channels[3];
+				_dynxls_d.y = -_rc_channels.channels[1];
 				_dynxls_d.z = 1;
 				_dynxls_d.timestamp = hrt_absolute_time();
 				_debug_vect_pub.publish(_dynxls_d);

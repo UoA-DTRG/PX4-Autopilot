@@ -339,7 +339,7 @@ bool DynamixelProtocol::update()
 {
 	hrt_abstime now = hrt_absolute_time();
 
-	PX4_INFO("Entered on update dynamixel");
+	// PX4_INFO("Entered on update dynamixel");
 
 	if (last_send_us != 0 && now - last_send_us < delay_time_us) {
 		// waiting for last send to complete
@@ -378,7 +378,7 @@ bool DynamixelProtocol::update()
 		// 	continue;
 		// }
 
-		PX4_INFO("in servo loop");
+		// PX4_INFO("in servo loop");
 
 		if (broadcast) {
 

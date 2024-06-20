@@ -234,4 +234,8 @@ protected:
 	matrix::Vector<float, NUM_AXES> _control_trim; 		///< Control at trim actuator values
 	int _num_actuators{0};
 	bool _normalize_rpy{false};				///< if true, normalize roll, pitch and yaw columns
+
+	//variables for dynamixel values
+	float dynx_1_rad = 0;
+	float dynx_2_rad = 0;
 };

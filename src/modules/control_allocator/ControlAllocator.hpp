@@ -74,6 +74,8 @@
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/vehicle_status.h>
 
+#include <uORB/topics/debug_vect.h>
+
 class ControlAllocator : public ModuleBase<ControlAllocator>, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
@@ -104,6 +106,9 @@ public:
 	void Run() override;
 
 	bool init();
+
+	uORB::Subscription _debug_vect_sub{ORB_ID(debug_vect)};
+	debug_vect_s flags_vect;
 
 private:
 

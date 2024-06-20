@@ -398,6 +398,13 @@ ControlAllocator::Run()
 
 			_control_allocation[i]->setControlSetpoint(c[i]);
 
+			if (_debug_vect_sub.updated())
+			{
+				_debug_vect_sub.copy(&flags_vect);
+				_control_allocation[i]->dynx_1_rad = flags_vect.x;
+				_control_allocation[i]->dynx_2_rad = flags_vect.y;
+			}
+
 			// Do allocation
 			_control_allocation[i]->allocate();
 			_actuator_effectiveness->updateSetpoint(c[i], i, _control_allocation[i]->_actuator_sp);

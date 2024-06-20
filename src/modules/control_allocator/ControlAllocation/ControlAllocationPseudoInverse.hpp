@@ -47,6 +47,7 @@
 
 #include "ControlAllocation.hpp"
 
+
 class ControlAllocationPseudoInverse: public ControlAllocation
 {
 public:

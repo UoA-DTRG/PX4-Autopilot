@@ -57,7 +57,45 @@ void
 ControlAllocationPseudoInverse::updatePseudoInverse()
 {
 	if (_mix_update_needed) {
+
+		//Add here the effectiveness matrix
+		float dist = 1;
+		float phi_dynx1 = 0;
+		float theta_dynx2 = 0;
+
+		phi_dynx1 = dynx_1_rad;
+		theta_dynx2 = dynx_2_rad;
+
+		float km_kf = 0.1; //ratio of coeff of torque and force km/kf
+		matrix::Matrix<float, NUM_AXES, NUM_ACTUATORS> my_eff;
+		// my_eff(0,0) = -km_kf*cosf(theta_dynx2)*sinf(phi_dynx1);                                my_eff(0,1) = dist*cosf(theta_dynx2)*cosf(phi_dynx1) + km_kf*cosf(theta_dynx2)*sinf(phi_dynx1);         my_eff(0,2) = -km_kf*cosf(theta_dynx2)*sinf(phi_dynx1);  				my_eff(0,3) = -dist*cosf(theta_dynx2)*cosf(phi_dynx1) + km_kf*cosf(theta_dynx2)*sinf(phi_dynx1);
+		// my_eff(1,0) = -dist*cosf(phi_dynx1)*cosf(theta_dynx2) + km_kf*sinf(phi_dynx1);          my_eff(1,1) = -km_kf*sinf(phi_dynx1);   								 my_eff(1,2) = dist*cosf(phi_dynx1)*cosf(theta_dynx2) + km_kf*sinf(phi_dynx1);     	my_eff(1,3) = -km_kf*sinf(phi_dynx1);
+		// my_eff(2,0) = -dist*sinf(phi_dynx1) - km_kf*cosf(phi_dynx1)*cosf(theta_dynx2);          my_eff(2,1) = -dist*cosf(phi_dynx1)*sinf(theta_dynx2) + km_kf*cosf(phi_dynx1)*cosf(theta_dynx2);   	 my_eff(2,2) = dist*sinf(phi_dynx1) - km_kf*cosf(phi_dynx1)*cosf(theta_dynx2);   		my_eff(2,3) = dist*cosf(phi_dynx1)*sinf(theta_dynx2) + km_kf*cosf(phi_dynx1)*cosf(theta_dynx2);
+		// my_eff(3,0) = cosf(phi_dynx1)*sinf(theta_dynx2);          		       	     my_eff(3,1) = cosf(phi_dynx1)*sinf(theta_dynx2);   							 my_eff(3,2) = cosf(phi_dynx1)*sinf(theta_dynx2);   					my_eff(3,3) = cosf(phi_dynx1)*sinf(theta_dynx2);
+		// my_eff(4,0) = -sinf(phi_dynx1);          		     		      	     my_eff(4,1) = -sinf(phi_dynx1);   									 my_eff(4,2) = -sinf(phi_dynx1);   							my_eff(4,3) = -sinf(phi_dynx1);
+		// my_eff(5,0) = cosf(phi_dynx1)*cosf(theta_dynx2);          		             my_eff(5,1) = cosf(phi_dynx1)*cosf(theta_dynx2);   							 my_eff(5,2) = cosf(phi_dynx1)*cosf(theta_dynx2);   					my_eff(5,3) = cosf(phi_dynx1)*cosf(theta_dynx2);
+
+		my_eff(0,0) = -km_kf*cosf(theta_dynx2)*sinf(phi_dynx1) - dist*(sqrtf(2.0f)/2.0f)*cosf(theta_dynx2)*cosf(phi_dynx1);                                                 my_eff(0,1) = (sqrtf(2.0f)/2.0f)*dist*cosf(theta_dynx2)*cosf(phi_dynx1) + km_kf*cosf(theta_dynx2)*sinf(phi_dynx1);                                                        my_eff(0,2) = -km_kf*cosf(theta_dynx2)*sinf(phi_dynx1) + (sqrtf(2.0f)/2.0f)*dist*cosf(theta_dynx2)*cosf(phi_dynx1);  				            my_eff(0,3) = -(sqrtf(2.0f)/2.0f)*dist*cosf(theta_dynx2)*cosf(phi_dynx1) + km_kf*cosf(theta_dynx2)*sinf(phi_dynx1);
+		my_eff(1,0) = -dist*(sqrtf(2.0f)/2.0f)*cosf(phi_dynx1)*cosf(theta_dynx2) + km_kf*sinf(phi_dynx1);                                                                   my_eff(1,1) = -km_kf*sinf(phi_dynx1) - dist*(sqrtf(2.0f)/2.0f)*cosf(phi_dynx1)*cosf(theta_dynx2);   		                                                        my_eff(1,2) = (sqrtf(2.0f)/2.0f)*dist*cosf(phi_dynx1)*cosf(theta_dynx2) + km_kf*sinf(phi_dynx1);     	                                                    my_eff(1,3) = -km_kf*sinf(phi_dynx1) + (sqrtf(2.0f)/2.0f)*dist*cosf(phi_dynx1)*cosf(theta_dynx2);
+		my_eff(2,0) = -(sqrtf(2.0f)/2.0f)*dist*sinf(phi_dynx1) - km_kf*cosf(phi_dynx1)*cosf(theta_dynx2) + dist*(sqrtf(2.0f)/2.0f)*cosf(phi_dynx1)*cosf(theta_dynx2);          my_eff(2,1) = -dist*(sqrtf(2.0f)/2.0f)*cosf(phi_dynx1)*sinf(theta_dynx2) + km_kf*cosf(phi_dynx1)*cosf(theta_dynx2) - dist*(sqrtf(2.0f)/2.0f)*sinf(phi_dynx1);   	        my_eff(2,2) = (sqrtf(2.0f)/2.0f)*dist*sinf(phi_dynx1) - km_kf*cosf(phi_dynx1)*cosf(theta_dynx2) - dist*(sqrtf(2.0f)/2.0f)*cosf(phi_dynx1)*sinf(theta_dynx2);      my_eff(2,3) = (sqrtf(2.0f)/2.0f)*dist*sinf(phi_dynx1) + (sqrtf(2.0f)/2.0f)*dist*cosf(phi_dynx1)*sinf(theta_dynx2) + km_kf*cosf(phi_dynx1)*cosf(theta_dynx2);
+		my_eff(3,0) = cosf(phi_dynx1)*sinf(theta_dynx2);          		       	     my_eff(3,1) = cosf(phi_dynx1)*sinf(theta_dynx2);   							 my_eff(3,2) = cosf(phi_dynx1)*sinf(theta_dynx2);   					my_eff(3,3) = cosf(phi_dynx1)*sinf(theta_dynx2);
+		my_eff(4,0) = -sinf(phi_dynx1);          		     		      	     my_eff(4,1) = -sinf(phi_dynx1);   									 my_eff(4,2) = -sinf(phi_dynx1);   							my_eff(4,3) = -sinf(phi_dynx1);
+		my_eff(5,0) = cosf(phi_dynx1)*cosf(theta_dynx2);          		             my_eff(5,1) = cosf(phi_dynx1)*cosf(theta_dynx2);   							 my_eff(5,2) = cosf(phi_dynx1)*cosf(theta_dynx2);   					my_eff(5,3) = cosf(phi_dynx1)*cosf(theta_dynx2);
+
+
+		// for (size_t i = 0; i < NUM_AXES; i++)
+		// {
+		// 	for (size_t j = 0; j < NUM_ACTUATORS; j++)
+		// 	{
+		// 		_effectiveness(i,j) = -my_eff(i,j);
+		// 	}
+
+		// }
+
+		// _effectiveness = -1.0*my_eff;
 		matrix::geninv(_effectiveness, _mix);
+
+		// _mix = _effectiveness.T();
 		//Add the control allocation matrix here #Joao NOTE: thrusts are above the torque in this matrix - For the planetary hex
 		// _mix(0,0) = 0;                  _mix(0,1) = -1.51925273455399;  _mix(0,2) = -0.814599547577570;_mix(0,3) = 0; 	              _mix(0,4) = -0.488759728546542; _mix(0,5) = 0.132227282372558;
 		// _mix(1,0) = 1.31571146289274;   _mix(1,1) = -0.759626367276998; _mix(1,2) = 0.814599547577570; _mix(1,3) = -0.423278341268091;_mix(1,4) = 0.244379864273271;  _mix(1,5) = 0.132227282372558;
@@ -80,14 +118,14 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		// _mix(7,0) = -0.071426369;  _mix(7,1) = -0.029502185; _mix(7,2) = -0.3846153;  _mix(7,3) = 0;  _mix(7,4) = 0;  _mix(7,5) = -0.019230768;
 
 		//Add the control allocation matrix here #Joao NOTE: thrusts are above the torque in this matrix - For the planetary hex
-		_mix(0,0) = -0.47888878;  _mix(0,1) = 0;           _mix(0,2) = 0.39845479;  _mix(0,3) = -0.07466799;   _mix(0,4) = 0.071398526;  _mix(0,5) = -0.022435976;
-		_mix(1,0) = 0.47888878;   _mix(1,1) = 0;           _mix(1,2) = -0.39845476; _mix(1,3) = -0.074667983;  _mix(1,4) = -0.071398526; _mix(1,5) = -0.022435976;
-		_mix(2,0) = 0.47888878;   _mix(2,1) = 0;           _mix(2,2) = 0.39845476;  _mix(2,3) = 0.07466799;    _mix(2,4) = -0.071398526; _mix(2,5) = -0.022435976;
-		_mix(3,0) = -0.47888878;  _mix(3,1) = 0;           _mix(3,2) = -0.39845479; _mix(3,3) = 0.074667983;   _mix(3,4) = 0.071398526;  _mix(3,5) = -0.022435976;
-		_mix(4,0) = 0;            _mix(4,1) = 0.47889018;  _mix(4,2) = 0.39845476;  _mix(4,3) = 0.096153878;   _mix(4,4) = 0.074671403;  _mix(4,5) = -0.022435976;
-		_mix(5,0) = 0;            _mix(5,1) = 0.47889018; _mix(5,2) = -0.39845479;  _mix(5,3) = 0.096153878;  _mix(5,4) = -0.074671403; _mix(5,5) = -0.022435976;
-		_mix(6,0) = 0;            _mix(6,1) = -0.47889018; _mix(6,2) = 0.39845479;  _mix(6,3) = -0.096153878;  _mix(6,4) = -0.074671403; _mix(6,5) = -0.022435976;
-		_mix(7,0) = 0;            _mix(7,1) = -0.47889015; _mix(7,2) = -0.39845476; _mix(7,3) = -0.096153878;  _mix(7,4) = 0.074671403;  _mix(7,5) = -0.022435976;
+		// _mix(0,0) = -0.47888878;  _mix(0,1) = 0;           _mix(0,2) = 0.39845479;  _mix(0,3) = -0.07466799;   _mix(0,4) = 0.071398526;  _mix(0,5) = -0.022435976;
+		// _mix(1,0) = 0.47888878;   _mix(1,1) = 0;           _mix(1,2) = -0.39845476; _mix(1,3) = -0.074667983;  _mix(1,4) = -0.071398526; _mix(1,5) = -0.022435976;
+		// _mix(2,0) = 0.47888878;   _mix(2,1) = 0;           _mix(2,2) = 0.39845476;  _mix(2,3) = 0.07466799;    _mix(2,4) = -0.071398526; _mix(2,5) = -0.022435976;
+		// _mix(3,0) = -0.47888878;  _mix(3,1) = 0;           _mix(3,2) = -0.39845479; _mix(3,3) = 0.074667983;   _mix(3,4) = 0.071398526;  _mix(3,5) = -0.022435976;
+		// _mix(4,0) = 0;            _mix(4,1) = 0.47889018;  _mix(4,2) = 0.39845476;  _mix(4,3) = 0.096153878;   _mix(4,4) = 0.074671403;  _mix(4,5) = -0.022435976;
+		// _mix(5,0) = 0;            _mix(5,1) = 0.47889018; _mix(5,2) = -0.39845479;  _mix(5,3) = 0.096153878;  _mix(5,4) = -0.074671403; _mix(5,5) = -0.022435976;
+		// _mix(6,0) = 0;            _mix(6,1) = -0.47889018; _mix(6,2) = 0.39845479;  _mix(6,3) = -0.096153878;  _mix(6,4) = -0.074671403; _mix(6,5) = -0.022435976;
+		// _mix(7,0) = 0;            _mix(7,1) = -0.47889015; _mix(7,2) = -0.39845476; _mix(7,3) = -0.096153878;  _mix(7,4) = 0.074671403;  _mix(7,5) = -0.022435976;
 
 		_normalization_needs_update = true;
 		if (_normalization_needs_update) {
@@ -96,9 +134,10 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		}
 
 		normalizeControlAllocationMatrix();
-		_mix_update_needed = false;
+		_mix_update_needed = true;
 
-		// PX4_INFO("Passed at update");
+		// PX4_INFO("  Effectiveness =");
+		// _effectiveness.print();
 	}
 }
 
@@ -212,7 +251,7 @@ ControlAllocationPseudoInverse::allocate()
 		update_once = false;
 		PX4_INFO("Passed at mix");
 	}
-
+	_mix_update_needed = true;
 	updatePseudoInverse();
 
 	//Add the control allocation matrix here #Joao NOTE: thrusts are above the torque in this matrix

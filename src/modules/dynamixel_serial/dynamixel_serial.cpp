@@ -484,7 +484,7 @@ void DynamixelSerial::run()
 		int32_t dynx_1_raw = dyn_extpos_rad2raw(flags_vect.x);
 
 		//saturate to 20 degrees
-		float rad20deg = 20*3.141593/180.0;
+		float rad20deg = 10*3.141593/180.0;
 		int32_t max20deg = dyn_extpos_rad2raw(rad20deg);
 
 		//For dynx 1
@@ -513,8 +513,9 @@ void DynamixelSerial::run()
 		// dynamixel.set_setpoints(1, dynx_1_raw, 1, OPMODE_EXT_POS_CONTROL);
 		// dynamixel.set_setpoints(2, dynx_2_raw, 0, OPMODE_POS_CONTROL);
 
-		//Handle offset of dynamixel 1
+		//Handle offset of dynamixels
 		dynx_1_raw = dynx_1_raw + 2488;
+		dynx_2_raw = dynx_2_raw + 1833;
 
 		//Controll the gripper (id = 3)
 		if (_rc_channels.channels[5] > (float)-0.1)
