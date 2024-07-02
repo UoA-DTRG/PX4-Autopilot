@@ -122,7 +122,10 @@ private:
 
 	float _man_yaw_sp{0.f};                 /**< current yaw setpoint in manual mode */
 	float _man_tilt_max;                    /**< maximum tilt allowed for manual flight [rad] */
-	float _ht_rate;                    	/**< DTRG horizontal thrust rate */
+	float _ht_gain;                    	/**< DTRG horizontal thrust rate */
+	int _ht_en;                        	/**< DTRG horizontal thrust enable */
+	int _ht_x_add;                         	/**< DTRG horizontal thrust X channel */
+	int _ht_y_add;                         	/**< DTRG horizontal thrust Y channel */
 
 
 	AlphaFilter<float> _man_roll_input_filter;
@@ -165,7 +168,7 @@ private:
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
 		(ParamInt<px4::params::DTRG_H_T_X>)  	    _param_dtrg_h_t_X,		/**< horizontal thrust X channel */
 		(ParamInt<px4::params::DTRG_H_T_Y>)  	    _param_dtrg_h_t_Y,		/**< horizontal thrust Y channel */
-	(	ParamFloat<px4::params::DTRG_HT_RATE>)      _param_dtrg_h_t_rate	/**< horizontal thrust Y channel */
+	(	ParamFloat<px4::params::DTRG_HT_GAIN>)      _param_dtrg_h_t_gain	/**< horizontal thrust Y channel */
 
 	)
 };

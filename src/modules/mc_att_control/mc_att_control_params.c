@@ -40,14 +40,18 @@
  */
 
 /**
- * Horizontal Thrust Rate
+ * Horizontal Thrust Gain
  *
- * @min 0.0
- * @max 50.0
- * @decimal 1
+ *
+ *
+ * Adjust the control gain for horizontal thrust control, higher values result in faster translational speeds with lower stick input.
+ *
+ * @min 0.000
+ * @max 2.000
+ * @decimal 3
  * @group DTRG
  */
-PARAM_DEFINE_FLOAT(DTRG_HT_RATE, 10.0f);
+PARAM_DEFINE_FLOAT(DTRG_HT_GAIN, 1.000f);
 
 /**
  * DTRG Horizontal Thrust
