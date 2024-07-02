@@ -401,6 +401,65 @@ PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
 
 
 /**
+ * Testing Mode
+ *
+ * Indicates whether to operate in test mode or not
+ *
+ * @boolean
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING, 0);
+
+/**
+ * Testing Direction
+ *
+ * Sets direction of force
+ *
+ * @min -1
+ * @max 1
+ * @increment 2
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING_DIR, 1);
+
+
+/**
+ * Testing Axis
+ *
+ * Sets axis of force
+ *
+ * @min 1
+ * @max 6
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING_AXIS, 1);
+
+/**
+ * Testing gradient
+ *
+ * Set gradient
+ *
+ * @min 0.05
+ * @decimal 2
+ * @max 0.2
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_FLOAT(MC_TESTING_LIMIT, 0.2);
+
+
+/**
+ * Testing gradient
+ *
+ * Set gradient
+ *
+ * @min 6
+ * @max 10
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING_GRAD, 7);
+
+
+/**
  * Gain for Vector Thrust XY direction.
  *
  * @min 0.1
@@ -409,3 +468,5 @@ PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
  * @group Multicopter Position Control
  */
 PARAM_DEFINE_FLOAT(MPC_VEC_THR_XY_P, 1.0f);
+
+

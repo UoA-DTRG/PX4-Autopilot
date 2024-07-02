@@ -40,7 +40,7 @@ parameters:
                 0: Pseudo-inverse with output clipping
                 1: Pseudo-inverse with sequential desaturation technique
                 2: Automatic
-            default: 2
+            default: 0
 
         # Motor parameters
         CA_R_REV:

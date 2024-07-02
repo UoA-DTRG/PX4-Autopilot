@@ -208,19 +208,20 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	}
 
 	//Horiz
-	// _rc_channels_sub.update(&_rc_channels);
-	// if (_rc_channels.channels[5] < (float)0.2)
-	// {
-	// 	//Do nothing
-	// 	// PX4_INFO("Passed at do nothing");
-	// }
-	// else
-	// {
-	// 	//
-	// 	attitude_setpoint.roll_body = 0;
-	// 	attitude_setpoint.pitch_body = 0;
-	// 	// PX4_INFO("Passed at flat");
-	// }
+	_rc_channels_sub.update(&_rc_channels);
+
+	if (_rc_channels.channels[5] < (float)0.2)
+	{
+		//Do nothing
+		// PX4_INFO("Passed at do nothing");
+	}
+	else
+	{
+		//
+		attitude_setpoint.roll_body = 0;
+		attitude_setpoint.pitch_body = 0;
+		// PX4_INFO("Passed at flat");
+	}
 
 	/* copy quaternion setpoint to attitude setpoint topic */
 	Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, attitude_setpoint.yaw_body);
@@ -362,8 +363,33 @@ MulticopterAttitudeControl::Run()
 				}
 			}
 
-			// publish rate setpoint
+
 			vehicle_rates_setpoint_s v_rates_sp{};
+
+			// PX4_INFO("HERE");
+
+			// if (!_v_control_mode.flag_control_manual_enabled &&
+			//     _v_control_mode.flag_control_altitude_enabled &&
+			//     !_v_control_mode.flag_control_velocity_enabled &&
+			//     !_v_control_mode.flag_control_position_enabled) {
+			// 	if(_param_mc_testing.get()){
+			// 		PX4_INFO("Testing Mode");
+			// 		_rc_channels_sub.update(&_rc_channels);
+			// 		if(_param_mc_testing_axis.get()<3){
+			// 			PX4_INFO("Right Axis");
+			// 			if (_rc_channels.channels[7] < (float)0.2){
+			// 				PX4_INFO("Force Mode");
+
+			// 				v_rates_sp.thrust_body[_param_mc_testing_axis.get()-1]=0.1*_param_mc_testing_dir.get();
+			// 			}
+			// 		}
+			// 	}
+			//     }
+
+
+
+
+			// publish rate setpoint
 			v_rates_sp.roll = rates_sp(0);
 			v_rates_sp.pitch = rates_sp(1);
 			v_rates_sp.yaw = rates_sp(2);

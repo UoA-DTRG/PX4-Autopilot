@@ -57,12 +57,12 @@ void
 ControlAllocationPseudoInverse::updatePseudoInverse()
 {
 
-	_rc_channels_sub.update(&_rc_channels);
+	// _rc_channels_sub.update(&_rc_channels);
 
-	if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.2){
-		_mix_update_needed = true;
-		PX4_INFO("Changed");
-	}
+	// if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.2){
+	// 	_mix_update_needed = true;
+	// 	PX4_INFO("Changed");
+	// }
 
 
 	if (_mix_update_needed) {
@@ -86,11 +86,16 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		// 	_mix(motor,side)= -_mix(motor,side);
 		// 	// }
 		// }
-
-		if(_rc_channels.channels[7]>(float)0.2){
-			_mix(6,5) = -0.22;
-			_mix(7,5) = -0.22;
-		}
+		// _mix(0,5) =0;
+		// _mix(1,5) = 0;
+		// _mix(2,5) =0;
+		// _mix(3,5) = 0;
+		// _mix(4,5) =0;
+		// _mix(5,5) = 0;
+		// if(_rc_channels.channels[7]>(float)0.2){
+		// 	_mix(6,5) = -0.22;
+		// 	_mix(7,5) = -0.22;
+		// }
 
 		// _mix(0,4) = 0; _mix(0,3) = 0;
 		// _mix(0,4) = 0; _mix(0,3) = 0;
@@ -215,23 +220,25 @@ ControlAllocationPseudoInverse::allocate()
 {
 
 
-	if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.1){
-		_mix_update_needed = true;
-		PX4_INFO("Changed");
+	// if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.1){
+	// 	_mix_update_needed = true;
+	// 	PX4_INFO("Changed");
 
-	}
+	// }
 	//Compute new gains if needed
-	if (update_once)
-	{
-		_mix_update_needed = true;
-		updatePseudoInverse();
-		update_once = false;
-		PX4_INFO("Passed at mix");
-	}
+	// if (update_once)
+	// {
+	// 	_mix_update_needed = true;
+	// 	updatePseudoInverse();
+	// 	update_once = false;
+	// 	PX4_INFO("Passed at mix");
+	// }
 
 	prev_val=_rc_channels.channels[7];
 
+	// PX4_INFO("Do It");
 	updatePseudoInverse();
+
 
 
 
@@ -239,4 +246,12 @@ ControlAllocationPseudoInverse::allocate()
 
 	// Allocate
 	_actuator_sp = _actuator_trim + _mix * (_control_sp - _control_trim);
+
+	// _actuator_sp(0)=0;
+
+	// _actuator_sp(1)=0;
+	// _actuator_sp(2)=0;
+	// _actuator_sp(3)=0;
+	// _actuator_sp(4)=0;
+	// _actuator_sp(5)=0;
 }

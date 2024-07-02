@@ -65,6 +65,10 @@
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/vehicle_torque_setpoint.h>
 
+#include <uORB/topics/rc_channels.h>
+#include <uORB/topics/actuator_motors.h>
+
+
 using namespace time_literals;
 
 class MulticopterRateControl : public ModuleBase<MulticopterRateControl>, public ModuleParams, public px4::WorkItem
@@ -152,6 +156,17 @@ private:
 	float _energy_integration_time{0.0f};
 	float _control_energy[4] {};
 
+
+
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	uORB::Subscription _actuator_motors_sub{ORB_ID(actuator_motors)};
+	struct rc_channels_s _rc_channels{};
+
+	bool isStarted=false;
+	double timeStart=0;
+	double stopValue=-1;
+
+
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::MC_ROLLRATE_P>) _param_mc_rollrate_p,
 		(ParamFloat<px4::params::MC_ROLLRATE_I>) _param_mc_rollrate_i,
@@ -185,6 +200,13 @@ private:
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPOY>) _param_mc_acro_supexpoy,			/**< superexpo stick curve shape (yaw) */
 
 		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
+
+
+		(ParamBool<px4::params::MC_TESTING>) _param_mc_testing,
+		(ParamInt<px4::params::MC_TESTING_DIR>) _param_mc_testing_dir,
+		(ParamInt<px4::params::MC_TESTING_AXIS>) _param_mc_testing_axis,
+		(ParamFloat<px4::params::MC_TESTING_LIMIT>) _param_mc_testing_limit,
+		(ParamInt<px4::params::MC_TESTING_GRAD>) _param_mc_testing_grad,
 
 		(ParamInt<px4::params::CBRK_RATE_CTRL>) _param_cbrk_rate_ctrl,
 		(ParamFloat<px4::params::MPC_VEC_THR_XY_P>) _param_mpc_vec_thr_xy_p 		/**< gain for vector thrust XY direction. */

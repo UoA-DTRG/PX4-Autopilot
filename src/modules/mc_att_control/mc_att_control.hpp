@@ -163,6 +163,12 @@ private:
 		_param_mpc_thr_hover,			/**< throttle at which vehicle is at hover equilibrium */
 		(ParamInt<px4::params::MPC_THR_CURVE>) _param_mpc_thr_curve,				/**< throttle curve behavior */
 
+
+		(ParamBool<px4::params::MC_TESTING>) _param_mc_testing,
+		(ParamInt<px4::params::MC_TESTING_DIR>) _param_mc_testing_dir,
+		(ParamInt<px4::params::MC_TESTING_AXIS>) _param_mc_testing_axis,
+		(ParamInt<px4::params::MC_TESTING_GRAD>) _param_mc_testing_grad,
+
 		(ParamInt<px4::params::MC_AIRMODE>) _param_mc_airmode,
 		(ParamFloat<px4::params::MC_MAN_TILT_TAU>) _param_mc_man_tilt_tau
 	)
