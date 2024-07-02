@@ -179,6 +179,7 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 		attitude_setpoint.thrust_body[0] = _rc_channels.channels[_ht_x_add] * _ht_gain * 10;
 		attitude_setpoint.thrust_body[1] = _rc_channels.channels[_ht_y_add] * _ht_gain * 10;
 
+		PX4_INFO("X: %f, Y: %f", (double)attitude_setpoint.thrust_body[0], (double)attitude_setpoint.thrust_body[1]);
 	}
 
 	// Align the desired tilt with the yaw setpoint
