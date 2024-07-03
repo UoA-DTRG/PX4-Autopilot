@@ -4,23 +4,28 @@
 This repository holds the [DTRG](https://dtrg.org/) fork of the [PX4](http://px4.io) flight control solution for drones, with the main applications located in the [src/modules](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules) directory. It also contains the PX4 Drone Middleware Platform, which provides drivers and middleware to run drones.
 
 This firmware is build upon the v1.14 release of PX4
-
-PX4 is highly portable, OS-independent and supports Linux, NuttX and MacOS out of the box.
-
 * Official Website: http://px4.io (License: BSD 3-clause, [LICENSE](https://github.com/PX4/PX4-Autopilot/blob/main/LICENSE))
-* [Supported airframes](https://docs.px4.io/main/en/airframes/airframe_reference.html) ([portfolio](https://px4.io/ecosystem/commercial-systems/)):
-  * [Multicopters](https://docs.px4.io/main/en/frames_multicopter/)
-  * [Fixed wing](https://docs.px4.io/main/en/frames_plane/)
-  * [VTOL](https://docs.px4.io/main/en/frames_vtol/)
-  * [Autogyro](https://docs.px4.io/main/en/frames_autogyro/)
-  * [Rover](https://docs.px4.io/main/en/frames_rover/)
-  * many more experimental types (Blimps, Boats, Submarines, High altitude balloons, etc)
-* Releases: [Downloads](https://github.com/PX4/PX4-Autopilot/releases)
 
-## Building a PX4 based drone, rover, boat or robot
+## DTRG Additions
 
-The [PX4 User Guide](https://docs.px4.io/main/en/) explains how to assemble [supported vehicles](https://docs.px4.io/main/en/airframes/airframe_reference.html) and fly drones with PX4.
-See the [forum and chat](https://docs.px4.io/main/en/#getting-help) if you need help!
+The DTRG fork of PX4 includes the following additions:
+
+Implemented:
+* Mixer Injection from csv file
+* Manual Horizontal Thrust Control via RC
+
+Upcoming:
+* Dynamixel Servo Control with easy configuration
+* Wrench Estimator
+* Admittance Controller
+
+This DTRG fork is designed with the following airframes in mind:
+
+* BlueOcto (stacked octocopter)
+* PlanarOcto (flat octocopter)
+* Planatary Hex (modified flat hexacopter)
+
+Documentation for features implemented in v1.14 can be found in the DTRG teams drive documentation folder. It is highly recommended to read the documentation before attempting to use the firmware as some features may pose a safety risk if not used correctly.
 
 ## Project Governance
 
