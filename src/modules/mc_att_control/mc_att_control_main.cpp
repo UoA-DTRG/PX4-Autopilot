@@ -93,6 +93,10 @@ MulticopterAttitudeControl::parameters_updated()
 						radians(_param_mc_yawrate_max.get())));
 
 	_man_tilt_max = math::radians(_param_mpc_man_tilt_max.get());
+	_ht_en = _param_dtrg_ht_en.get();
+	_ht_gain  = _param_dtrg_h_t_gain.get();
+	_ht_x_add = _param_dtrg_h_t_X.get()-1;
+	_ht_y_add = _param_dtrg_h_t_Y.get()-1;
 }
 
 float
@@ -167,10 +171,22 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 		AttitudeControlMath::correctTiltSetpointForYawError(q_sp_rp, q, q_sp_yaw);
 	}
 
+	//DTRG horizontal thrust switch
+	if(_ht_en)
+	{
+		_rc_channels_sub.update(&_rc_channels);
+
+		attitude_setpoint.thrust_body[0] = _rc_channels.channels[_ht_x_add] * _ht_gain * 10;
+		attitude_setpoint.thrust_body[1] = _rc_channels.channels[_ht_y_add] * _ht_gain * 10;
+
+		// PX4_INFO("X: %f, Y: %f", (double)attitude_setpoint.thrust_body[0], (double)attitude_setpoint.thrust_body[1]);
+	}
+
 	// Align the desired tilt with the yaw setpoint
 	Quatf q_sp = q_sp_yaw * q_sp_rp;
 
 	q_sp.copyTo(attitude_setpoint.q_d);
+
 
 	// Transform to euler angles for logging only
 	const Eulerf euler_sp(q_sp);

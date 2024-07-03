@@ -54,6 +54,7 @@
 #include <uORB/topics/vehicle_rates_setpoint.h>
 #include <uORB/topics/vehicle_status.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
+#include <uORB/topics/rc_channels.h>
 
 #include <AttitudeControl.hpp>
 
@@ -103,6 +104,10 @@ private:
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 
+	//for horitontal thrust switch
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	struct rc_channels_s _rc_channels{};
+
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 
 	uORB::Publication<vehicle_rates_setpoint_s>     _vehicle_rates_setpoint_pub{ORB_ID(vehicle_rates_setpoint)};    /**< rate setpoint publication */
@@ -117,6 +122,11 @@ private:
 
 	float _man_yaw_sp{0.f};                 /**< current yaw setpoint in manual mode */
 	float _man_tilt_max;                    /**< maximum tilt allowed for manual flight [rad] */
+	float _ht_gain;                    	/**< DTRG horizontal thrust rate */
+	int _ht_en;                        	/**< DTRG horizontal thrust enable */
+	int _ht_x_add;                         	/**< DTRG horizontal thrust X channel */
+	int _ht_y_add;                         	/**< DTRG horizontal thrust Y channel */
+
 
 	AlphaFilter<float> _man_roll_input_filter;
 	AlphaFilter<float> _man_pitch_input_filter;
@@ -133,6 +143,8 @@ private:
 
 	uint8_t _quat_reset_counter{0};
 
+
+	//TODO implement param for horiztonal thrust switch
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::MC_AIRMODE>)         _param_mc_airmode,
 		(ParamFloat<px4::params::MC_MAN_TILT_TAU>)  _param_mc_man_tilt_tau,
@@ -152,7 +164,12 @@ private:
 		(ParamFloat<px4::params::MPC_MANTHR_MIN>)   _param_mpc_manthr_min,      /**< minimum throttle for stabilized */
 		(ParamFloat<px4::params::MPC_THR_MAX>)      _param_mpc_thr_max,         /**< maximum throttle for stabilized */
 		(ParamFloat<px4::params::MPC_THR_HOVER>)    _param_mpc_thr_hover,       /**< throttle at stationary hover */
-		(ParamInt<px4::params::MPC_THR_CURVE>)      _param_mpc_thr_curve        /**< throttle curve behavior */
+		(ParamInt<px4::params::MPC_THR_CURVE>)      _param_mpc_thr_curve,       /**< throttle curve behavior */
+		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
+		(ParamInt<px4::params::DTRG_H_T_X>)  	    _param_dtrg_h_t_X,		/**< horizontal thrust X channel */
+		(ParamInt<px4::params::DTRG_H_T_Y>)  	    _param_dtrg_h_t_Y,		/**< horizontal thrust Y channel */
+	(	ParamFloat<px4::params::DTRG_HT_GAIN>)      _param_dtrg_h_t_gain	/**< horizontal thrust Y channel */
+
 	)
 };
 
