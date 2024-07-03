@@ -103,7 +103,7 @@ PARAM_DEFINE_INT32(DTRG_H_T_X, 8);
  * @reboot_required true
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_H_T_Y, 9);
+PARAM_DEFINE_INT32(DTRG_H_T_Y, 6);
 
 /**
  * Roll P gain
