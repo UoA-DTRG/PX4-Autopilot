@@ -188,8 +188,11 @@ MulticopterRateControl::Run()
 				_rates_sp(1)=0;
 				_rates_sp(2)=0;
 				_thrust_sp(0) = _thrust_sp(1) = 0.f;
-
-				_thrust_sp(2) = 0.5f;
+				// if(_manual_control_setpoint_sub.update(&manual_control_setpoint)){
+				// 	_thrust_sp(2) =  -math::constrain(manual_control_setpoint.z, 0.0f, 1.0f);
+				// 	PX4_INFO("%f",double(manual_control_setpoint.z));
+				// }
+				_thrust_sp(2) = 0.5f;//0.47f;
 				if(_rc_channels.channels[7]>float(0) ){
 
 					if(!isStarted){
@@ -197,41 +200,42 @@ MulticopterRateControl::Run()
 						timeStart=(double)hrt_absolute_time();
 					}
 
-					actuator_motors_s actuator_motors;
+					// actuator_motors_s actuator_motors;
 
-					double value=((double)hrt_absolute_time()-timeStart);
+					// double value=((double)hrt_absolute_time()-timeStart);
 
+					double value=_param_mc_testing_step.get();
 
-					for(int i=0;i<_param_mc_testing_grad.get();i++){
-						value=value*0.1;
-					}
+					// for(int i=0;i<_param_mc_testing_grad.get();i++){
+					// 	value=value*0.1;
+					// }
 					PX4_INFO("%f",double(value));
-					if(stopValue>0){
-						value=stopValue;
-						PX4_INFO("Saturated");
-					}else if(_actuator_motors_sub.update(&actuator_motors)){
-						float max=0.5;
-						float min=0.5;
-						float limiting=_param_mc_testing_limit.get();
-						for (size_t i=0;i<8;i++){
-							if (actuator_motors.control[i]>max){
-								max=actuator_motors.control[i];
-							}
-							if (actuator_motors.control[i]<min){
-								min=actuator_motors.control[i];
-							}
-						}
+					// if(stopValue>0){
+					// 	value=stopValue;
+					// 	PX4_INFO("Saturated");
+					// }else if(_actuator_motors_sub.update(&actuator_motors)){
+					// 	float max=0.5;
+					// 	float min=0.5;
+					// 	float limiting=_param_mc_testing_limit.get();
+					// 	for (size_t i=0;i<8;i++){
+					// 		if (actuator_motors.control[i]>max){
+					// 			max=actuator_motors.control[i];
+					// 		}
+					// 		if (actuator_motors.control[i]<min){
+					// 			min=actuator_motors.control[i];
+					// 		}
+					// 	}
 
-						if(max>(float)(1-limiting) || min<(float)limiting){
-							stopValue=value;
+					// 	if(max>(float)(1-limiting) || min<(float)limiting){
+					// 		stopValue=value;
 
-						}
+					// 	}
 
-					}
+					// }
 
-					if(stopValue>0){
-						value=stopValue;
-					}
+					// if(stopValue>0){
+					// 	value=stopValue;
+					// }
 					if(_rc_channels.channels[5]>0){
 						value=-value;
 					}
@@ -351,6 +355,7 @@ MulticopterRateControl::Run()
 			_controller_status_pub.publish(rate_ctrl_status);
 
 			control_vector_thrust();
+								// PX4_INFO("Thrust SP: %f",double( _thrust_sp(2)));
 
 			// publish actuator controls
 			actuator_controls_s actuators{};

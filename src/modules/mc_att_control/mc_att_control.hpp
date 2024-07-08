@@ -165,7 +165,7 @@ private:
 
 
 		(ParamBool<px4::params::MC_TESTING>) _param_mc_testing,
-		(ParamInt<px4::params::MC_TESTING_DIR>) _param_mc_testing_dir,
+		// (ParamInt<px4::params::MC_TESTING_DIR>) _param_mc_testing_dir,
 		(ParamInt<px4::params::MC_TESTING_AXIS>) _param_mc_testing_axis,
 		(ParamInt<px4::params::MC_TESTING_GRAD>) _param_mc_testing_grad,
 

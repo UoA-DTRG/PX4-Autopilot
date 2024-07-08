@@ -415,12 +415,12 @@ PARAM_DEFINE_INT32(MC_TESTING, 0);
  *
  * Sets direction of force
  *
- * @min -1
- * @max 1
- * @increment 2
+ * @min 0.1
+ * @max 0.2
+ * @decimal 1
  * @group Testing Bench Tests
  */
-PARAM_DEFINE_INT32(MC_TESTING_DIR, 1);
+PARAM_DEFINE_FLOAT(MC_TESTING_STEP, 0.1);
 
 
 /**

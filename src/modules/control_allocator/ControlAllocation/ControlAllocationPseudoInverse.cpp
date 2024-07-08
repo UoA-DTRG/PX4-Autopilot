@@ -90,8 +90,8 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		// _mix(1,5) = 0;
 		// _mix(2,5) =0;
 		// _mix(3,5) = 0;
-		// _mix(4,5) =0;
-		// _mix(5,5) = 0;
+		_mix(6,5) =0.5f*_mix(6,5);
+		_mix(7,5) =_mix(6,5);
 		// if(_rc_channels.channels[7]>(float)0.2){
 		// 	_mix(6,5) = -0.22;
 		// 	_mix(7,5) = -0.22;
