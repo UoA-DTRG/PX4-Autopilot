@@ -45,7 +45,7 @@ void
 ControlAllocationSequentialDesaturation::allocate()
 {
 	//Compute new gains if needed
-	updatePseudoInverse();
+	updatePseudoInverse(_param_mixer_sun_scale.get());
 
 	_prev_actuator_sp = _actuator_sp;
 

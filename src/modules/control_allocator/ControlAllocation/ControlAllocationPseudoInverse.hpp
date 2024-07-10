@@ -71,7 +71,7 @@ protected:
 	 * Recalculate pseudo inverse if required.
 	 *
 	 */
-	void updatePseudoInverse();
+	void updatePseudoInverse(float sunScale);
 
 private:
 	void normalizeControlAllocationMatrix();

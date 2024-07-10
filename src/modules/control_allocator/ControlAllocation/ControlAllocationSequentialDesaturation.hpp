@@ -123,6 +123,7 @@ private:
 	void mixYaw();
 
 	DEFINE_PARAMETERS(
-		(ParamInt<px4::params::MC_AIRMODE>) _param_mc_airmode   ///< air-mode
+		(ParamInt<px4::params::MC_AIRMODE>) _param_mc_airmode,   ///< air-mode
+		(ParamFloat<px4::params::MIXER_SUN_SCALE>) _param_mixer_sun_scale
 	);
 };

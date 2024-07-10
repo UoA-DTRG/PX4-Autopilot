@@ -54,7 +54,7 @@ ControlAllocationPseudoInverse::setEffectivenessMatrix(
 }
 
 void
-ControlAllocationPseudoInverse::updatePseudoInverse()
+ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1)
 {
 
 	_rc_channels_sub.update(&_rc_channels);
@@ -87,10 +87,14 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 		// 	// }
 		// }
 
-		if(_rc_channels.channels[7]>(float)0.2){
-			_mix(6,5) = -0.22;
-			_mix(7,5) = -0.22;
-		}
+		// if(_rc_channels.channels[7]>(float)0.2){
+		// 	_mix(6,5) = -0.22;
+		// 	_mix(7,5) = -0.22;
+		// }
+
+
+		_mix(6,5)=sunScale*_mix(0,5);
+		_mix(7,5)=_mix(6,5);
 
 		// _mix(0,4) = 0; _mix(0,3) = 0;
 		// _mix(0,4) = 0; _mix(0,3) = 0;
