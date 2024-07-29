@@ -110,3 +110,4 @@ dataman
 eeprom/
 
 !src/drivers/distance_sensor/broadcom/afbrs50/Lib/*
+.vscode/settings.json
