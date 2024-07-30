@@ -1,0 +1,4 @@
+ bool "DTRG TEST"
+ default n
+ ---help---
+ 	Enable Pdtrg test app
