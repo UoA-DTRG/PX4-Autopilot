@@ -1,4 +1,5 @@
- bool "DTRG TEST"
- default n
- ---help---
- 	Enable Pdtrg test app
+ menuconfig EXAMPLES_DTRG_TEST
+	bool "DTRG_TEST"
+	default n
+	---help---
+		Enable dtrg test app

@@ -216,12 +216,11 @@ set(msg_files
 	VehicleStatus.msg
 	VehicleThrustSetpoint.msg
 	VehicleTorqueSetpoint.msg
-	VehicleTrajectoryBezier.msg
+	VehicleTrajectoryBezier.msgz
 	VehicleTrajectoryWaypoint.msg
 	VtolVehicleStatus.msg
 	Wind.msg
 	YawEstimatorStatus.msg
-	DTRGCustom.msg
 )
 list(SORT msg_files)
 
