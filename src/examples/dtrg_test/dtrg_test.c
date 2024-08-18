@@ -52,6 +52,8 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/dtrg_custom.h>
+
 
 __EXPORT int dtrg_test_main(int argc, char *argv[]);
 
@@ -64,10 +66,9 @@ int dtrg_test_main(int argc, char *argv[])
 	/* limit the update rate to 5 Hz */
 	orb_set_interval(sensor_sub_fd, 200);
 
-	/* advertise attitude topic */
-	struct vehicle_attitude_s att;
-	memset(&att, 0, sizeof(att));
-	orb_advert_t att_pub = orb_advertise(ORB_ID(vehicle_attitude), &att);
+	struct dtrg_custom_s dtrg;
+	memset(&dtrg, 0, sizeof(dtrg));
+	orb_advert_t dtrg_pub = orb_advertise(ORB_ID(dtrg_custom), &dtrg);
 
 	/* one could wait for multiple topics with this technique, just using one here */
 	px4_pollfd_struct_t fds[] = {
@@ -79,7 +80,7 @@ int dtrg_test_main(int argc, char *argv[])
 
 	int error_counter = 0;
 
-	for (int i = 0; i < 5; i++) {
+	while (true) {
 		/* wait for sensor update of 1 file descriptor for 1000 ms (1 second) */
 		int poll_ret = px4_poll(fds, 1, 1000);
 
@@ -112,11 +113,9 @@ int dtrg_test_main(int argc, char *argv[])
 				/* set att and publish this information for other apps
 				 the following does not have any meaning, it's just an example
 				*/
-				att.q[0] = raw.accelerometer_m_s2[0];
-				att.q[1] = raw.accelerometer_m_s2[1];
-				att.q[2] = raw.accelerometer_m_s2[2];
+				dtrg.offboard_sp[1] = raw.accelerometer_m_s2[0];
 
-				orb_publish(ORB_ID(vehicle_attitude), att_pub, &att);
+				orb_publish(ORB_ID(dtrg_custom), dtrg_pub, &dtrg);
 			}
 
 			/* there could be more file descriptors here, in the form like:
