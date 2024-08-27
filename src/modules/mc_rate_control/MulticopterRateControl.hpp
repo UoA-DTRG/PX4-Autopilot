@@ -60,6 +60,9 @@
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/vehicle_torque_setpoint.h>
 
+
+#include <uORB/topics/vehicle_vector_thrust_setpoint.h> // DTRG
+
 using namespace time_literals;
 
 class MulticopterRateControl : public ModuleBase<MulticopterRateControl>, public ModuleParams, public px4::WorkItem
@@ -78,6 +81,8 @@ public:
 	static int print_usage(const char *reason = nullptr);
 
 	bool init();
+
+	void control_vector_thrust(); //DTRG
 
 private:
 	void Run() override;
@@ -99,6 +104,8 @@ private:
 	uORB::Subscription _vehicle_rates_setpoint_sub{ORB_ID(vehicle_rates_setpoint)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 
+	uORB::Subscription _v_vt_sp_sub{ORB_ID(vehicle_vector_thrust_setpoint)}; /**< vehicle vector thrust setpoint subscription */
+
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	uORB::SubscriptionCallbackWorkItem _vehicle_angular_velocity_sub{this, ORB_ID(vehicle_angular_velocity)};
@@ -111,6 +118,8 @@ private:
 
 	vehicle_control_mode_s	_vehicle_control_mode{};
 	vehicle_status_s	_vehicle_status{};
+
+	vehicle_vector_thrust_setpoint_s _v_vt_sp{}; //DTRG
 
 	bool _landed{true};
 	bool _maybe_landed{true};
@@ -125,6 +134,9 @@ private:
 
 	float _battery_status_scale{0.0f};
 	matrix::Vector3f _thrust_setpoint{};
+
+	matrix::Vector3f _vector_thrust_sp{};
+	float _vec_thr_xy_p; /**< gain for vector thrust XY direction. */
 
 	float _energy_integration_time{0.0f};
 	float _control_energy[4] {};
@@ -159,6 +171,10 @@ private:
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPO>) _param_mc_acro_supexpo,		/**< superexpo stick curve shape (roll & pitch) */
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPOY>) _param_mc_acro_supexpoy,		/**< superexpo stick curve shape (yaw) */
 
-		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en
+		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
+
+		(ParamFloat<px4::params::MPC_VEC_THR_XY_P>) _param_mpc_vec_thr_xy_p /**< gain for vector thrust XY direction. */
+
+
 	)
 };

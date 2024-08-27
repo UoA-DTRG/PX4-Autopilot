@@ -357,6 +357,7 @@ void MulticopterPositionControl::Run()
 		}
 
 		_vehicle_land_detected_sub.update(&_vehicle_land_detected);
+		_rc_channels_sub.update(&_rc_channels); //PMEN
 
 		if (_param_mpc_use_hte.get()) {
 			hover_thrust_estimate_s hte;
@@ -411,9 +412,7 @@ void MulticopterPositionControl::Run()
 		_z_reset_counter = vehicle_local_position.z_reset_counter;
 		_heading_reset_counter = vehicle_local_position.heading_reset_counter;
 
-
 		PositionControlStates states{set_vehicle_states(vehicle_local_position)};
-
 
 		if (_vehicle_control_mode.flag_multicopter_position_control_enabled) {
 			// set failsafe setpoint if there hasn't been a new
@@ -554,11 +553,72 @@ void MulticopterPositionControl::Run()
 			local_pos_sp.timestamp = hrt_absolute_time();
 			_local_pos_sp_pub.publish(local_pos_sp);
 
+
+			// DTRG changes
+			// TODO - replace this with new uorb message for DTRG setpoints
+
+			//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
+			//corresponds to the debug_array uorb msg
+			if (_debug_array_sub.update(&_debug_array))
+			{
+				roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
+				pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
+			}
+
+			float vec_thr_scl = ((float)_param_mpc_vec_thr_en.get() * _param_mpc_vec_thr_scl.get()); // PMEN Changes
+			_vt_sp.thrust_f = 0.f;
+			_vt_sp.thrust_r = 0.f;
+
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
-			_control.getAttitudeSetpoint(attitude_setpoint);
+
+			// PMEN - MODIFICATIONS TO INCLUDE VECTOR THRUST
+			//  if the vector thrust is enabled and the vector thrust scale is greater than 1 and the switch is on
+			if ((_param_mpc_vec_thr_en.get() == 1) && (_param_mpc_vec_thr_scl.get() >= 1.0f) && (_rc_channels.channels[5] > 0.0f)){
+				// set the roll and pitch setpoints to the values received from offboard
+				attitude_setpoint.roll_body = roll_setpoint;
+				attitude_setpoint.pitch_body = pitch_setpoint;
+				PX4_INFO("roll: %8.4f", (double)roll_setpoint);
+				PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
+				// convert to quaternion
+				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
+
+				// TODO figure out what thrust_frd is
+				Vector3f thrust_frd = q_sp.conjugate_inversed(Vector3f(local_pos_sp.thrust[0] * vec_thr_scl, local_pos_sp.thrust[1] * vec_thr_scl, local_pos_sp.thrust[2]));
+
+				_vt_sp.thrust_f = thrust_frd(0);
+				_vt_sp.thrust_r = thrust_frd(1);
+				_vt_sp.timestamp = hrt_absolute_time();
+
+				q_sp.copyTo(attitude_setpoint.q_d);
+
+				attitude_setpoint.thrust_body[2] = thrust_frd(2);
+
+			} else {
+
+					//CHECK RESULTS BEFORE USING
+
+				ControlMath::thrustToAttitude(Vector3f(local_pos_sp.thrust[0] * (1.0f - vec_thr_scl),
+								local_pos_sp.thrust[1] * (1.0f - vec_thr_scl),
+								local_pos_sp.thrust[2]), local_pos_sp.yaw, attitude_setpoint);
+				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
+
+				Quatf q_sp = Quatf(attitude_setpoint.q_d[0],attitude_setpoint.q_d[1],attitude_setpoint.q_d[2],attitude_setpoint.q_d[3]);
+
+				Vector3f thrust_frd = q_sp.conjugate_inversed(Vector3f(local_pos_sp.thrust[0] * vec_thr_scl, local_pos_sp.thrust[1] * vec_thr_scl, local_pos_sp.thrust[2]));
+
+				_vt_sp.thrust_f = thrust_frd(0);
+				_vt_sp.thrust_r = thrust_frd(1);
+				_vt_sp.timestamp = hrt_absolute_time();
+
+				// _control.getAttitudeSetpoint(attitude_setpoint);
+			}
+
+
+
 			attitude_setpoint.timestamp = hrt_absolute_time();
 			_vehicle_attitude_setpoint_pub.publish(attitude_setpoint);
+			_vt_sp_pub.publish(_vt_sp);
 
 		} else {
 			// an update is necessary here because otherwise the takeoff state doesn't get skipped with non-altitude-controlled modes

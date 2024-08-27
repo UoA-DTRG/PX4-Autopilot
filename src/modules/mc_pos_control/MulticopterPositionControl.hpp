@@ -65,6 +65,13 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 
+// Dtrg includes
+#include <uORB/topics/vehicle_vector_thrust_setpoint.h>
+#include <uORB/topics/rc_channels.h>
+#include <uORB/topics/debug_array.h>
+#include <uORB/topics/dtrg_custom.h>
+
+
 using namespace time_literals;
 
 class MulticopterPositionControl : public ModuleBase<MulticopterPositionControl>, public control::SuperBlock,
@@ -101,15 +108,28 @@ private:
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
-	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
+	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)}; //TODO this was commented out in the old 6D offboard with the tag "Using Addmittance"
 	uORB::Subscription _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
+	// Dtrg
+	uORB::Publication<vehicle_vector_thrust_setpoint_s> _vt_sp_pub{ORB_ID(vehicle_vector_thrust_setpoint)};
+
+	//TODO these existed replacing the trajectory_setpoint_sub
+	// uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
+	// uORB::Subscription _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
+	// uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
+
+	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)};
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+
+
 	hrt_abstime _time_stamp_last_loop{0};		/**< time stamp of last loop iteration */
 	hrt_abstime _time_position_control_enabled{0};
 
-	trajectory_setpoint_s _setpoint{PositionControl::empty_trajectory_setpoint};
+	trajectory_setpoint_s _setpoint{PositionControl::empty_trajectory_setpoint}; //TODO in old 6D offboard this doesnt exist (probs cuz addmittance)
+
 	vehicle_control_mode_s _vehicle_control_mode{};
 
 	vehicle_constraints_s _vehicle_constraints {
@@ -118,6 +138,13 @@ private:
 		.speed_down = NAN,
 		.want_takeoff = false,
 	};
+
+	// Dtrg
+	rc_channels_s _rc_channels{}; /**< PMEN RC channels*/
+	vehicle_vector_thrust_setpoint_s _vt_sp{};	/**< vehicle vector thrust setpoint */
+	debug_array_s _debug_array{}; //Joao changed here
+	float roll_setpoint = 0.0f;
+	float pitch_setpoint = 0.0f;
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -175,7 +202,11 @@ private:
 		(ParamFloat<px4::params::MPC_MAN_Y_TAU>)    _param_mpc_man_y_tau,
 
 		(ParamFloat<px4::params::MPC_XY_VEL_ALL>)   _param_mpc_xy_vel_all,
-		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all
+		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all,
+		//DTRG OLD 6D OFFBOARD
+		(ParamInt<px4::params::MPC_VEC_THR_EN>)     _param_mpc_vec_thr_en,  /**< enable vector thrust*/
+		(ParamFloat<px4::params::MPC_VEC_THR_SCL>)  _param_mpc_vec_thr_scl,  /**< scaling for vector thrust mode */
+		(ParamFloat<px4::params::MPC_VEC_THR_ANG>)  _param_mpc_vec_thr_ang /**< tilt angle for horizontal thrust */ /* PMEN */
 	);
 
 	control::BlockDerivative _vel_x_deriv; /**< velocity derivative in x */

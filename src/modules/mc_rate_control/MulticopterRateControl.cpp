@@ -52,6 +52,7 @@ MulticopterRateControl::MulticopterRateControl(bool vtol) :
 {
 	_vehicle_status.vehicle_type = vehicle_status_s::VEHICLE_TYPE_ROTARY_WING;
 
+	_vector_thrust_sp.setAll(0.f); //DTRG
 	parameters_updated();
 	_controller_status_pub.advertise();
 }
@@ -95,6 +96,8 @@ MulticopterRateControl::parameters_updated()
 	// manual rate control acro mode rate limits
 	_acro_rate_max = Vector3f(radians(_param_mc_acro_r_max.get()), radians(_param_mc_acro_p_max.get()),
 				  radians(_param_mc_acro_y_max.get()));
+
+	_vec_thr_xy_p = _param_mpc_vec_thr_xy_p.get();
 }
 
 void
@@ -264,6 +267,34 @@ MulticopterRateControl::Run()
 
 	perf_end(_loop_perf);
 }
+
+
+/**
+ * Vector Thrust controller.
+ * Input: 'vehicle_vector_thrust_setpoint'
+ * Output: '_rates_sp' vector, '_thrust_sp'
+ */
+void
+MulticopterRateControl::control_vector_thrust()
+{
+	_v_vt_sp_sub.update(&_v_vt_sp);
+
+	// reinitialize the setpoint while not armed to make sure no value from the last mode or flight is still kept
+	if (!_v_control_mode.flag_armed || (!_v_control_mode.flag_control_position_enabled
+					    && !_v_control_mode.flag_control_velocity_enabled && !_v_control_mode.flag_control_altitude_enabled)) {
+		_v_vt_sp.thrust_f = 0.f;
+		_v_vt_sp.thrust_r = 0.f;
+
+	}
+
+	_vector_thrust_sp.setAll(0.f);
+	_vector_thrust_sp(0) = math::constrain(_v_vt_sp.thrust_f * _vec_thr_xy_p, -1.0f, 1.0f);
+	_vector_thrust_sp(1) = math::constrain(_v_vt_sp.thrust_r * _vec_thr_xy_p, -1.0f, 1.0f);
+
+}
+
+
+
 
 void MulticopterRateControl::updateActuatorControlsStatus(const vehicle_torque_setpoint_s &vehicle_torque_setpoint,
 		float dt)
