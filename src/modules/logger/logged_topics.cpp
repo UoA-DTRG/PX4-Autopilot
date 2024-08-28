@@ -203,7 +203,6 @@ void LoggedTopics::add_default_topics()
 	// add_optional_topic_multi("estimator_aid_src_ev_yaw", 100, MAX_ESTIMATOR_INSTANCES);
 
 	// dtrg
-	add_topic("vehicle_vector_thrust_setpoint");
 	add_topic("debug_vect");
 	add_topic("dtrg_custom");
 

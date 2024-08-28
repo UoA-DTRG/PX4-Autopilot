@@ -222,7 +222,6 @@ set(msg_files
 	Wind.msg
 	YawEstimatorStatus.msg
 	DtrgCustom.msg
-	vehicle_vector_thrust_setpoint.msg
 )
 list(SORT msg_files)
 

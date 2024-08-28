@@ -113,12 +113,7 @@ private:
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
-	// Dtrg
-	uORB::Publication<vehicle_vector_thrust_setpoint_s> _vt_sp_pub{ORB_ID(vehicle_vector_thrust_setpoint)};
-
-	//TODO these existed replacing the trajectory_setpoint_sub
-	// uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
-	// uORB::Subscription _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
+	//TODO this existed replacing the trajectory_setpoint_sub
 	// uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
 
 	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)};
@@ -145,6 +140,7 @@ private:
 	debug_array_s _debug_array{}; //Joao changed here
 	float roll_setpoint = 0.0f;
 	float pitch_setpoint = 0.0f;
+	int _dtrg_offboard_en = 0; /**< enable the dtrg 6d offboard control*/
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -203,10 +199,10 @@ private:
 
 		(ParamFloat<px4::params::MPC_XY_VEL_ALL>)   _param_mpc_xy_vel_all,
 		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all,
-		//DTRG OLD 6D OFFBOARD
-		(ParamInt<px4::params::MPC_VEC_THR_EN>)     _param_mpc_vec_thr_en,  /**< enable vector thrust*/
-		(ParamFloat<px4::params::MPC_VEC_THR_SCL>)  _param_mpc_vec_thr_scl,  /**< scaling for vector thrust mode */
-		(ParamFloat<px4::params::MPC_VEC_THR_ANG>)  _param_mpc_vec_thr_ang /**< tilt angle for horizontal thrust */ /* PMEN */
+
+		//DTRG
+		(ParamInt<px4::params::DTRG_OFFBOARD_EN>)   _param_dtrg_offboard_en /**< enable the dtrg 6d offboard control*/
+
 	);
 
 	control::BlockDerivative _vel_x_deriv; /**< velocity derivative in x */
