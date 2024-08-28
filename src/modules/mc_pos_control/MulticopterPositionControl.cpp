@@ -555,7 +555,14 @@ void MulticopterPositionControl::Run()
 
 
 			// DTRG changes
-			// TODO - replace this with new uorb message for DTRG setpoints
+
+			/*TODO redo this whole implementation using new parameters and the new uorb message, instead of using the
+			weird vectored thrust stuff which seems like a hack anyway, going to make use of the attitude setpoint 3d thrust vector,
+			since setting this carries though to the attitude controller, which caries all the way though to the mixer and also previous
+			implementaiton for manual horizontal thrust via rc channels make use of the attitude setpoint in the attitude controller we
+			know this should work. also simply copy the angle setpoints across to roll, pitch . yaw setpoints in the attitude setpoint
+			message, this should work as well.
+			*/
 
 			//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
 			//corresponds to the debug_array uorb msg
@@ -583,7 +590,7 @@ void MulticopterPositionControl::Run()
 				// convert to quaternion
 				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
 
-				// TODO figure out what thrust_frd is
+				// thrust in front right down frame or NED frame
 				Vector3f thrust_frd = q_sp.conjugate_inversed(Vector3f(local_pos_sp.thrust[0] * vec_thr_scl, local_pos_sp.thrust[1] * vec_thr_scl, local_pos_sp.thrust[2]));
 
 				_vt_sp.thrust_f = thrust_frd(0);
