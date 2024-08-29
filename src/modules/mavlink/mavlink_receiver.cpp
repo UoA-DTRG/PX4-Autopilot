@@ -126,6 +126,9 @@ void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
 	switch (msg->msgid) {
+	case MAVLINK_MSG_ID_DTRG_OFFBOARD:
+        	handle_message_dtrg_offboard(msg);
+        	break;
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		handle_message_command_long(msg);
 		break;
@@ -3058,6 +3061,23 @@ MavlinkReceiver::handle_message_gimbal_device_attitude_status(mavlink_message_t 
 
 	_gimbal_device_attitude_status_pub.publish(gimbal_attitude_status);
 }
+
+//DTRG
+void
+MavlinkReceiver::handle_message_dtrg_offboard(mavlink_message_t *msg)
+{
+	mavlink_dtrg_offboard_t dtrg_offboard_msg;
+	mavlink_dtrg_offboard_decode(msg, &dtrg_offboard_msg);
+
+	dtrg_offboard_s dtrg_offboard{};
+	dtrg_offboard.timestamp = hrt_absolute_time();
+
+	dtrg_offboard.setpoint = dtrg_offboard_msg.setpoint;
+
+	_dtrg_custom_pub.publish(dtrg_offboard);
+}
+
+
 
 void
 MavlinkReceiver::run()
