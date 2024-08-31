@@ -3067,7 +3067,7 @@ void
 MavlinkReceiver::handle_message_dtrg_offboard(mavlink_message_t *msg)
 {
 	mavlink_dtrg_offboard_t dtrg_offboard_msg;
-	mavlink_dtrg_offboard_decode(msg, &dtrg_offboard_msg);
+	mavlink_msg_dtrg_offboard_decode(msg, &dtrg_offboard_msg);
 
 	dtrg_offboard_s dtrg_offboard{};
 	dtrg_offboard.timestamp = hrt_absolute_time();
