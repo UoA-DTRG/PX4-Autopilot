@@ -263,6 +263,7 @@ void MulticopterPositionControl::parameters_update(bool force)
 
 		//DTRG
 		_dtrg_offboard_en = _param_dtrg_offboard_en.get();
+		_dtrg_ht_off_gain = _param_dtrg_ht_off_gain.get();
 	}
 }
 
@@ -344,7 +345,7 @@ void MulticopterPositionControl::Run()
 
 		// set _dt in controllib Block for BlockDerivative
 		setDt(dt);
-
+attitude_setpoint
 		if (_vehicle_control_mode_sub.updated()) {
 			const bool previous_position_control_enabled = _vehicle_control_mode.flag_multicopter_position_control_enabled;
 
@@ -571,17 +572,20 @@ void MulticopterPositionControl::Run()
 			vehicle_attitude_setpoint_s attitude_setpoint{};
 			if(_dtrg_offboard_en){
 				// set the roll and pitch setpoints to the values received from offboard
-				attitude_setpoint.roll_body = roll_setpoint;
-				attitude_setpoint.pitch_body = pitch_setpoint;
+				// attitude_setpoint.roll_body = roll_setpoint;
+				// attitude_setpoint.pitch_body = pitch_setpoint;
+				attitude_setpoint.roll_body = 0;
+				attitude_setpoint.pitch_body = 0;
 				PX4_INFO("roll: %8.4f", (double)roll_setpoint);
 				PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
 				// set the yaw setpoint
 				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
+				attutude_setpoint.q_d = EulerF(roll_setpoint, pitch_setpoint, local_pos_sp.yaw);
 				//set the horizontal thrust vector to the values from the position controller
 				//copies all 3 values from the position controller to the attitude controller
-				attitude_setpoint.thrust_body[0] = local_pos_sp.thrust[0];
-				attitude_setpoint.thrust_body[1] = local_pos_sp.thrust[1];
-				attitude_setpoint.thrust_body[2] = local_pos_sp.thrust[2];
+				attitude_setpoint.thrust_body[1] = _dtrg_ht_off_gain * local_pos_sp.thrust[1];
+				attitude_setpoint.thrust_body[2] = _dtrg_ht_off_gain * local_pos_sp.thrust[2];
+				attitude_setpoint.thrust_body[0] = _dtrg_ht_off_gain * local_pos_sp.thrust[0];
 				// Print the whole attitude setpoint to the console
 				PX4_INFO("Attitude Setpoint: roll=%8.4f, pitch=%8.4f, yaw=%8.4f, thrust x=%8.4f, thrust y=%8.4f, thrust z=%8.4f",
 						 (double)attitude_setpoint.roll_body,

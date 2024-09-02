@@ -53,6 +53,19 @@
  */
 PARAM_DEFINE_INT32(DTRG_OFFBOARD_EN, 0);
 
+/**
+ * Horizontal Thrust Gain for offboard control
+ *
+ *
+ *
+ * Adjust the control gain for horizontal thrust control, higher values result in faster translational speeds with lower stick input.
+ *
+ * @min 0.000
+ * @max 5.000
+ * @decimal 3
+ * @group DTRG
+ */
+PARAM_DEFINE_FLOAT(DTRG_HT_OFF_GAIN, 2.000f);
 
 /**
  * Minimum collective thrust in auto thrust control
