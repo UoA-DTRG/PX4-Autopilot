@@ -66,7 +66,6 @@
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 
 // Dtrg includes
-#include <uORB/topics/vehicle_vector_thrust_setpoint.h>
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/debug_array.h>
 #include <uORB/topics/dtrg_custom.h>
@@ -136,7 +135,6 @@ private:
 
 	// Dtrg
 	rc_channels_s _rc_channels{}; /**< PMEN RC channels*/
-	vehicle_vector_thrust_setpoint_s _vt_sp{};	/**< vehicle vector thrust setpoint */
 	debug_array_s _debug_array{}; //Joao changed here
 	float roll_setpoint = 0.0f;
 	float pitch_setpoint = 0.0f;
