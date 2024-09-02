@@ -54,16 +54,10 @@ ControlAllocationPseudoInverse::setEffectivenessMatrix(
 }
 
 void
-ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1)
+ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1,bool sunConst=false,int sunStick=0)
 {
 
-	_rc_channels_sub.update(&_rc_channels);
-
-	if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.2){
-		_mix_update_needed = true;
-		PX4_INFO("Changed");
-	}
-
+	float newSunScale=sunScale;
 
 	if (_mix_update_needed) {
 		matrix::geninv(_effectiveness, _mix);
@@ -79,29 +73,8 @@ ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1)
 		_mix(7,0) = 0;                  _mix(7,1) = 0;          _mix(7,2) = 0;                 _mix(7,3) = 0;                 _mix(7,4) = 0;                  _mix(7,5) = -0.132227282372558;
 
 
-		// Motor 47 deg
-		// for (int motor=0;motor<6;motor++){
-		// 	// for (int side=0;side<5;side++){
-		// 	int side = 2;
-		// 	_mix(motor,side)= -_mix(motor,side);
-		// 	// }
-		// }
-
-		// if(_rc_channels.channels[7]>(float)0.2){
-		// 	_mix(6,5) = -0.22;
-		// 	_mix(7,5) = -0.22;
-		// }
-
-
 		_mix(6,5)=sunScale*_mix(0,5);
 		_mix(7,5)=_mix(6,5);
-
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
-		// _mix(0,4) = 0; _mix(0,3) = 0;
 		_normalization_needs_update = true;
 		if (_normalization_needs_update) {
 			updateControlAllocationMatrixScale();
@@ -113,6 +86,40 @@ ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1)
 
 		PX4_INFO("Passed at update");
 	}
+
+
+	if(_rc_channels_sub.update(&_rc_channels)){
+		if(!sunConst){
+			float minOut=0.5;
+			float maxOut=2;
+
+			float minIn=-1;
+			float maxIn=1;
+
+			float sunStickVal=_rc_channels.channels[sunStick];
+
+
+			newSunScale=(((sunStickVal-minIn)/(maxIn-minIn))*(maxOut-minOut))+minOut;
+
+			newSunScale=math::max(math::min(newSunScale,maxOut),minOut);
+
+
+
+
+			PX4_INFO("%f",double(newSunScale));
+		}
+		_mix(6,5)=newSunScale*_mix(0,5);
+		_mix(7,5)=_mix(6,5);
+
+		control_sun_scale_s control_sun_scale{};
+
+		control_sun_scale.timestamp = hrt_absolute_time();
+		control_sun_scale.sun_scale = newSunScale;
+
+ 		_control_sun_scale_pub.publish(control_sun_scale);
+	}
+
+
 }
 
 void
@@ -219,11 +226,7 @@ ControlAllocationPseudoInverse::allocate()
 {
 
 
-	if(std::abs(prev_val-_rc_channels.channels[7])>(float)0.1){
-		_mix_update_needed = true;
-		PX4_INFO("Changed");
 
-	}
 	//Compute new gains if needed
 	if (update_once)
 	{
@@ -233,7 +236,6 @@ ControlAllocationPseudoInverse::allocate()
 		PX4_INFO("Passed at mix");
 	}
 
-	prev_val=_rc_channels.channels[7];
 
 	updatePseudoInverse();
 

@@ -122,8 +122,16 @@ private:
 	 */
 	void mixYaw();
 
+	void updateSunScale();
+
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::MC_AIRMODE>) _param_mc_airmode,   ///< air-mode
-		(ParamFloat<px4::params::MIXER_SUN_SCALE>) _param_mixer_sun_scale
+		(ParamFloat<px4::params::MIXER_SUN_SCALE>) _param_mixer_sun_scale,
+		(ParamBool<px4::params::MIXER_SUN_CONST>) _param_mixer_sun_const,
+		(ParamInt<px4::params::MIXER_SUN_STICK>) _param_mixer_sun_stick
 	);
+
+	float sunScale=1;
+	bool sunConst=true;
+	int sunStick=5;
 };

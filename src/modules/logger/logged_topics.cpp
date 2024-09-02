@@ -258,6 +258,7 @@ void LoggedTopics::add_high_rate_topics()
 	add_topic("admittance_setpoint");
 	add_topic("vehicle_vector_thrust_setpoint");
 	add_topic("debug_vect");
+	add_topic("control_sun_scale");
 }
 
 void LoggedTopics::add_debug_topics()

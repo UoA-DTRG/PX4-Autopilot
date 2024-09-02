@@ -509,6 +509,8 @@ void MulticopterPositionControl::Run()
 			_vt_sp.thrust_f = 0.f;
 			_vt_sp.thrust_r = 0.f;
 
+			float Vthrust;
+
 
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
@@ -526,6 +528,8 @@ void MulticopterPositionControl::Run()
 
 				_vt_sp.thrust_f = thrust_frd(0);
 				_vt_sp.thrust_r = thrust_frd(1);
+				Vthrust= thrust_frd(2);
+
 				_vt_sp.timestamp = hrt_absolute_time();
 
 				q_sp.copyTo(attitude_setpoint.q_d);
@@ -549,6 +553,8 @@ void MulticopterPositionControl::Run()
 
 				_vt_sp.thrust_f = thrust_frd(0);
 				_vt_sp.thrust_r = thrust_frd(1);
+				Vthrust= thrust_frd(2);
+
 				_vt_sp.timestamp = hrt_absolute_time();
 
 				// _control.getAttitudeSetpoint(attitude_setpoint);
@@ -556,6 +562,7 @@ void MulticopterPositionControl::Run()
 
 			attitude_setpoint.thrust_body[0] = _vt_sp.thrust_f;
 			attitude_setpoint.thrust_body[1] = _vt_sp.thrust_r;
+			attitude_setpoint.thrust_body[2] = Vthrust;
 			attitude_setpoint.timestamp = hrt_absolute_time();
 			_vehicle_attitude_setpoint_pub.publish(attitude_setpoint);
 
