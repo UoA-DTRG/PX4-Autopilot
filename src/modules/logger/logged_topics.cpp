@@ -258,6 +258,11 @@ void LoggedTopics::add_high_rate_topics()
 	add_topic("admittance_setpoint");
 	add_topic("vehicle_vector_thrust_setpoint");
 	add_topic("debug_vect");
+	add_topic("esc_status");
+	add_topic("RAW_RPM");
+
+	add_topic("ESC_TELEMETRY_1_TO_4");
+	add_topic("ESC_TELEMETRY_5_TO_8");
 	add_topic("control_sun_scale");
 }
 
