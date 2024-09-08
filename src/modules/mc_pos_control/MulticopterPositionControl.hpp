@@ -65,6 +65,11 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 
+// Dtrg includes
+#include <uORB/topics/rc_channels.h>
+// #include <uORB/topics/debug_array.h>
+// #include <uORB/topics/dtrg_custom.h>
+
 using namespace time_literals;
 
 class MulticopterPositionControl : public ModuleBase<MulticopterPositionControl>, public control::SuperBlock,
@@ -118,6 +123,15 @@ private:
 		.speed_down = NAN,
 		.want_takeoff = false,
 	};
+
+
+	// Dtrg
+	// rc_channels_s _rc_channels{}; /**< PMEN RC channels*/
+	// debug_array_s _debug_array{}; //Joao changed here
+	float roll_setpoint = 0.0f;
+	float pitch_setpoint = 0.0f;
+	int _dtrg_offboard_en = 0; /**< enable the dtrg 6d offboard control*/
+	float _dtrg_ht_off_gain = 2.000f; /**< hover thrust offboard gain*/
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -175,7 +189,11 @@ private:
 		(ParamFloat<px4::params::MPC_MAN_Y_TAU>)    _param_mpc_man_y_tau,
 
 		(ParamFloat<px4::params::MPC_XY_VEL_ALL>)   _param_mpc_xy_vel_all,
-		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all
+		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all,
+
+		//DTRG
+		(ParamInt<px4::params::DTRG_OFFBOARD_EN>)   _param_dtrg_offboard_en, /**< enable the dtrg 6d offboard control*/
+		(ParamFloat<px4::params::DTRG_HT_OFF_GAIN>) _param_dtrg_ht_off_gain /**< HT gain for the offboard control*/
 	);
 
 	control::BlockDerivative _vel_x_deriv; /**< velocity derivative in x */
