@@ -91,6 +91,7 @@ PARAM_DEFINE_INT32(DTRG_H_T_X, 8);
  * Define which aux channel will be used for the horizontal thrust control in the Y direction. (default is channel 9)
  *
  * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio, typically use channels 8 -13 for this function as they are unlikely to be used for other functions.
+ * @value 2 Pitch
  * @value 5 Aux 4 (channel 5)
  * @value 6 Aux 5 (channel 6)
  * @value 7 Aux 6 (channel 7)
