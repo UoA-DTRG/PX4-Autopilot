@@ -68,6 +68,26 @@ PARAM_DEFINE_INT32(DTRG_OFFBOARD_EN, 0);
 PARAM_DEFINE_FLOAT(DTRG_HT_OFF_GAIN, 2.000f);
 
 /**
+ * Horizontal Thrust Gain for offboard control
+ *
+ *
+ *
+ * Horizontal thrust mask for position based control allowing pitch and roll control mixed with horizontal thrust control.
+ *
+ *
+ *
+ * @min 0
+ * @max 3
+ * @value 0 Default - HT for x and y
+ * @value 1 Horizontal thrust for x and roll for y
+ * @value 2 Horizontal thrust for y and pitch for x
+ * @value 3 Horizontal thrust for x and y and pitch and roll (WARNING: Might be unstable, be careful!)
+ * @group Multicopter Position Control
+ * @group DTRG
+ */
+PARAM_DEFINE_INT32(DTRG_HT_MASK 0);
+
+/**
  * Minimum collective thrust in auto thrust control
  *
  * It's recommended to set it > 0 to avoid free fall with zero thrust.

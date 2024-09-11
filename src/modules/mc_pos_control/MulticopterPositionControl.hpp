@@ -140,6 +140,7 @@ private:
 	float pitch_setpoint = 0.0f;
 	int _dtrg_offboard_en = 0; /**< enable the dtrg 6d offboard control*/
 	float _dtrg_ht_off_gain = 2.000f; /**< hover thrust offboard gain*/
+	int _dtrg_ht_mask = 0;
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -202,6 +203,7 @@ private:
 		//DTRG
 		(ParamInt<px4::params::DTRG_OFFBOARD_EN>)   _param_dtrg_offboard_en, /**< enable the dtrg 6d offboard control*/
 		(ParamFloat<px4::params::DTRG_HT_OFF_GAIN>) _param_dtrg_ht_off_gain /**< HT gain for the offboard control*/
+		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask /**< HT gmask for pitching and rolling using HT thrust*/
 
 	);
 
