@@ -85,7 +85,7 @@ PARAM_DEFINE_FLOAT(DTRG_HT_OFF_GAIN, 2.000f);
  * @group Multicopter Position Control
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_HT_MASK 0);
+PARAM_DEFINE_INT32(DTRG_HT_MASK, 0);
 
 /**
  * Minimum collective thrust in auto thrust control

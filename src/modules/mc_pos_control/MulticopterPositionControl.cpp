@@ -346,7 +346,6 @@ void MulticopterPositionControl::Run()
 
 		// set _dt in controllib Block for BlockDerivative
 		setDt(dt);
-attitude_setpoint
 		if (_vehicle_control_mode_sub.updated()) {
 			const bool previous_position_control_enabled = _vehicle_control_mode.flag_multicopter_position_control_enabled;
 
@@ -579,44 +578,48 @@ attitude_setpoint
 				//Standard attitude setpoint generation
 				_control.getAttitudeSetpoint(attitude_RP);
 
+				// Pick and Choose the attitude stuff using parameter
+
+				if (_dtrg_ht_mask == 1) { //Roll for x axis
+					attitude_setpoint.roll_body = attitude_RP.roll_body;
+					attitude_setpoint.pitch_body = pitch_setpoint;
+				} else if (_dtrg_ht_mask == 2) { //Pitch for y axis
+					attitude_setpoint.pitch_body = attitude_RP.pitch_body;
+					attitude_setpoint.roll_body = roll_setpoint;
+				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
+					attitude_setpoint.roll_body = attitude_RP.roll_body;
+					attitude_setpoint.pitch_body = attitude_RP.pitch_body;
+				} else {
+					attitude_setpoint.roll_body = roll_setpoint;
+					attitude_setpoint.pitch_body = pitch_setpoint;
+				}
+
+				// set the yaw setpoint and complete the qd quaternion
+				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
+				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
+				q_sp.copyTo(attitude_setpoint.q_d);
 				// convert thrusts from inertial to body frame
 				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(_dtrg_ht_off_gain * local_pos_sp.thrust[0],
 							_dtrg_ht_off_gain * local_pos_sp.thrust[1]
 							, local_pos_sp.thrust[2]));
 
-				// Pick and Choose using parameter
 
+				// Pick and Choose the horizontal thrust stuff using parameter
 				if (_dtrg_ht_mask == 1) { //Roll for x axis
-					attitude_setpoint.roll_body = attitude_RP.roll_body;
-					//attitude_setpoint.pitch_body = pitch_setpoint;
-					attitude_setpoint.pitch_body = 0;
-					attitude_setpoint.thrust_body[0] =  thrust_frd[0];
+					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
 				} else if (_dtrg_ht_mask == 2) { //Pitch for y axis
-					attitude_setpoint.pitch_body = attitude_RP.pitch_body;
-					// attitude_setpoint.roll_body = roll_setpoint;
-					attitude_setpoint.roll_body = 0;
-					attitude_setpoint.thrust_body[1] =  thrust_frd[1];
+					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
 				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
-					attitude_setpoint.roll_body = attitude_RP.roll_body;
-					attitude_setpoint.pitch_body = attitude_RP.pitch_body;
-					attitude_setpoint.thrust_body[0] =  thrust_frd[0];
-					attitude_setpoint.thrust_body[1] =  thrust_frd[1];
+					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
+					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
 				} else {
-					// attitude_setpoint.roll_body = roll_setpoint;
-					// attitude_setpoint.pitch_body = pitch_setpoint;
-					attitude_setpoint.roll_body = 0;
-					attitude_setpoint.pitch_body = 0;
-
-					attitude_setpoint.thrust_body[0] =  thrust_frd[0];
-					attitude_setpoint.thrust_body[1] =  thrust_frd[1];
+					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
+					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
 				}
 
-				//vertical thrust
-				attitude_setpoint.thrust_body[2] = thrust_frd[2];
 
-				// set the yaw setpoint
-				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
-				attutude_setpoint.q_d = EulerF(roll_setpoint, pitch_setpoint, local_pos_sp.yaw);
+				//vertical thrust
+				attitude_setpoint.thrust_body[2] = thrust_frd(2);
 
 				// Print the whole attitude setpoint to the console
 				PX4_INFO("Attitude Setpoint: roll=%8.4f, pitch=%8.4f, yaw=%8.4f, thrust x=%8.4f, thrust y=%8.4f, thrust z=%8.4f",
