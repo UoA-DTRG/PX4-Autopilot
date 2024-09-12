@@ -580,10 +580,10 @@ void MulticopterPositionControl::Run()
 
 				// Pick and Choose the attitude stuff using parameter
 
-				if (_dtrg_ht_mask == 1) { //Roll for x axis
+				if (_dtrg_ht_mask == 1) {// Roll for y axis
 					attitude_setpoint.roll_body = attitude_RP.roll_body;
 					attitude_setpoint.pitch_body = pitch_setpoint;
-				} else if (_dtrg_ht_mask == 2) { //Pitch for y axis
+				} else if (_dtrg_ht_mask == 2) { //Pitch for x axis
 					attitude_setpoint.pitch_body = attitude_RP.pitch_body;
 					attitude_setpoint.roll_body = roll_setpoint;
 				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
@@ -605,10 +605,10 @@ void MulticopterPositionControl::Run()
 
 
 				// Pick and Choose the horizontal thrust stuff using parameter
-				if (_dtrg_ht_mask == 1) { //Roll for x axis
-					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
-				} else if (_dtrg_ht_mask == 2) { //Pitch for y axis
-					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
+				if (_dtrg_ht_mask == 1) { //roll for y
+					attitude_setpoint.thrust_body[0] =  thrust_frd(0); //thrust for x
+				} else if (_dtrg_ht_mask == 2) { //pitch for x
+					attitude_setpoint.thrust_body[1] =  thrust_frd(1); //thrust for y
 				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
 					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
 					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
@@ -616,7 +616,6 @@ void MulticopterPositionControl::Run()
 					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
 					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
 				}
-
 
 				//vertical thrust
 				attitude_setpoint.thrust_body[2] = thrust_frd(2);
