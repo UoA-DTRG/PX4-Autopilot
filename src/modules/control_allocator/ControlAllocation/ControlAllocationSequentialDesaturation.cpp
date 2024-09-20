@@ -45,8 +45,7 @@ void
 ControlAllocationSequentialDesaturation::allocate()
 {
 	//Compute new gains if needed
-	updateSunScale();
-	updatePseudoInverse(sunScale,sunConst,sunStick);
+	updatePseudoInverse();
 
 	_prev_actuator_sp = _actuator_sp;
 
@@ -65,14 +64,6 @@ ControlAllocationSequentialDesaturation::allocate()
 	}
 }
 
-void
-ControlAllocationSequentialDesaturation::updateSunScale()
-{
-	// sunScale=1;
-	sunScale=_param_mixer_sun_scale.get();
-	sunConst=_param_mixer_sun_const.get();
-	sunStick=_param_mixer_sun_stick.get()-1;
-}
 
 void ControlAllocationSequentialDesaturation::desaturateActuators(
 	ActuatorVector &actuator_sp,

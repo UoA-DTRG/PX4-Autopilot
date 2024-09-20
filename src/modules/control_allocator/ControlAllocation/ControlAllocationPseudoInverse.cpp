@@ -54,10 +54,9 @@ ControlAllocationPseudoInverse::setEffectivenessMatrix(
 }
 
 void
-ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1,bool sunConst=false,int sunStick=0)
+ControlAllocationPseudoInverse::updatePseudoInverse()
 {
 
-	float newSunScale=sunScale;
 
 	if (_mix_update_needed) {
 		matrix::geninv(_effectiveness, _mix);
@@ -75,6 +74,8 @@ ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1,bool sunCon
 
 		_mix(6,5)=sunScale*_mix(0,5);
 		_mix(7,5)=_mix(6,5);
+
+
 		_normalization_needs_update = true;
 		if (_normalization_needs_update) {
 			updateControlAllocationMatrixScale();
@@ -88,38 +89,20 @@ ControlAllocationPseudoInverse::updatePseudoInverse(float sunScale=1,bool sunCon
 	}
 
 
-	if(_rc_channels_sub.update(&_rc_channels)){
-		if(!sunConst){
-			float minOut=0.5;
-			float maxOut=2;
+	if(_control_sun_scale_sub.update(&_control_sun_scale)){
+		float sunScaleNew=_control_sun_scale.sun_scale;
+		sunScaleNew=std::round(sunScaleNew * 100.0f) / 100;
 
-			float minIn=-1;
-			float maxIn=1;
+		if (std::fabsf(sunScale-sunScaleNew)>0.01f){
+			sunScale=sunScaleNew;
 
-			float sunStickVal=_rc_channels.channels[sunStick];
+			_mix(6,5)=sunScale*_mix(0,5);
+			_mix(7,5)=_mix(6,5);
 
-
-			newSunScale=(((sunStickVal-minIn)/(maxIn-minIn))*(maxOut-minOut))+minOut;
-
-			newSunScale=math::max(math::min(newSunScale,maxOut),minOut);
-
-
-
-
-			PX4_INFO("%f",double(newSunScale));
+			updateControlAllocationMatrixScale();
+			normalizeControlAllocationMatrix();
 		}
-		_mix(6,5)=newSunScale*_mix(0,5);
-		_mix(7,5)=_mix(6,5);
-
-		control_sun_scale_s control_sun_scale{};
-
-		control_sun_scale.timestamp = hrt_absolute_time();
-		control_sun_scale.sun_scale = newSunScale;
-
- 		_control_sun_scale_pub.publish(control_sun_scale);
 	}
-
-
 }
 
 void

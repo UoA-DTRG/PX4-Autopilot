@@ -75,8 +75,9 @@ fi
 # Start Multicopter Position Controller.
 #
 mc_hover_thrust_estimator start
-rls_wrench_estimator start
-admittance_control start
+# rls_wrench_estimator start
+# admittance_control start
+sun_scale_control start
 flight_mode_manager start
 mc_pos_control start
 

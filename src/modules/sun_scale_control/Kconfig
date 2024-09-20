@@ -1,0 +1,12 @@
+menuconfig MODULES_SUN_SCALE_CONTROL
+	bool "sun_scale_control"
+	default n
+	---help---
+		Enable support for sun_scale_control
+
+menuconfig USER_SUN_SCALE_CONTROL
+	bool "sun_scale_control running as userspace module"
+	default y
+	depends on BOARD_PROTECTED && MODULES_SUN_SCALE_CONTROL
+	---help---
+		Put sun_scale_control in userspace memory
