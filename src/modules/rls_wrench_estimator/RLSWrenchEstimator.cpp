@@ -69,9 +69,10 @@ void RLSWrenchEstimator::updateParams()
 	ModuleParams::updateParams();
 
 	if (!_in_air) {
-		const float initial_guess[4] = {
-			_param_rls_kf_init.get(),
-			_param_rls_kr_init.get(),
+		const float initial_guess[5] = {
+			_param_rls_kf_sun_init.get(),
+			_param_rls_kf_planet_init.get(),
+			_param_rls_kr_sun_init.get(),
 			_param_rls_xo_init.get() * 1000,
 			_param_rls_yo_init.get() * 1000
 		};
@@ -94,8 +95,10 @@ void RLSWrenchEstimator::updateParams()
 		const struct VehicleParameters vehicle_params = {_param_rls_mass.get(),
 								math::radians(_param_rls_tilt.get()),
 								_param_rls_n_rotors.get(),
-								_param_rls_lpf_motor.get(),
-								_param_rls_km.get(),
+								_param_rls_lpf_sun_motor.get(),
+								_param_rls_lpf_planet_motor.get(),
+								_param_rls_sun_km.get(),
+								_param_rls_planet_km.get(),
 								_param_rls_diameter.get(),
 								_param_rls_top_height.get(),
 								_param_rls_bot_height.get()
@@ -204,14 +207,14 @@ void RLSWrenchEstimator::Run()
 		_voltage = math::constrain(batt_stat.voltage_filtered_v, _param_n_cells.get() * 3.0f, _param_n_cells.get() * 4.2f);
 
 		float speed[8] = {
-			((actuator_outputs.output[0] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
-			((actuator_outputs.output[1] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
-			((actuator_outputs.output[2] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
-			((actuator_outputs.output[3] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
-			((actuator_outputs.output[4] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
-			((actuator_outputs.output[5] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
-			((actuator_outputs.output[6] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
-			((actuator_outputs.output[7] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[0] * _param_rls_speed_planet_p1.get()) - _param_rls_speed_planet_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[1] * _param_rls_speed_planet_p1.get()) - _param_rls_speed_planet_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[2] * _param_rls_speed_planet_p1.get()) - _param_rls_speed_planet_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[3] * _param_rls_speed_planet_p1.get()) - _param_rls_speed_planet_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[4] * _param_rls_speed_planet_p1.get()) - _param_rls_speed_planet_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[5] * _param_rls_speed_planet_p1.get()) - _param_rls_speed_planet_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[6] * _param_rls_speed_sun_p1.get()) - _param_rls_speed_sun_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
+			((actuator_outputs.output[7] * _param_rls_speed_sun_p1.get()) - _param_rls_speed_sun_p2.get()) * sqrtf(powf((_voltage / _param_rls_speed_v1.get()),_param_rls_speed_v2.get())),
 		};
 
 		const matrix::Vector<float, 8> output =  matrix::Vector<float, 8>(speed);
@@ -261,7 +264,7 @@ void RLSWrenchEstimator::publishStatus()
 	rls_wrench_estimator_s status_msg{};
 	matrix::Vector3f Fe = _wrench_estimator.getExternalForce();
 	matrix::Vector3f Me = _wrench_estimator.getExternalMoment();
-	matrix::Vector2f params_thrust = _identification.getEstimationThrust();
+	matrix::Vector3f params_thrust = _identification.getEstimationThrust();
 	matrix::Vector3f params_offset = _identification.getEstimationOffset();
 	Vector3f Fi = _identification.getActuatorForceVector();
 	Vector3f Mi = _identification.getActuatorMomentVector();

@@ -38,7 +38,7 @@
 #include <RLSIdentification.hpp>
 
 
-void RLSIdentification::initialize(const float (&x_init)[4], const float (&x_confidence)[4],
+void RLSIdentification::initialize(const float (&x_init)[5], const float (&x_confidence)[4],
 				   const float (&R_diag)[5], const VehicleParameters &params)
 {
 	_w_lpf.setAll(0.f);
@@ -48,8 +48,14 @@ void RLSIdentification::initialize(const float (&x_init)[4], const float (&x_con
 	_mass = params.mass;
 	_tilt_angle = params.tilt_angle;
 	_n_rotors = params.n_rotors;
-	_lpf_motor_tau = params.lpf_motor_tau;
-	_km = params.torque_constant;
+	for (int i=0;i<6;i++){
+		_lpf_motor_tau(i) = params.lpf_motor_tau_planet;
+		_km(i)=params.torque_constant_planet;
+	}
+	for (int i=6;i<8;i++){
+		_lpf_motor_tau(i) = params.lpf_motor_tau_sun;
+		_km(i)=params.torque_constant_sun;
+	}
 	_diameter = params.diameter;
 	_top_motors_height = params.top_motors_height;
 	_bot_motors_height = params.bot_motors_height;
@@ -60,10 +66,12 @@ void RLSIdentification::initialize(const float (&x_init)[4], const float (&x_con
 	_H_thrust.setAll(0.f);
 	_prediction_error_thrust.setAll(0.f);
 
-	SquareMatrix<float, 2> P_init_thrust;
+	SquareMatrix<float, 3> P_init_thrust;
 	P_init_thrust.setIdentity();
 	P_init_thrust(0, 0) = x_confidence[0];
 	P_init_thrust(1, 1) = x_confidence[1];
+	P_init_thrust(2, 2) = x_confidence[1];
+
 	_Pp_thrust = P_init_thrust;
 
 	SquareMatrix<float, 3> R_thrust;
@@ -75,6 +83,7 @@ void RLSIdentification::initialize(const float (&x_init)[4], const float (&x_con
 
 	_xp_thrust(0) = x_init[0];
 	_xp_thrust(1) = x_init[1];
+	_xp_thrust(2) = x_init[2];
 
 	//RLS offset
 	_moment_vector.setAll(0.f);
@@ -113,7 +122,7 @@ void RLSIdentification::updateThrust(const Vector3f &y, const Vector<float, 8> &
 	_computeKThrust(interaction_flag);
 
 	_computePredictionErrorThrust(y * _mass);
-	Vector2f x_thrust = _xp_thrust + _K_thrust * _prediction_error_thrust;
+	Vector3f x_thrust = _xp_thrust + _K_thrust * _prediction_error_thrust;
 
 	_computePThrust();
 	_xp_thrust = x_thrust;
@@ -138,8 +147,10 @@ inline void RLSIdentification::_updateLpf(const Vector<float, 8> &u)
 {
 	//y[k] = (alpha*u[k] + (1-alpha)*y[k-1])
 	// alpha = dt/(tau + dt)
-	const float alpha = _dt / (_lpf_motor_tau + _dt);
-	_w_lpf = alpha * u + (1.f - alpha) * _w_lpf ;
+	for (int i=0;i<u.length();i++){
+		const float alpha = _dt / (_lpf_motor_tau(i) + _dt);
+		_w_lpf(i) = alpha * u(i) + (1.f - alpha) * _w_lpf(i) ;
+	}
 }
 
 inline void RLSIdentification::_createHThrust(Vector<float, 8> &W)
@@ -152,14 +163,36 @@ inline void RLSIdentification::_createHThrust(Vector<float, 8> &W)
 		W(7) = 0.f;
 	}
 
-	Matrix<float, 3, 2> H;
-	H(0, 0) = -sinf(_tilt_angle) * _kf_multiplier * ((W(0) * W(0)) + (W(1) * W(1)) - (W(2) * W(2)) - (W(3) * W(3)));
-	H(0, 1) = 0.f;
-	H(1, 0) = sinf(_tilt_angle) * _kf_multiplier * ((W(4) * W(4)) - (W(5) * W(5)) - (W(6) * W(6)) + (W(7) * W(7)));
-	H(1, 1) = 0.f;
-	H(2, 0) = -cosf(_tilt_angle) * _kf_multiplier * ((W(0) * W(0)) + (W(1) * W(1)) + (W(2) * W(2)) + (W(3) * W(3)) +
-									(W(4) * W(4)) + (W(5) * W(5)) + (W(6) * W(6)) + (W(7) * W(7)));
-	H(2, 1) = _kf_multiplier * ((W(0) * W(0)) + (W(1) * W(1)) + (W(2) * W(2)) + (W(3) * W(3)));
+	Matrix<float, 3, 3> H;
+	for (int i=0;i<3;i++){
+		for (int j=0;j<3;j++){
+			H(i, j)=0.f;
+		}
+	}
+
+	for (int i=6;i<8;i++){
+		H(2, 0) += _kf_multiplier * ((W(i) * W(i)));
+	}
+
+	H(2, 1) += _kf_multiplier * ((W(6) * W(6)));
+
+
+	int rotDir=1;
+	for (int i=0;i<6;i++){
+		float armAngle=float(i)* float(M_PI) /3.0f;
+		H(0,2) += sinf(armAngle) * sinf(float(rotDir)*_tilt_angle) * _kf_multiplier * (W(i)*W(i));
+		H(1, 2) += cosf(armAngle) * sinf(float(rotDir)*_tilt_angle) * _kf_multiplier * (W(i)*W(i));
+		H(2, 2) += -cosf(_tilt_angle) * _kf_multiplier * ((W(i) * W(i)));
+		rotDir=-rotDir;
+	}
+
+	// H(0, 0) = -sinf(_tilt_angle) * _kf_multiplier * ((W(0) * W(0)*) + (W(1) * W(1)) - (W(2) * W(2)) - (W(3) * W(3)));
+	// H(0, 1) = 0.f;
+	// H(1, 0) = sinf(_tilt_angle) * _kf_multiplier * ((W(4) * W(4)) - (W(5) * W(5)) - (W(6) * W(6)) + (W(7) * W(7)));
+	// H(1, 1) = 0.f;
+	// H(2, 0) = -cosf(_tilt_angle) * _kf_multiplier * ((W(0) * W(0)) + (W(1) * W(1)) + (W(2) * W(2)) + (W(3) * W(3)) +
+	// 								(W(4) * W(4)) + (W(5) * W(5)) + (W(6) * W(6)) + (W(7) * W(7)));
+	// H(2, 1) = _kf_multiplier * ((W(0) * W(0)) + (W(1) * W(1)) + (W(2) * W(2)) + (W(3) * W(3)));
 	// H(2, 1) = cosf(_tilt_angle) * _kf_multiplier * ((W(0) * W(0)) + (W(1) * W(1)) + (W(2) * W(2)) + (W(3) * W(3)));
 
 	_H_thrust = H;
@@ -181,7 +214,7 @@ inline void RLSIdentification::_computeKThrust(const bool &interaction_flag)
 inline void RLSIdentification::_computePThrust()
 {
 	//  P[k] = (I - K[k]H[k])*P[k-1]
-	SquareMatrix<float, 2> I;
+	SquareMatrix<float, 3> I;
 	I.setIdentity();
 	_Pp_thrust = (I - _K_thrust * _H_thrust) * _Pp_thrust;
 }
@@ -254,15 +287,15 @@ inline void RLSIdentification::_createMomentVector()
 		w_lpf(7) = 0.f;
 	}
 
-	Vector3f xb = Vector3f(1.f, 0.f, 0.f);
-	Vector3f yb = Vector3f(0.f, 1.f, 0.f);
+	// Vector3f xb = Vector3f(1.f, 0.f, 0.f);
+	// Vector3f yb = Vector3f(0.f, 1.f, 0.f);
 
 	// Vector for each motor rotation axis and angle
 	// 1 = Rotate _tilt angle about xb
 	// -1 = Rotate -_tilt angle about xb
 	// 2 = Rotate _tilt angle about yb
 	// -2 = Rotate -_tilt angle about yb
-	const int T[8] = {2, 2, -2, -2, 1, -1, -1, 1};
+	// const int T[8] = {2, 2, -2, -2, 1, -1, -1, 1};
 	Quatf q;
 	Vector3f Fi(0.f, 0.f, 0.f);
 	Vector3f Ft(0.f, 0.f, 0.f);
@@ -272,39 +305,42 @@ inline void RLSIdentification::_createMomentVector()
 	// %Rotation directions (nx1)
 	// % (1 - clockwise)
 	// % (-1 - counterclockwise)
-	const int R[8] = {-1, 1, -1, 1, -1, 1, -1, 1};
+	const int R[8] = {1, -1, 1, -1, 1, -1, -1, 1};
 
 	//Rotor angular position
-	const float A[8] = {M_PI / 4, 3 * M_PI / 4, 5 * M_PI / 4, 7 * M_PI / 4, 3 * M_PI / 4, M_PI / 4, 7 * M_PI / 4, 5 * M_PI / 4};
+	const float A[8] = {0, 1 * M_PI /3, 2 * M_PI /3, 3 * M_PI /3, 4 * M_PI /3, 5 * M_PI /3, 0,0};
+
 
 	//Motor heights
-	const float H[8] = {-_top_motors_height / 1000, -_top_motors_height / 1000, -_top_motors_height / 1000, -_top_motors_height / 1000,
-			_bot_motors_height / 1000, _bot_motors_height / 1000, _bot_motors_height / 1000, _bot_motors_height / 1000};
+	const float H[8] = {0, 0 ,0, 0,0,0, -_top_motors_height / 1000, _bot_motors_height / 1000};
 
 	//Bottom props reduction
-	const float Fr[8] = {0, 0, 0, 0,
-			     _xp_thrust(1) * _kf_multiplier *(w_lpf(1)*w_lpf(1)),
-			     _xp_thrust(1) * _kf_multiplier *(w_lpf(0)*w_lpf(0)),
-			     _xp_thrust(1) * _kf_multiplier *(w_lpf(3)*w_lpf(3)),
-			     _xp_thrust(1) * _kf_multiplier *(w_lpf(2)*w_lpf(2))
-			};
+	const float Fr[8] = {0, _xp_thrust(1) * _kf_multiplier *(w_lpf(0)*w_lpf(0)), 0, 0,0, 0, 0, 0};
 
+
+	float rotDir = -1;
 	for (int i = 0; i < 8; i++) {
-
-		if (abs(T[i]) == 1) {
-			AxisAnglef tilt_aa(xb, (sign(T[i]))*_tilt_angle);
+		float thrustConst;
+		if(i<6){
+			Vector3f armAxis = Vector3f(cosf(A[i]), sinf(A[i]), 0.f);
+			AxisAnglef tilt_aa(armAxis, rotDir*_tilt_angle);
 			q = Quatf(tilt_aa);
-
-		} else {
-			AxisAnglef tilt_aa(yb, (sign(T[i]))*_tilt_angle);
+			rotDir=-rotDir;
+			thrustConst = _xp_thrust(2);
+			Pi = Vector3f(.5f * _diameter * sinf(A[i]), .5f * _diameter * cosf(A[i]), H[i]);
+		}else{
+      			Vector3f armAxis = Vector3f(0.f, 0.f, 1.f);
+			AxisAnglef tilt_aa(armAxis, 0);
 			q = Quatf(tilt_aa);
+			thrustConst = _xp_thrust(0);
+			Pi = Vector3f(0,0, H[i]);
 		}
 
-		Fi = q.rotateVector(Vector3f(0.f, 0.f, -_xp_thrust(0) * _kf_multiplier * (w_lpf(i) * w_lpf(i))));
+
+		Fi = q.rotateVector(Vector3f(0.f, 0.f, -thrustConst * _kf_multiplier * (w_lpf(i) * w_lpf(i))));
 		Fi += Vector3f(0.f, 0.f, Fr[i]);
 		Ft += Fi;
-		Pi = Vector3f(.5f * _diameter * sinf(A[i]), .5f * _diameter * cosf(A[i]), H[i]);
-		Qi += Pi.cross(Fi) + q.rotateVector(Vector3f(0.f, 0.f, -_km * _km_multiplier * R[i] * (w_lpf(i) * w_lpf(i))));
+		Qi += Pi.cross(Fi) + q.rotateVector(Vector3f(0.f, 0.f, -_km(i) * _km_multiplier * R[i] * (w_lpf(i) * w_lpf(i))));
 	}
 
 	_moment_vector = Qi;

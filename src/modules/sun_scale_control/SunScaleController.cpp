@@ -126,46 +126,46 @@ void SunScaleController::Run()
 	ScheduleDelayed(50_ms);
 
 
-	if (_local_pos_sp_sub.update(&local_pos_sp) && _local_pos_sub.update(&local_pos) ) {
-		if  (!(isnan(local_pos_sp.x)  || isnan(local_pos_sp.y) || isnan(local_pos_sp.z))){
-			error(counter)=powf(local_pos_sp.x-local_pos.x,2)+powf(local_pos_sp.y-local_pos.y,2);
-			timestamps(counter)=local_pos.timestamp;
+	// if (_local_pos_sp_sub.update(&local_pos_sp) && _local_pos_sub.update(&local_pos) ) {
+	// 	if  (!(isnan(local_pos_sp.x)  || isnan(local_pos_sp.y) || isnan(local_pos_sp.z))){
+	// 		error(counter)=powf(local_pos_sp.x-local_pos.x,2)+powf(local_pos_sp.y-local_pos.y,2);
+	// 		timestamps(counter)=local_pos.timestamp;
 
-			float value=0;
-			for (int i=0;i<100;i++){
-				value+=error(i);
-			}
+	// 		float value=0;
+	// 		for (int i=0;i<100;i++){
+	// 			value+=error(i);
+	// 		}
 
 
 
-			error_rms_s error_rms{};
+	// 		error_rms_s error_rms{};
 
-			error_rms.timestamp = hrt_absolute_time();
-			error_rms.end_read=timestamps(counter);
-			error_rms.start_read=timestamps(end);
-			// for (int i=0;i<100;i++){
-			// 	error_rms.timestamps[i]=timestamps(i);
-			// }
-			error_rms.error_rms=value;
+	// 		error_rms.timestamp = hrt_absolute_time();
+	// 		error_rms.end_read=timestamps(counter);
+	// 		error_rms.start_read=timestamps(end);
+	// 		// for (int i=0;i<100;i++){
+	// 		// 	error_rms.timestamps[i]=timestamps(i);
+	// 		// }
+	// 		error_rms.error_rms=value;
 
-			counter++;
-			if(counter>=100){
-				counter=0;
-			}
-			end++;
+	// 		counter++;
+	// 		if(counter>=100){
+	// 			counter=0;
+	// 		}
+	// 		end++;
 
-			if(end>=100){
-				end=0;
-			}
-			error_rms.goal=0;
-			if (_debug_vect_sub.updated()) {
-				debug_vect_s flags_vect;
-				_debug_vect_sub.copy(&flags_vect);
-				error_rms.goal = (flags_vect.z);
-			}
-			_error_rms_pub.publish(error_rms);
-		}
-	}
+	// 		if(end>=100){
+	// 			end=0;
+	// 		}
+	// 		error_rms.goal=0;
+	// 		if (_debug_vect_sub.updated()) {
+	// 			debug_vect_s flags_vect;
+	// 			_debug_vect_sub.copy(&flags_vect);
+	// 			error_rms.goal = (flags_vect.z);
+	// 		}
+	// 		_error_rms_pub.publish(error_rms);
+	// 	}
+	// }
 
 
 

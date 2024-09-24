@@ -112,7 +112,7 @@ private:
 
 	// Parameters
 	DEFINE_PARAMETERS(
-		(ParamInt<px4::params::RLS_EST_N_ROTORS>) _param_rls_n_rotors,
+		(ParamInt<px4::params::EST_N_ROTORS>) _param_rls_n_rotors,
 
 		(ParamFloat<px4::params::ADM_CTR_BEL_AX>) _param_adm_ctr_ax,
 		(ParamFloat<px4::params::ADM_CTR_BEL_AY>) _param_adm_ctr_ay,

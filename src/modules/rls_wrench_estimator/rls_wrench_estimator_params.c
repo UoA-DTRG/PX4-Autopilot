@@ -52,10 +52,10 @@
  * @unit kg
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_MASS, 1.04f);
+PARAM_DEFINE_FLOAT(EST_MASS, 1.04f);
 
 /**
- * Rotor Tilt Angle [deg]
+ * Planet Rotor Tilt Angle [deg]
  *
  * Used in to estimate actuator forces applied
  * to vehicle based on accelerometer/gyro data.
@@ -63,14 +63,14 @@ PARAM_DEFINE_FLOAT(RLS_EST_MASS, 1.04f);
  *
  * @decimal 5
  * @min 0.0
- * @max 45.0
+ * @max 60.0
  * @unit deg
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_TILT, 31.0f);
+PARAM_DEFINE_FLOAT(EST_TILT, 31.0f);
 
 /**
- * Motor Low-Pass Filter Time Constant [sec]
+ * Sun Motor Low-Pass Filter Time Constant [sec]
  *
  * Define first-order motor dynamics
  * Input: PWM values
@@ -82,27 +82,53 @@ PARAM_DEFINE_FLOAT(RLS_EST_TILT, 31.0f);
  * @unit s
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_LPF_M, 0.1f);
+PARAM_DEFINE_FLOAT(EST_LPF_S_M, 0.1f);
 
 /**
- * Initial thrust constant guess (k_f*1e6)
+ * Planet Motor Low-Pass Filter Time Constant [sec]
+ *
+ * Define first-order motor dynamics
+ * Input: PWM values
+ * Output: Motor Speed
+ *
+ * @decimal 5
+ * @min 0.01
+ * @max 2.0
+ * @unit s
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(EST_LPF_P_M, 0.1f);
+
+/**
+ * Initial sun thrust constant guess (k_f*1e6)
  *
  * @decimal 5
  * @min 0.01
  * @max 50.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_KF_INIT, 1.5f);
+PARAM_DEFINE_FLOAT(EST_KF_S_INIT, 1.5f);
 
 /**
- * Initial thrust reduction guess (k_r*1e6)
+ * Initial coaxial thrust reduction guess (k_r*1e6)
  *
  * @decimal 5
  * @min 0.0
  * @max 50.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_KR_INIT, 0.1f);
+PARAM_DEFINE_FLOAT(EST_KR_S_INIT, 0.1f);
+
+/**
+ * Initial planet thrust constant guess (k_f*1e6)
+ *
+ * @decimal 5
+ * @min 0.01
+ * @max 50.0
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(EST_KF_P_INIT, 1.5f);
+
 
 /**
  * Confidence in thrust constant initial guess
@@ -114,7 +140,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_KR_INIT, 0.1f);
  * @max 100.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_KF_CONF, 0.001f);
+PARAM_DEFINE_FLOAT(EST_KF_CONF, 0.001f);
 
 /**
  * Confidence in thrust reduction initial guess
@@ -126,7 +152,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_KF_CONF, 0.001f);
  * @max 100.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_KR_CONF, 0.01f);
+PARAM_DEFINE_FLOAT(EST_KR_CONF, 0.01f);
 
 /**
  * Accelerometer xy-noise for RLS parameter identification
@@ -137,7 +163,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_KR_CONF, 0.01f);
  * @unit m/s^2
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 1.f);
+PARAM_DEFINE_FLOAT(EST_XY_NOISE, 1.f);
 
 /**
  * Accelerometer z-noise for RLS parameter identification
@@ -148,7 +174,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 1.f);
  * @unit m/s^2
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_Z_NOISE, 10.f);
+PARAM_DEFINE_FLOAT(EST_Z_NOISE, 10.f);
 
 /**
  * Define number of rotors for RLS. Use 4 (Quad) or 8 (Octo)
@@ -157,10 +183,10 @@ PARAM_DEFINE_FLOAT(RLS_EST_Z_NOISE, 10.f);
  * @min 4
  * @max 8
  */
-PARAM_DEFINE_INT32(RLS_EST_N_ROTORS, 8);
+PARAM_DEFINE_INT32(EST_N_ROTORS, 8);
 
 /**
- * PWM to speed (P1)
+ * Sun PWM to speed (P1)
  *
  * (PWM*P1 - P2) = SPEED
  * This is rotor dependant.
@@ -170,10 +196,10 @@ PARAM_DEFINE_INT32(RLS_EST_N_ROTORS, 8);
  * @max 10.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_SPE_P1, 1.823f);
+PARAM_DEFINE_FLOAT(EST_SPE_S_P1, 1.823f);
 
 /**
- * PWM to speed (P2)
+ * Sun PWM to speed (P2)
  *
  * (PWM*P1 - P2) = SPEED
  * This is rotor dependant.
@@ -183,7 +209,43 @@ PARAM_DEFINE_FLOAT(RLS_EST_SPE_P1, 1.823f);
  * @max 10000.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_SPE_P2, 1673.7f);
+PARAM_DEFINE_FLOAT(EST_SPE_S_P2, 1673.7f);
+
+/**
+ * Sun PWM to speed (P1)
+ *
+ * (PWM*P1 - P2) = SPEED
+ * This is rotor dependant.
+ *
+ * @decimal 6
+ * @min 0.01
+ * @max 10.0
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(EST_SPE_P_P1, 1.823f);
+
+/**
+ * Sun PWM to speed (P2)
+ *
+ * (PWM*P1 - P2) = SPEED
+ * This is rotor dependant.
+ *
+ * @decimal 6
+ * @min 0.01
+ * @max 10000.0
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(EST_SPE_P_P2, 1673.7f);
+
+/**
+ * Sun PWM to speed (Voltage Correction)
+ *
+ * @decimal 6
+ * @min 0.01
+ * @max 10000.0
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(EST_SPE_V1, 11.7f);
 
 /**
  * PWM to speed (Voltage Correction)
@@ -193,17 +255,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_SPE_P2, 1673.7f);
  * @max 10000.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_SPE_V1, 11.7f);
-
-/**
- * PWM to speed (Voltage Correction)
- *
- * @decimal 6
- * @min 0.01
- * @max 10000.0
- * @group RLS Wrench Estimator
- */
-PARAM_DEFINE_FLOAT(RLS_EST_SPE_V2, 1.5f);
+PARAM_DEFINE_FLOAT(EST_SPE_V2, 1.5f);
 
 /**
  * Force Estimator Time Constant [sec]
@@ -215,7 +267,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_SPE_V2, 1.5f);
  * @unit s
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_TAU_F, 1.0f);
+PARAM_DEFINE_FLOAT(EST_TAU_F, 1.0f);
 
 /**
  * Moment Estimator Time Constant [sec]
@@ -227,7 +279,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_TAU_F, 1.0f);
  * @unit s
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_TAU_M, 1.0f);
+PARAM_DEFINE_FLOAT(EST_TAU_M, 1.0f);
 
 /**
  * CoM x-offset initial guess [mm]
@@ -238,7 +290,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_TAU_M, 1.0f);
  * @unit mm
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_XO_INIT, 0.f);
+PARAM_DEFINE_FLOAT(EST_XO_INIT, 0.f);
 
 /**
  * CoM y-offset initial guess [mm]
@@ -249,7 +301,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_XO_INIT, 0.f);
  * @unit mm
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_YO_INIT, 0.f);
+PARAM_DEFINE_FLOAT(EST_YO_INIT, 0.f);
 
 /**
  * Confidence in x-offset initial guess
@@ -261,7 +313,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_YO_INIT, 0.f);
  * @max 10000.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_XO_CONF, 1000.0f);
+PARAM_DEFINE_FLOAT(EST_XO_CONF, 1000.0f);
 
 /**
  * Confidence in y-offset initial guess
@@ -273,7 +325,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_XO_CONF, 1000.0f);
  * @max 10000.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_YO_CONF, 1000.0f);
+PARAM_DEFINE_FLOAT(EST_YO_CONF, 1000.0f);
 
 /**
  * Motor output noise for RLS parameter identification
@@ -283,10 +335,10 @@ PARAM_DEFINE_FLOAT(RLS_EST_YO_CONF, 1000.0f);
  * @max 100.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_F_NOISE, 1.0f);
+PARAM_DEFINE_FLOAT(EST_F_NOISE, 1.0f);
 
 /**
- * Motor Torque Constant (k_m*1e8)
+ * Sun Motor Torque Constant (k_m*1e8)
  *
  *
  * @decimal 5
@@ -294,7 +346,18 @@ PARAM_DEFINE_FLOAT(RLS_EST_F_NOISE, 1.0f);
  * @max 50.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_KM, 1.4f);
+PARAM_DEFINE_FLOAT(EST_S_KM, 1.4f);
+
+/**
+ * Planet Motor Torque Constant (k_m*1e8)
+ *
+ *
+ * @decimal 5
+ * @min 0.01
+ * @max 50.0
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(EST_P_KM, 1.4f);
 
 /**
  * Vehicle Diameter [m]
@@ -306,7 +369,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_KM, 1.4f);
  * @unit m
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_D, 0.25f);
+PARAM_DEFINE_FLOAT(EST_D, 0.25f);
 
 /**
  * Top Motors distance from CoM [mm]
@@ -318,7 +381,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_D, 0.25f);
  * @unit mm
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_TOP_H, 35.0f);
+PARAM_DEFINE_FLOAT(EST_TOP_H, 35.0f);
 
 /**
  * Bottom motors distance from CoM [mm]
@@ -330,7 +393,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_TOP_H, 35.0f);
  * @unit mm
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_BOT_H, 20.0f);
+PARAM_DEFINE_FLOAT(EST_BOT_H, 20.0f);
 
 /**
  * Vehicle moment of inertia about x-axis [kg m^2]*1e3
@@ -341,7 +404,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_BOT_H, 20.0f);
  * @max 500.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_IXX, 2.5513f);
+PARAM_DEFINE_FLOAT(EST_IXX, 2.5513f);
 
 /**
  * Vehicle moment of inertia about y-axis [kg m^2]*1e3
@@ -352,7 +415,7 @@ PARAM_DEFINE_FLOAT(RLS_EST_IXX, 2.5513f);
  * @max 500.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_IYY, 2.8425f);
+PARAM_DEFINE_FLOAT(EST_IYY, 2.8425f);
 
 /**
  * Vehicle moment of inertia about z-axis [kg m^2]*1e3
@@ -363,4 +426,4 @@ PARAM_DEFINE_FLOAT(RLS_EST_IYY, 2.8425f);
  * @max 500.0
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_IZZ, 4.5935f);
+PARAM_DEFINE_FLOAT(EST_IZZ, 4.5935f);

@@ -72,8 +72,10 @@ struct VehicleParameters {
 	float mass;
 	float tilt_angle;
 	int n_rotors;
-	float lpf_motor_tau;
-	float torque_constant;
+	float lpf_motor_tau_sun;
+	float lpf_motor_tau_planet;
+	float torque_constant_sun;
+	float torque_constant_planet;
 	float diameter;
 	float top_motors_height;
 	float bot_motors_height;
@@ -86,7 +88,7 @@ public:
 	RLSIdentification() = default;
 	~RLSIdentification() = default;
 
-	void initialize(const float (&x_init)[4], const float (&x_confidence)[4],
+	void initialize(const float (&x_init)[5], const float (&x_confidence)[4],
 			const float (&R_diag)[5], const VehicleParameters &params);
 
 	void updateThrust(const Vector3f &y, const Vector<float, 8> &outputs, const float &dt,
@@ -96,7 +98,7 @@ public:
 	Vector<float, 8> getFilteredOutputs() const { return _w_lpf; }
 
 	Vector3f getPredictionErrorThrust() const { return _prediction_error_thrust; }
-	Vector2f getEstimationThrust() const { return _xp_thrust; }
+	Vector3f getEstimationThrust() const { return _xp_thrust; }
 	Vector3f getActuatorForceVector() const { return _force_vector; }
 
 	Vector3f getPredictionErrorOffset() const { return _prediction_error_offset; }
@@ -124,8 +126,10 @@ private:
 	float _mass{0.8f}; //< Vehicle Mass
 	int _n_rotors{4}; //< Number of rotors
 	float _dt{0.004f}; //< Sampling Time
-	float _lpf_motor_tau{0.1f};  //< Motor Dynamics Time Constant
-	float _km{1.041f}; //< Motor Torque Constant
+	Vector<float, 8> _lpf_motor_tau{};  //< Motor Dynamics Time Constant
+	Vector<float, 8> _km{}; //< Motor Torque Constant
+	// float _lpf_motor_tau{0.1f};  //< Motor Dynamics Time Constant
+	// float _km_sun{1.041f}; //< Motor Torque Constant
 	float _diameter{0.25f};   //< Vehicle Diameter [m]
 	float _top_motors_height{35.0f};  //< Top Motors distance from CoM [mm]
 	float _bot_motors_height{20.0f};  //< Bottom Motors distance from CoM [mm]
@@ -134,10 +138,10 @@ private:
 	Quatf _q{};  //Quaternion rotation from the FRD body frame to the NED earth frame
 
 	//RLS Thrust
-	Vector2f _xp_thrust{};
-	Matrix<float, 2, 3> _K_thrust{};
-	Matrix<float, 3, 2> _H_thrust{};
-	SquareMatrix<float, 2> _Pp_thrust{};
+	Vector3f _xp_thrust{};
+	Matrix<float, 3, 3> _K_thrust{};
+	Matrix<float, 3, 3> _H_thrust{};
+	SquareMatrix<float, 3> _Pp_thrust{};
 	SquareMatrix<float, 3> _R_thrust{};
 	Vector3f _prediction_error_thrust{};
 
