@@ -153,33 +153,140 @@ MulticopterRateControl::Run()
 			// generate the rate setpoint from sticks
 			manual_control_setpoint_s manual_control_setpoint;
 
-			if (_manual_control_setpoint_sub.update(&manual_control_setpoint)) {
-				// manual rates control - ACRO mode
-				const Vector3f man_rate_sp{
-					math::superexpo(manual_control_setpoint.roll, _param_mc_acro_expo.get(), _param_mc_acro_supexpo.get()),
-					math::superexpo(-manual_control_setpoint.pitch, _param_mc_acro_expo.get(), _param_mc_acro_supexpo.get()),
-					math::superexpo(manual_control_setpoint.yaw, _param_mc_acro_expo_y.get(), _param_mc_acro_supexpoy.get())};
+			_rc_channels_sub.update(&_rc_channels);
 
-				_rates_setpoint = man_rate_sp.emult(_acro_rate_max);
-				_thrust_setpoint(2) = -(manual_control_setpoint.throttle + 1.f) * .5f;
+			// char array[4];
+			// dtostrf(double(_rc_channels.channels[7]),3,3,array);
+
+			// PX4_INFO("%f",double(_rc_channels.channels[5]));
+
+			if (_param_mc_testing.get()) {
+
+				_rates_setpoint(0)=0;
+				_rates_setpoint(1)=0;
+				_rates_setpoint(2)=0;
 				_thrust_setpoint(0) = _thrust_setpoint(1) = 0.f;
 
-				// publish rate setpoint
+				_thrust_setpoint(2) = _param_mc_testing_thrust_z.get();
+				if(_rc_channels.channels[7]>float(0) ){
+					double value=0;
+
+					if(_param_mc_testing_step.get()){
+						value=(double)_param_mc_testing_step_size.get();
+					}else{
+						if(!isStarted){
+							isStarted=true;
+							timeStart=(double)hrt_absolute_time();
+						}
+
+						actuator_motors_s actuator_motors;
+
+						value=((double)hrt_absolute_time()-timeStart);
+
+
+						for(int i=0;i<_param_mc_testing_grad.get();i++){
+							value=value*0.1;
+						}
+						PX4_INFO("%f",double(value));
+						if(stopValue>0){
+							value=stopValue;
+							PX4_INFO("Saturated");
+						}else if(_actuator_motors_sub.update(&actuator_motors)){
+							float max=0.5;
+							float min=0.5;
+							float limiting=_param_mc_testing_limit.get();
+							for (size_t i=0;i<8;i++){
+								if (actuator_motors.control[i]>max){
+									max=actuator_motors.control[i];
+								}
+								if (actuator_motors.control[i]<min){
+									min=actuator_motors.control[i];
+								}
+							}
+
+							if(max>(float)(1-limiting) || min<(float)limiting){
+								stopValue=value;
+
+							}
+
+						}
+
+						if(stopValue>0){
+							value=stopValue;
+						}
+					}
+
+
+					if(_rc_channels.channels[5]>0){
+						value=-value;
+					}
+
+
+
+					int axis=_param_mc_testing_axis.get();
+
+					if(axis>3){
+						_rates_setpoint(axis-4)=value;
+					}else{
+						_thrust_setpoint(axis-1)=_thrust_setpoint(axis-1)+(float)value;
+					}
+				}else{
+					isStarted=false;
+					stopValue=-1;
+				}
+				_thrust_setpoint(2) =-_thrust_setpoint(2);
+
 				vehicle_rates_setpoint.roll = _rates_setpoint(0);
 				vehicle_rates_setpoint.pitch = _rates_setpoint(1);
 				vehicle_rates_setpoint.yaw = _rates_setpoint(2);
-				_thrust_setpoint.copyTo(vehicle_rates_setpoint.thrust_body);
+				vehicle_rates_setpoint.thrust_body[0] = _thrust_setpoint(0);
+				vehicle_rates_setpoint.thrust_body[1] =_thrust_setpoint(1);
+				vehicle_rates_setpoint.thrust_body[2] = -_thrust_setpoint(2);
 				vehicle_rates_setpoint.timestamp = hrt_absolute_time();
 
 				_vehicle_rates_setpoint_pub.publish(vehicle_rates_setpoint);
 			}
+			else{
+
+				if (_manual_control_setpoint_sub.update(&manual_control_setpoint)) {
+					// manual rates control - ACRO mode
+					const Vector3f man_rate_sp{
+						math::superexpo(manual_control_setpoint.roll, _param_mc_acro_expo.get(), _param_mc_acro_supexpo.get()),
+						math::superexpo(-manual_control_setpoint.pitch, _param_mc_acro_expo.get(), _param_mc_acro_supexpo.get()),
+						math::superexpo(manual_control_setpoint.yaw, _param_mc_acro_expo_y.get(), _param_mc_acro_supexpoy.get())};
+
+					_rates_setpoint = man_rate_sp.emult(_acro_rate_max);
+					_thrust_setpoint(2) = -(manual_control_setpoint.throttle + 1.f) * .5f;
+					_thrust_setpoint(0) = _thrust_setpoint(1) = 0.f;
+
+					// publish rate setpoint
+					vehicle_rates_setpoint.roll = _rates_setpoint(0);
+					vehicle_rates_setpoint.pitch = _rates_setpoint(1);
+					vehicle_rates_setpoint.yaw = _rates_setpoint(2);
+					_thrust_setpoint.copyTo(vehicle_rates_setpoint.thrust_body);
+					vehicle_rates_setpoint.timestamp = hrt_absolute_time();
+
+					_vehicle_rates_setpoint_pub.publish(vehicle_rates_setpoint);
+				}
+			}
 
 		} else if (_vehicle_rates_setpoint_sub.update(&vehicle_rates_setpoint)) {
+
 			if (_vehicle_rates_setpoint_sub.copy(&vehicle_rates_setpoint)) {
+
+
 				_rates_setpoint(0) = PX4_ISFINITE(vehicle_rates_setpoint.roll)  ? vehicle_rates_setpoint.roll  : rates(0);
 				_rates_setpoint(1) = PX4_ISFINITE(vehicle_rates_setpoint.pitch) ? vehicle_rates_setpoint.pitch : rates(1);
 				_rates_setpoint(2) = PX4_ISFINITE(vehicle_rates_setpoint.yaw)   ? vehicle_rates_setpoint.yaw   : rates(2);
 				_thrust_setpoint = Vector3f(vehicle_rates_setpoint.thrust_body);
+
+				if (_param_mc_testing.get()) {
+				_thrust_setpoint(0)=0;
+				_thrust_setpoint(1)=0;
+				_rates_setpoint(0)=0;
+				_rates_setpoint(1)=0;
+				_rates_setpoint(2)=0;
+				}
 			}
 		}
 
@@ -213,8 +320,14 @@ MulticopterRateControl::Run()
 				_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
 			}
 
+
+
 			// run rate controller
-			const Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
+			const Vector3f att_control = _rates_setpoint;//_rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
+
+
+
+
 
 			// publish rate controller status
 			rate_ctrl_status_s rate_ctrl_status{};

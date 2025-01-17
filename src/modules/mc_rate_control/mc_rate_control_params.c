@@ -39,6 +39,105 @@
  * @author Anton Babushkin <anton@px4.io>
  */
 
+
+
+/**
+ * Testing Mode
+ *
+ * Indicates whether to operate in test mode or not
+ *
+ * @boolean
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING, 0);
+
+
+
+/**
+ * Step testing mode
+ *
+ * Indicates whether test is Step test or Max thrust. 0 for Max Wrench and 1 for Step Response
+ *
+ * @boolean
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING_STEP, 0);
+
+/**
+ *
+ * Set Step Size
+ *
+ * @min 0.1
+ * @max 0.2
+ * @decimal 1
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_FLOAT(TEST_STEP_SIZE, 0.1);
+
+
+/**
+ * Testing Direction
+ *
+ * Sets direction of force
+ *
+ * @min -1
+ * @max 1
+ * @increment 2
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING_DIR, 1);
+
+
+/**
+ * Testing Axis
+ *
+ * Sets axis of force
+ *
+ * @min 1
+ * @max 6
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING_AXIS, 1);
+
+/**
+ * Testing gradient
+ *
+ * Set gradient
+ *
+ * @min 0.05
+ * @decimal 2
+ * @max 0.2
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_FLOAT(MC_TESTING_LIMIT, 0.2);
+
+
+/**
+ * Testing gradient
+ *
+ * Set gradient
+ *
+ * @min 6
+ * @max 10
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_INT32(MC_TESTING_GRAD, 7);
+
+
+/**
+ * Z Force for hover
+ *
+ * Set Hover throttle
+ *
+ * @min 0.05
+ * @decimal 2
+ * @max 0.8
+ * @group Testing Bench Tests
+ */
+PARAM_DEFINE_FLOAT(TEST_THRUST_Z, 0.5);
+
+
+
 /**
  * Roll rate P gain
  *
