@@ -14,7 +14,7 @@ public:
     virtual ~LoadCellDriver();
 
     virtual int init();
-    virtual int read_data();
+    int read_data();
 
 private:
     int _uart_fd;
@@ -22,6 +22,7 @@ private:
 
     int send_command(const char *command, char *response, int response_size);
     bool parse_loadcell_data(const char *response, float &fx, float &fy, float &fz, float &tx, float &ty, float &tz);
+    void send_loadcell_data_mavlink(float force_x, float force_y, float force_z, float torque_x, float torque_y, float torque_z);
 };
 
 #endif // __LOADCELL_DRIVER_H__

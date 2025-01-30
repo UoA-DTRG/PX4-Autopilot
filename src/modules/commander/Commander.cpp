@@ -1564,18 +1564,18 @@ void Commander::executeActionRequest(const action_request_s &action_request)
 	}
 }
 
-void Commander::init_loadcell()
-{
-    int32_t baudrate = 0;
-    char serial_device[100];
+// void Commander::init_loadcell()
+// {
+//     int32_t baudrate = 0;
+//     char serial_device[100];
 
-    // Retrieve load cell configuration from parameters
-    param_get(param_find("LOADCELL_BAUDRATE"), &baudrate);
-    param_get(param_find("LOADCELL_SERIAL_DEVICE"), serial_device);
+//     // Retrieve load cell configuration from parameters
+//     param_get(param_find("LOADCELL_BAUDRATE"), &baudrate);
+//     param_get(param_find("LOADCELL_SERIAL_DEVICE"), serial_device);
 
-    // Initialize the load cell
-    LoadCellDriver::init(serial_device, baudrate);
-}
+//     // Initialize the load cell
+//     LoadCellDriver::init(serial_device, baudrate);
+// }
 
 void Commander::updateParameters()
 {
@@ -1636,7 +1636,7 @@ void Commander::run()
 	/* initialize */
 	led_init();
 	buzzer_init();
-	init_loadcell();
+	// init_loadcell();
 
 #if defined(BOARD_HAS_POWER_CONTROL)
 	{
