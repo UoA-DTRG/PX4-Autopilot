@@ -335,3 +335,4 @@ fi
 
 mavlink boot_complete
 replay trystart
+loadcell_driver start -d /dev/ttyS2  # Replace ttyS2 with your UART port

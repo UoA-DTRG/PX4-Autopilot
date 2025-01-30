@@ -386,6 +386,14 @@ else
 		pwm_out start
 	fi
 
+
+	# Add the load cell initialization during startup
+        if param compare LOADCELL_ENABLE 1
+        then
+        	loadcell start -d /dev/ttyS2 -b 9600
+        fi
+
+
 	#
 	# Configure vehicle type specific parameters.
 	# Note: rc.vehicle_setup is the entry point for all vehicle type specific setup.

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2014 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,59 +31,60 @@
  *
  ****************************************************************************/
 
-/**
- * @file mavlink_messages.h
- * MAVLink 1.0 message formatters definition.
- *
- * @author Anton Babushkin <anton.babushkin@me.com>
- */
+#ifndef WIND_COV_HPP
+#define WIND_COV_HPP
 
-#ifndef MAVLINK_MESSAGES_H_
-#define MAVLINK_MESSAGES_H_
-
-#include "mavlink_stream.h"
-
-#define DEFINE_GET_PX4_CUSTOM_MODE
-#include <commander/px4_custom_mode.h>
-
-// #include "mavlink_stream_loadcell.h"
+#include <uORB/topics/loadcell_data.h>
 
 
-class StreamListItem
+class MavlinkStreamLoadcell : public MavlinkStream
 {
-
 public:
-	MavlinkStream *(*new_instance)(Mavlink *mavlink);
-	const char *name;
-	uint16_t id;
+	static MavlinkStream *new_instance(Mavlink *mavlink) { return new MavlinkStreamLoadcell(mavlink); }
 
-	StreamListItem(MavlinkStream * (*inst)(Mavlink *mavlink), const char *_name, uint16_t _id) :
-		new_instance(inst),
-		name(_name),
-		id(_id) {}
+	static constexpr const char *get_name_static() { return "LOADCELL_DATA"; }
+	static constexpr uint16_t get_id_static() { return MAVLINK_MSG_ID_LOADCELL_DATA; }
 
-	const char *get_name() const { return name; }
-	uint16_t get_id() const { return id; }
+	const char *get_name() const override { return get_name_static(); }
+	uint16_t get_id() override { return get_id_static(); }
+
+	unsigned get_size() override
+	{
+		return _loadcell_data_sub.advertised() ? MAVLINK_MSG_ID_LOADCELL_DATA_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES : 0;
+	}
+
+private:
+	explicit MavlinkStreamLoadcell(Mavlink *mavlink) : MavlinkStream(mavlink) {}
+
+	uORB::Subscription _loadcell_data_sub{ORB_ID(loadcell_data)};
+
+	bool send() override
+	{
+		loadcell_data_s loadcell_data;
+
+		if (_loadcell_data_sub.update(&loadcell_data)) {
+			mavlink_loadcell_data_t msg{};
+
+			msg.time_usec = loadcell_data.timestamp;
+
+			msg.force_x=loadcell_data.force_x
+			msg.force_y=loadcell_data.force_y
+			msg.force_z=loadcell_data.force_z
+
+
+			msg.torque_x=loadcell_data.torque_x
+			msg.torque_y=loadcell_data.torque_y
+			msg.torque_z=loadcell_data.torque_z
+
+
+
+			mavlink_msg_wind_cov_send_struct(_mavlink->get_channel(), &msg);
+
+			return true;
+		}
+
+		return false;
+	}
 };
 
-template <class T>
-static StreamListItem create_stream_list_item()
-{
-	return StreamListItem(&T::new_instance, T::get_name_static(), T::get_id_static());
-}
-
-const char *get_stream_name(const uint16_t msg_id);
-
-MavlinkStream *create_mavlink_stream(const char *stream_name, Mavlink *mavlink);
-
-MavlinkStream *create_mavlink_stream(const uint16_t msg_id, Mavlink *mavlink);
-
-union px4_custom_mode get_px4_custom_mode(uint8_t nav_state);
-
-// // Modify the stream list to include the load cell stream
-// static const StreamListItem stream_list[] = {
-//     create_stream_list_item<MavlinkStreamLoadcell>(), // Add the load cell stream here
-//     // Add other streams if necessary...
-// };
-
-#endif /* MAVLINK_MESSAGES_H_ */
+#endif // LOADCELL_DATA

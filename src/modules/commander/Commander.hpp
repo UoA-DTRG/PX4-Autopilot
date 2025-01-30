@@ -169,6 +169,8 @@ private:
 
 	void vtolStatusUpdate();
 
+	void init_loadcell();
+
 	void updateTunes();
 
 	void checkWorkerThread();

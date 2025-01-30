@@ -65,6 +65,7 @@
 #include <version/version.h>
 #include <component_information/checksums.h>
 
+#include <uORB/topics/loadcell_data.h>
 //#define DBGPRINT //write status output every few seconds
 
 #if defined(DBGPRINT)

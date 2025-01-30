@@ -72,6 +72,12 @@
 #include <uORB/topics/mavlink_log.h>
 #include <uORB/topics/tune_control.h>
 
+#include <drivers/drv_hrt.h>
+#include <px4_platform_common/param.h>
+#include <px4_platform_common/module.h>
+#include <drivers/Loadcell/loadcell_driver.h> // Include the load cell driver header
+
+
 typedef enum VEHICLE_MODE_FLAG {
 	VEHICLE_MODE_FLAG_CUSTOM_MODE_ENABLED  = 1,   /* 0b00000001 Reserved for future use. | */
 	VEHICLE_MODE_FLAG_TEST_ENABLED         = 2,   /* 0b00000010 system has a test mode enabled. This flag is intended for temporary system tests and should not be used for stable implementations. | */
@@ -1558,6 +1564,18 @@ void Commander::executeActionRequest(const action_request_s &action_request)
 	}
 }
 
+void Commander::init_loadcell()
+{
+    int32_t baudrate = 0;
+    char serial_device[100];
+
+    // Retrieve load cell configuration from parameters
+    param_get(param_find("LOADCELL_BAUDRATE"), &baudrate);
+    param_get(param_find("LOADCELL_SERIAL_DEVICE"), serial_device);
+
+    // Initialize the load cell
+    LoadCellDriver::init(serial_device, baudrate);
+}
 
 void Commander::updateParameters()
 {
@@ -1618,6 +1636,7 @@ void Commander::run()
 	/* initialize */
 	led_init();
 	buzzer_init();
+	init_loadcell();
 
 #if defined(BOARD_HAS_POWER_CONTROL)
 	{

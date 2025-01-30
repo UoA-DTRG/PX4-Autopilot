@@ -68,6 +68,22 @@
 #define PX4IO_SERIAL_CLOCK             STM32_PCLK2_FREQUENCY
 #define PX4IO_SERIAL_BITRATE           1500000               /* 1.5Mbps -> max rate for IO */
 
+
+/* Load Cell Configuration */
+#define LOADCELL_SERIAL_DEVICE         "/dev/ttyS4"
+#define LOADCELL_SERIAL_TX_GPIO        GPIO_USART7_TX
+#define LOADCELL_SERIAL_RX_GPIO        GPIO_USART7_RX
+#define LOADCELL_SERIAL_BASE           STM32_USART7_BASE
+#define LOADCELL_SERIAL_VECTOR         STM32_IRQ_USART7
+#define LOADCELL_SERIAL_TX_DMAMAP      DMAMAP_USART7_TX
+#define LOADCELL_SERIAL_RX_DMAMAP      DMAMAP_USART7_RX
+#define LOADCELL_SERIAL_RCC_REG        STM32_RCC_APB1ENR
+#define LOADCELL_SERIAL_RCC_EN         RCC_APB1ENR_USART7EN
+#define LOADCELL_SERIAL_CLOCK          STM32_PCLK1_FREQUENCY
+#define LOADCELL_SERIAL_BITRATE        115200 /* Default baud rate */
+/* Load Cell GPIO (e.g., Chip Select or Enable) */
+#define GPIO_LOADCELL_CS               (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_2MHz|GPIO_OUTPUT_SET|GPIO_PORTC|GPIO_PIN1)
+
 /* LEDs */
 #define GPIO_nLED_AMBER        /* PE12 */  (GPIO_OUTPUT|GPIO_OPENDRAIN|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTE|GPIO_PIN12)
 
@@ -99,7 +115,7 @@
 	 (1 << ADC_BATTERY2_CURRENT_CHANNEL)       | \
 	 (1 << ADC_AIRSPEED_VOLTAGE_CHANNEL))
 
-/* HW has to large of R termination on ADC todo:change when HW value is chosen */
+/* HW has too large of R termination on ADC todo: change when HW value is chosen */
 #define BOARD_ADC_OPEN_CIRCUIT_V     (5.6f)
 
 /* PWM */
@@ -170,7 +186,7 @@
 		GPIO_CAN2_RX,                     \
 		GPIO_PWM_VOLT_SEL,                \
 		GPIO_nVDD_BRICK1_VALID,           \
-		GPIO_nVDD_BRICK1_VALID,           \
+		GPIO_nVDD_BRICK2_VALID,           \
 		GPIO_nVDD_USB_VALID,              \
 		GPIO_VDD_3V3_SENSORS_EN,          \
 		GPIO_nVDD_5V_PERIPH_EN,           \
@@ -189,6 +205,7 @@
 		PX4_GPIO_PIN_OFF(GPIO_SDMMC1_CMD),\
 		GPIO_TONE_ALARM_IDLE,             \
 		GPIO_OTGFS_VBUS,                  \
+		GPIO_LOADCELL_CS,		  \
 	}
 
 __BEGIN_DECLS
