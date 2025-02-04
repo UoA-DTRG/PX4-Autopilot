@@ -75,7 +75,7 @@
 #include <drivers/drv_hrt.h>
 #include <px4_platform_common/param.h>
 #include <px4_platform_common/module.h>
-#include <drivers/Loadcell/loadcell_driver.h> // Include the load cell driver header
+#include <drivers/loadcelldriver/loadcell_driver.h> // Include the load cell driver header
 
 
 typedef enum VEHICLE_MODE_FLAG {

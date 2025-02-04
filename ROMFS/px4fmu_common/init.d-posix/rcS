@@ -335,4 +335,4 @@ fi
 
 mavlink boot_complete
 replay trystart
-loadcell_driver start -d /dev/ttyS3  # Use GPS 2 port (/dev/ttyS3)
+loadcelldriver start -d /dev/ttyS5  # Use GPS 2 port (/dev/ttyS3)

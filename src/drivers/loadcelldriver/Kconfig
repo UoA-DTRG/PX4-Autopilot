@@ -1,0 +1,5 @@
+menuconfig DRIVERS_LOADCELLDRIVER
+	bool "loadcelldriver"
+	default n
+	---help---
+		Enable support for loadcelldriver

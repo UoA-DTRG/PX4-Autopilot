@@ -1,13 +1,24 @@
-############################################################################
 #include "loadcell_driver.h"
 #include <termios.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+// #include <mavlink.h>
 
+#include <parameters/param.h>
+// #include <mavlink/mavlink_log.h>
+// #include <mavlink/mavlink_main.h>
+
+// PARAM_DEFINE_INT32(LOADCELL_ENABLE,1)
 // Add MAVLink headers for sending data
-#include <mavlink/mavlink_log.h>
-#include <mavlink/mavlink_main.h>
+
+
+LoadCellDriver::LoadCellDriver() : Device(nullptr)
+{
+
+}
+
+
 
 LoadCellDriver::LoadCellDriver(const char *port) : Device(nullptr)
 {
@@ -42,10 +53,18 @@ int LoadCellDriver::init()
     uart_config.c_cflag |= CS8;       // 8 data bits
     tcsetattr(_uart_fd, TCSANOW, &uart_config);
 
-    // Send initialization commands
-    send_command("AT+SFWV=?\r\n", nullptr, 0); // Read firmware version
-    send_command("AT+SMPF=200\r\n", nullptr, 0); // Set sampling rate to 200 Hz
-    send_command("AT+DCPCU=N\r\n", nullptr, 0); // Set calculation unit to Newtons
+    char response[100];
+    send_command("AT+SFWV=?\r\n", response, sizeof(response)); // Read firmware version
+    px4_usleep(100000); // Wait 100 ms for response
+    PX4_INFO("Firmware version: %s", response);
+
+    send_command("AT+SMPF=200\r\n", response, sizeof(response)); // Set sampling rate to 200 Hz
+    px4_usleep(100000); // Wait 100 ms for response
+    PX4_INFO("Sampling rate set: %s", response);
+
+    send_command("AT+DCPCU=N\r\n", response, sizeof(response)); // Set calculation unit to Newtons
+    px4_usleep(100000); // Wait 100 ms for response
+    PX4_INFO("Calculation unit set: %s", response);
 
     PX4_INFO("Load cell driver initialized on port %s", _port);
     return PX4_OK;
@@ -60,24 +79,24 @@ bool LoadCellDriver::parse_loadcell_data(const char *response, float &fx, float 
     return false;
 }
 
-void LoadCellDriver::send_loadcell_data_mavlink(float force_x, float force_y, float force_z, float torque_x, float torque_y, float torque_z)
-{
-    mavlink_message_t msg;
-    mavlink_msg_loadcell_data_pack(
-        mavlink_system.sysid,  // System ID
-        mavlink_system.compid, // Component ID
-        &msg,                  // MAVLink message
-        force_x,               // Force X
-        force_y,               // Force Y
-        force_z,               // Force Z
-        torque_x,              // Torque X
-        torque_y,              // Torque Y
-        torque_z               // Torque Z
-    );
+// void LoadCellDriver::send_loadcell_data_mavlink(float force_x, float force_y, float force_z, float torque_x, float torque_y, float torque_z)
+// {
+//     mavlink_message_t msg;
+//     mavlink_msg_loadcell_data_pack(
+//         mavlink_system.sysid,  // System ID
+//         mavlink_system.compid, // Component ID
+//         &msg,                  // MAVLink message
+//         force_x,               // Force X
+//         force_y,               // Force Y
+//         force_z,               // Force Z
+//         torque_x,              // Torque X
+//         torque_y,              // Torque Y
+//         torque_z               // Torque Z
+//     );
 
-    // Send the message over the MAVLink channel
-    mavlink_send_buffer(MAVLINK_COMM_0, &msg);
-}
+//     // Send the message over the MAVLink channel
+//     mavlink_send_buffer(MAVLINK_COMM_0, &msg);
+// }
 
 int LoadCellDriver::send_command(const char *command, char *response, int response_size)
 {
@@ -128,15 +147,71 @@ int LoadCellDriver::read_data()
             orb_publish(ORB_ID(loadcell_data), loadcell_pub, &loadcell_data);
 
             // Send data via MAVLink
-            send_loadcell_data_mavlink(fx, fy, fz, tx, ty, tz);
+            // send_loadcell_data_mavlink(fx, fy, fz, tx, ty, tz);
 
             // Debug prints
             PX4_INFO("Received data: %s", response);
-            PX4_INFO("Parsed data: Fx=%.2f, Fy=%.2f, Fz=%.2f, Tx=%.2f, Ty=%.2f, Tz=%.2f", fx, fy, fz, tx, ty, tz);
+            // PX4_INFO("Parsed data: Fx=%.2f, Fy=%.2f, Fz=%.2f, Tx=%.2f, Ty=%.2f, Tz=%.2f", fx, fy, fz, tx, ty, tz);
         } else {
             PX4_ERR("Failed to parse load cell data");
         }
     }
 
     return bytes_read;
+}
+
+
+
+int LoadCellDriver::task_spawn(int argc, char *argv[])
+{
+	LoadCellDriver *instance = new LoadCellDriver();
+
+	if (instance) {
+		_object.store(instance);
+		_task_id = task_id_is_work_queue;
+
+		if (instance->init()) {
+			return PX4_OK;
+		}
+
+	} else {
+		PX4_ERR("alloc failed");
+	}
+
+	delete instance;
+	_object.store(nullptr);
+	_task_id = -1;
+
+	return PX4_ERROR;
+}
+
+
+int LoadCellDriver::custom_command(int argc, char *argv[])
+{
+	return print_usage("unknown command");
+}
+
+
+int LoadCellDriver::print_usage(const char *reason)
+{
+	if (reason) {
+		PX4_WARN("%s\n", reason);
+	}
+
+	PRINT_MODULE_DESCRIPTION(
+		R"DESCR_STR(
+### Description
+LOAD CELL.
+
+)DESCR_STR");
+
+
+
+	return 0;
+}
+
+
+extern "C" __EXPORT int loadcelldriver_main(int argc, char *argv[])
+{
+  return LoadCellDriver::main(argc, argv);
 }

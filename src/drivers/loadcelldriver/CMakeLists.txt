@@ -1,9 +1,9 @@
 px4_add_module(
-    MODULE loadcell_driver
-    MAIN loadcell_driver
+    MODULE drivers__loadcelldriver
+    MAIN loadcelldriver
     SRCS
         loadcell_driver.cpp
     DEPENDS
-        platforms__common
         uORB
+        px4_work_queue
     )
