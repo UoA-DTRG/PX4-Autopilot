@@ -1,4 +1,4 @@
-#include "loadcell_driver.h"
+#include "loadcell.h"
 #include <termios.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,27 +13,27 @@
 // Add MAVLink headers for sending data
 
 
-LoadCellDriver::LoadCellDriver() : Device(nullptr)
+LoadCell::LoadCell() : Device(nullptr)
 {
 
 }
 
 
 
-LoadCellDriver::LoadCellDriver(const char *port) : Device(nullptr)
+LoadCell::LoadCell(const char *port) : Device(nullptr)
 {
     strncpy(_port, port, sizeof(_port) - 1);
     _port[sizeof(_port) - 1] = '\0';
 }
 
-LoadCellDriver::~LoadCellDriver()
+LoadCell::~LoadCell()
 {
     if (_uart_fd >= 0) {
         ::close(_uart_fd);
     }
 }
 
-int LoadCellDriver::init()
+int LoadCell::init()
 {
     // Open the UART port (GPS 2 is typically /dev/ttyS3)
     _uart_fd = ::open(_port, O_RDWR | O_NOCTTY);
@@ -70,7 +70,7 @@ int LoadCellDriver::init()
     return PX4_OK;
 }
 
-bool LoadCellDriver::parse_loadcell_data(const char *response, float &fx, float &fy, float &fz, float &tx, float &ty, float &tz)
+bool LoadCell::parse_loadcell_data(const char *response, float &fx, float &fy, float &fz, float &tx, float &ty, float &tz)
 {
     // Example: Parse data in the format "Fx=1.23,Fy=4.56,Fz=7.89,Tx=0.12,Ty=3.45,Tz=6.78"
     if (sscanf(response, "Fx=%f,Fy=%f,Fz=%f,Tx=%f,Ty=%f,Tz=%f", &fx, &fy, &fz, &tx, &ty, &tz) == 6) {
@@ -79,7 +79,7 @@ bool LoadCellDriver::parse_loadcell_data(const char *response, float &fx, float 
     return false;
 }
 
-// void LoadCellDriver::send_loadcell_data_mavlink(float force_x, float force_y, float force_z, float torque_x, float torque_y, float torque_z)
+// void LoadCell::send_loadcell_data_mavlink(float force_x, float force_y, float force_z, float torque_x, float torque_y, float torque_z)
 // {
 //     mavlink_message_t msg;
 //     mavlink_msg_loadcell_data_pack(
@@ -98,7 +98,7 @@ bool LoadCellDriver::parse_loadcell_data(const char *response, float &fx, float 
 //     mavlink_send_buffer(MAVLINK_COMM_0, &msg);
 // }
 
-int LoadCellDriver::send_command(const char *command, char *response, int response_size)
+int LoadCell::send_command(const char *command, char *response, int response_size)
 {
     // Send command
     int bytes_written = ::write(_uart_fd, command, strlen(command));
@@ -121,7 +121,7 @@ int LoadCellDriver::send_command(const char *command, char *response, int respon
     return bytes_written;
 }
 
-int LoadCellDriver::read_data()
+int LoadCell::read_data()
 {
     char response[100];
     float fx, fy, fz, tx, ty, tz;
@@ -162,9 +162,9 @@ int LoadCellDriver::read_data()
 
 
 
-int LoadCellDriver::task_spawn(int argc, char *argv[])
+int LoadCell::task_spawn(int argc, char *argv[])
 {
-	LoadCellDriver *instance = new LoadCellDriver();
+	LoadCell *instance = new LoadCell();
 
 	if (instance) {
 		_object.store(instance);
@@ -186,13 +186,13 @@ int LoadCellDriver::task_spawn(int argc, char *argv[])
 }
 
 
-int LoadCellDriver::custom_command(int argc, char *argv[])
+int LoadCell::custom_command(int argc, char *argv[])
 {
 	return print_usage("unknown command");
 }
 
 
-int LoadCellDriver::print_usage(const char *reason)
+int LoadCell::print_usage(const char *reason)
 {
 	if (reason) {
 		PX4_WARN("%s\n", reason);
@@ -211,7 +211,7 @@ LOAD CELL.
 }
 
 
-extern "C" __EXPORT int loadcelldriver_main(int argc, char *argv[])
+extern "C" __EXPORT int loadcell_main(int argc, char *argv[])
 {
-  return LoadCellDriver::main(argc, argv);
+  return LoadCell::main(argc, argv);
 }

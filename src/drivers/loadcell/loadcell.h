@@ -7,13 +7,13 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/loadcell_data.h>
 
-class LoadCellDriver : public device::Device,public ModuleBase<LoadCellDriver>
+class LoadCell : public device::Device,public ModuleBase<LoadCell>
 {
 public:
 
-    LoadCellDriver();
-    LoadCellDriver(const char *port);
-    virtual ~LoadCellDriver();
+    LoadCell();
+    LoadCell(const char *port);
+    virtual ~LoadCell();
     /** @see ModuleBase */
 	static int task_spawn(int argc, char *argv[]);
 

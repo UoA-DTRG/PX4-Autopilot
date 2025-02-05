@@ -75,7 +75,7 @@
 #include <drivers/drv_hrt.h>
 #include <px4_platform_common/param.h>
 #include <px4_platform_common/module.h>
-#include <drivers/loadcelldriver/loadcell_driver.h> // Include the load cell driver header
+#include <drivers/loadcell/loadcell.h> // Include the load cell driver header
 
 
 typedef enum VEHICLE_MODE_FLAG {
@@ -1574,7 +1574,7 @@ void Commander::executeActionRequest(const action_request_s &action_request)
 //     param_get(param_find("LOADCELL_SERIAL_DEVICE"), serial_device);
 
 //     // Initialize the load cell
-//     LoadCellDriver::init(serial_device, baudrate);
+//     LoadCell::init(serial_device, baudrate);
 // }
 
 void Commander::updateParameters()

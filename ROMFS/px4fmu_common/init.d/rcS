@@ -389,7 +389,7 @@ else
 
 	# Add the load cell initialization during startup
 
-	loadcelldriver start -d /dev/ttyS5 -b 115200
+	loadcell start -d /dev/ttyS5 -b 115200
 
 
 
