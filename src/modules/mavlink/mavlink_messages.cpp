@@ -413,7 +413,7 @@ static const StreamListItem streams_list[] = {
 	create_stream_list_item<MavlinkStreamWindCov>(),
 #endif // WIND_COV_HPP
 #if defined(LOADCELL_DATA_HPP)
-	create_stream_list_item<MavlinkStreamLoadcell>(),
+	create_stream_list_item<MavlinkStreamLoadcellData>(),
 #endif // LOADCELL_DATA_HPP
 #if defined(MOUNT_ORIENTATION_HPP)
 	create_stream_list_item<MavlinkStreamMountOrientation>(),
@@ -485,8 +485,9 @@ static const StreamListItem streams_list[] = {
 	create_stream_list_item<MavlinkStreamUavionixADSBOutCfg>(),
 #endif // UAVIONIX_ADSB_OUT_CFG_HPP
 #if defined(UAVIONIX_ADSB_OUT_DYNAMIC_HPP)
-	create_stream_list_item<MavlinkStreamUavionixADSBOutDynamic>()
+	create_stream_list_item<MavlinkStreamUavionixADSBOutDynamic>(),
 #endif // UAVIONIX_ADSB_OUT_DYNAMIC_HPP
+// StreamListItem(&MavlinkStreamLoadcellData::new_instance, &MavlinkStreamLoadcellData::get_name_static, &MavlinkStreamLoadcellData::get_id_static),
 };
 
 const char *get_stream_name(const uint16_t msg_id)

@@ -1,90 +1,58 @@
-/****************************************************************************
- *
- *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name PX4 nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- ****************************************************************************/
-
-#ifndef WIND_COV_HPP
-#define WIND_COV_HPP
+#ifndef LOADCELL_DATA_HPP
+#define LOADCELL_DATA_HPP
 
 #include <uORB/topics/loadcell_data.h>
+#include "../mavlink_stream.h"
 
-
-class MavlinkStreamLoadcell : public MavlinkStream
+class MavlinkStreamLoadcellData : public MavlinkStream
 {
 public:
-	static MavlinkStream *new_instance(Mavlink *mavlink) { return new MavlinkStreamLoadcell(mavlink); }
+    static MavlinkStream *new_instance(Mavlink *mavlink) { return new MavlinkStreamLoadcellData(mavlink); }
 
-	static constexpr const char *get_name_static() { return "LOADCELL_DATA"; }
-	static constexpr uint16_t get_id_static() { return MAVLINK_MSG_ID_LOADCELL_DATA; }
+    static constexpr const char *get_name_static() { return "LOADCELL_DATA"; }
+    static constexpr uint16_t get_id_static() { return MAVLINK_MSG_ID_DEBUG_VECT; }
 
-	const char *get_name() const override { return get_name_static(); }
-	uint16_t get_id() override { return get_id_static(); }
+    const char *get_name() const override { return get_name_static(); }
+    uint16_t get_id() override { return get_id_static(); }
 
-	unsigned get_size() override
-	{
-		return _loadcell_data_sub.advertised() ? MAVLINK_MSG_ID_LOADCELL_DATA_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES : 0;
-	}
+    unsigned get_size() override
+    {
+        return _loadcell_data_sub.advertised() ? (MAVLINK_MSG_ID_DEBUG_VECT_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES) * 2 : 0;
+    }
 
 private:
-	explicit MavlinkStreamLoadcell(Mavlink *mavlink) : MavlinkStream(mavlink) {}
+    explicit MavlinkStreamLoadcellData(Mavlink *mavlink) : MavlinkStream(mavlink) {}
 
-	uORB::Subscription _loadcell_data_sub{ORB_ID(loadcell_data)};
+    uORB::Subscription _loadcell_data_sub{ORB_ID(loadcell_data)};
 
-	bool send() override
-	{
-		loadcell_data_s loadcell_data;
+    bool send() override
+    {
+        loadcell_data_s data;
 
-		if (_loadcell_data_sub.update(&loadcell_data)) {
-			mavlink_loadcell_data_t msg{};
+        if (_loadcell_data_sub.update(&data)) {
+            // Send forces
+            mavlink_debug_vect_t force_msg{};
+            strncpy(force_msg.name, "FRC", sizeof(force_msg.name));
+            force_msg.time_usec = data.timestamp;
+            force_msg.x = data.force_x;
+            force_msg.y = data.force_y;
+            force_msg.z = data.force_z;
+            mavlink_msg_debug_vect_send_struct(_mavlink->get_channel(), &force_msg);
 
-			msg.time_usec = loadcell_data.timestamp;
+            // Send torques
+            mavlink_debug_vect_t torque_msg{};
+            strncpy(torque_msg.name, "TRQ", sizeof(torque_msg.name));
+            torque_msg.time_usec = data.timestamp;
+            torque_msg.x = data.torque_x;
+            torque_msg.y = data.torque_y;
+            torque_msg.z = data.torque_z;
+            mavlink_msg_debug_vect_send_struct(_mavlink->get_channel(), &torque_msg);
 
-			msg.force_x=loadcell_data.force_x
-			msg.force_y=loadcell_data.force_y
-			msg.force_z=loadcell_data.force_z
+            return true;
+        }
 
-
-			msg.torque_x=loadcell_data.torque_x
-			msg.torque_y=loadcell_data.torque_y
-			msg.torque_z=loadcell_data.torque_z
-
-
-
-			mavlink_msg_wind_cov_send_struct(_mavlink->get_channel(), &msg);
-
-			return true;
-		}
-
-		return false;
-	}
+        return false;
+    }
 };
 
-#endif // LOADCELL_DATA
+#endif // LOADCELL_DATA_HPP
