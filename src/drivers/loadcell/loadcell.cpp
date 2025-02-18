@@ -21,6 +21,7 @@ LoadCell::~LoadCell()
     }
 }
 
+
 int LoadCell::init()
 {
     PX4_INFO("Initializing loadcell driver...");
@@ -71,10 +72,9 @@ int LoadCell::init()
 
         // Try to enter command mode
         PX4_INFO("Sending +++ to enter command mode");
-        // Send +++
-
-
-        write(_uart_fd, "+++", 3);
+        // Send +++ with proper type casting
+        const char cmd[] = "+++";
+        ::write(_uart_fd, static_cast<const void*>(cmd), 3);
         px4_usleep(1000000);  // Wait 1 second
 
         // Read firmware version
