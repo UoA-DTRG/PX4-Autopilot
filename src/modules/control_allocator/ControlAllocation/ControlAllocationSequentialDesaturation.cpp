@@ -176,6 +176,8 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 	// Airmode disabled: never allow to increase the thrust to unsaturate a motor
 
 	// Mix without yaw
+	ActuatorVector thrust_x;
+	ActuatorVector thrust_y;
 	ActuatorVector thrust_z;
 	ActuatorVector roll;
 	ActuatorVector pitch;
@@ -187,10 +189,16 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 				  _mix(i, ControlAxis::THRUST_X) * (_control_sp(ControlAxis::THRUST_X) - _control_trim(ControlAxis::THRUST_X)) +
 				  _mix(i, ControlAxis::THRUST_Y) * (_control_sp(ControlAxis::THRUST_Y) - _control_trim(ControlAxis::THRUST_Y)) +
 				  _mix(i, ControlAxis::THRUST_Z) * (_control_sp(ControlAxis::THRUST_Z) - _control_trim(ControlAxis::THRUST_Z));
+		thrust_x(i) = _mix(i, ControlAxis::THRUST_X);
+		thrust_y(i) = _mix(i, ControlAxis::THRUST_Y);
 		thrust_z(i) = _mix(i, ControlAxis::THRUST_Z);
 		roll(i) = _mix(i, ControlAxis::ROLL);
 		pitch(i) = _mix(i, ControlAxis::PITCH);
 	}
+
+	// First reduce foward thrust, then sideways thrust
+	desaturateActuators(_actuator_sp, thrust_x, true);
+	desaturateActuators(_actuator_sp, thrust_y, true);
 
 	// only reduce thrust
 	desaturateActuators(_actuator_sp, thrust_z, true);
