@@ -12,9 +12,13 @@ The DTRG fork of PX4 includes the following additions:
 
 Implemented:
 * Mixer Injection from csv file
-* Manual Horizontal Thrust Control via RC
+* Manual Horizontal Thrust Control via RC (level mode)
 
 Upcoming:
+* Horizontal Thrust Position Mode
+* Horizontal Thrust Offboard Mode
+* Sequential Desaturation and Thrust Limits (HT)
+* Status Monitor
 * Dynamixel Servo Control with easy configuration
 * Wrench Estimator
 * Admittance Controller
