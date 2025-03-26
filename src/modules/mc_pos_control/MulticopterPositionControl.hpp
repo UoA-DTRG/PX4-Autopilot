@@ -64,7 +64,6 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
-
 // Dtrg includes
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/debug_array.h>

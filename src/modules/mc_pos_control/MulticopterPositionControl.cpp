@@ -621,13 +621,13 @@ void MulticopterPositionControl::Run()
 				attitude_setpoint.thrust_body[2] = thrust_frd(2);
 
 				// Print the whole attitude setpoint to the console
-				PX4_INFO("Attitude Setpoint: roll=%8.4f, pitch=%8.4f, yaw=%8.4f, thrust x=%8.4f, thrust y=%8.4f, thrust z=%8.4f",
-						 (double)attitude_setpoint.roll_body,
-						 (double)attitude_setpoint.pitch_body,
-						 (double)attitude_setpoint.yaw_body,
-						 (double)attitude_setpoint.thrust_body[0],
-						 (double)attitude_setpoint.thrust_body[1],
-						 (double)attitude_setpoint.thrust_body[2]);
+				// PX4_INFO("Attitude Setpoint: roll=%8.4f, pitch=%8.4f, yaw=%8.4f, thrust x=%8.4f, thrust y=%8.4f, thrust z=%8.4f",
+				// 		 (double)attitude_setpoint.roll_body,
+				// 		 (double)attitude_setpoint.pitch_body,
+				// 		 (double)attitude_setpoint.yaw_body,
+				// 		 (double)attitude_setpoint.thrust_body[0],
+				// 		 (double)attitude_setpoint.thrust_body[1],
+				// 		 (double)attitude_setpoint.thrust_body[2]);
 
 			}else{
 				//Standard attitude setpoint
