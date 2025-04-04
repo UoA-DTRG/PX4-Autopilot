@@ -166,8 +166,8 @@ private:
 		(ParamFloat<px4::params::MPC_THR_HOVER>)    _param_mpc_thr_hover,       /**< throttle at stationary hover */
 		(ParamInt<px4::params::MPC_THR_CURVE>)      _param_mpc_thr_curve,       /**< throttle curve behavior */
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
-		(ParamInt<px4::params::DTRG_H_T_X>)  	    _param_dtrg_h_t_X,		/**< horizontal thrust X channel */
-		(ParamInt<px4::params::DTRG_H_T_Y>)  	    _param_dtrg_h_t_Y,		/**< horizontal thrust Y channel */
+		(ParamInt<px4::params::DTRG_HT_X>)  	    _param_dtrg_h_t_X,		/**< horizontal thrust X channel */
+		(ParamInt<px4::params::DTRG_HT_Y>)  	    _param_dtrg_h_t_Y,		/**< horizontal thrust Y channel */
 	(	ParamFloat<px4::params::DTRG_HT_GAIN>)      _param_dtrg_h_t_gain	/**< horizontal thrust Y channel */
 
 	)

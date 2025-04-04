@@ -42,30 +42,31 @@
  */
 
 /**
- * DTRG 6D Offboard Position Control
+ * DTRG Horizontal Thrust
  *
  *
  *
- * Enable the 6D offboard Position Control for use with the DTRG vicon simulink model.
+ * Enable the horizontal thrust control for manual, position, and offboard flight modes.
+ *
  * @reboot_required true
  * @boolean
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_OFFBOARD_EN, 0);
+PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
 
 /**
  * Horizontal Thrust Gain for offboard control
  *
  *
  *
- * Adjust the control gain for horizontal thrust control, higher values result in faster translational speeds with lower stick input.
+ * Adjust the control gain for horizontal thrust control, higher values result in faster translational speeds with lower inputs.
  *
  * @min 0.000
  * @max 5.000
  * @decimal 3
  * @group DTRG
  */
-PARAM_DEFINE_FLOAT(DTRG_HT_OFF_GAIN, 2.000f);
+PARAM_DEFINE_FLOAT(DTRG_HT_GAIN, 2.000f);
 
 /**
  * Horizontal Thrust Gain for offboard control
@@ -81,7 +82,7 @@ PARAM_DEFINE_FLOAT(DTRG_HT_OFF_GAIN, 2.000f);
  * @value 0 Default - HT for x and y
  * @value 1 Horizontal thrust for x and roll for y
  * @value 2 Horizontal thrust for y and pitch for x
- * @value 3 Horizontal thrust for x and y and pitch and roll (WARNING: Might be unstable, be careful!)
+ * @value 3 Horizontal thrust for x and y and pitch and roll (WARNING: Non-default values are untested and might not be stable!)
  * @group Multicopter Position Control
  * @group DTRG
  */

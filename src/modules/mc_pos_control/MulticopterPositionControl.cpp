@@ -262,8 +262,8 @@ void MulticopterPositionControl::parameters_update(bool force)
 		_takeoff.generateInitialRampValue(_param_mpc_z_vel_p_acc.get());
 
 		//DTRG
-		_dtrg_offboard_en = _param_dtrg_offboard_en.get();
-		_dtrg_ht_off_gain = _param_dtrg_ht_off_gain.get();
+		_dtrg_offboard_en = _param_dtrg_ht_en.get();
+		_dtrg_ht_off_gain = _param_dtrg_ht_gain.get();
 		_dtrg_ht_mask = _param_dtrg_ht_mask.get();
 	}
 }

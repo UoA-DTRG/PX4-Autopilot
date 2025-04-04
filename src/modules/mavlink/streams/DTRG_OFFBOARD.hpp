@@ -44,7 +44,6 @@
 
 #include <uORB/topics/dtrg_custom.h>
 
-
 class MavlinkStreamDTRGOffboard : public MavlinkStream
 {
 public:

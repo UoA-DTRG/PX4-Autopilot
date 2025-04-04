@@ -200,8 +200,8 @@ private:
 		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all,
 
 		//DTRG
-		(ParamInt<px4::params::DTRG_OFFBOARD_EN>)   _param_dtrg_offboard_en, /**< enable the dtrg 6d offboard control*/
-		(ParamFloat<px4::params::DTRG_HT_OFF_GAIN>) _param_dtrg_ht_off_gain, /**< HT gain for the offboard control*/
+		(ParamInt<px4::params::DTRG_HT_EN>)   _param_dtrg_ht_en, /**< enable the dtrg 6d offboard control*/
+		(ParamFloat<px4::params::DTRG_HT_GAIN>) _param_dtrg_ht_gain, /**< HT gain for the offboard control*/
 		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask /**< HT gmask for pitching and rolling using HT thrust*/
 
 	);

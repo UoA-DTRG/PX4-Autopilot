@@ -312,7 +312,9 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	case MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS:
 		handle_message_gimbal_device_attitude_status(msg);
 		break;
-
+	case MAVLINK_MSG_ID_DTRG_CUSTOM: //DTRG Custom
+		handle_message_dtrg(msg)
+		break;
 	default:
 		break;
 	}
@@ -386,6 +388,30 @@ MavlinkReceiver::evaluate_target_ok(int command, int target_system, int target_c
 
 	return target_ok;
 }
+
+
+// DTRG CUSTOM
+
+
+void MavlinkReciever::handle_message_dtrg(mavlink_message_t *msg){
+	//decode the mavlink message using the MACRO written decode method
+	mavlink_dtrg_custom_t m;
+	mavlink_msg_dtrg_custom_decode(msg, &m);
+
+	//define object for the uORB publication
+	struct dtrg_custom_struct_t f;
+	memset(&f, 0, sizeof(f));
+
+	//copy data over
+	f.timestep = hrt_absolute_time();
+	f.offboard_sp = m.offboard_sp
+
+	//publish
+	_ca_traj_msg_pub.publish(f);
+}
+
+
+
 
 void
 MavlinkReceiver::handle_message_command_long(mavlink_message_t *msg)

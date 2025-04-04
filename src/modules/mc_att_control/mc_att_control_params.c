@@ -39,32 +39,6 @@
  * @author Anton Babushkin <anton@px4.io>
  */
 
-/**
- * Horizontal Thrust Gain
- *
- *
- *
- * Adjust the control gain for horizontal thrust control, higher values result in faster translational speeds with lower stick input.
- *
- * @min 0.000
- * @max 2.000
- * @decimal 3
- * @group DTRG
- */
-PARAM_DEFINE_FLOAT(DTRG_HT_GAIN, 1.000f);
-
-/**
- * DTRG Horizontal Thrust
- *
- *
- *
- * Enable the horizontal thrust control for manual flight. Roll and pitch stick inputs will be used to control horizontal thrust.
- *
- * @reboot_required true
- * @boolean
- * @group DTRG
- */
-PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
 
 /**
  * DTRG Horizontal Thrust Switch
@@ -84,7 +58,7 @@ PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
  * @reboot_required true
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_H_T_X, 8);
+PARAM_DEFINE_INT32(DTRG_HT_X, 8);
 /**
  * DTRG Horizontal Thrust Switch
  *
@@ -104,7 +78,7 @@ PARAM_DEFINE_INT32(DTRG_H_T_X, 8);
  * @reboot_required true
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_H_T_Y, 6);
+PARAM_DEFINE_INT32(DTRG_HT_Y, 6);
 
 /**
  * Roll P gain
