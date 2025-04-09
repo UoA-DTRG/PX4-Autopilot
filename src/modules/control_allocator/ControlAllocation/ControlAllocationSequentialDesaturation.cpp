@@ -64,14 +64,14 @@ ControlAllocationSequentialDesaturation::allocate()
 	}
 }
 
-void ControlAllocationSequentialDesaturation::desaturateActuators(
+float ControlAllocationSequentialDesaturation::desaturateActuators(
 	ActuatorVector &actuator_sp,
 	const ActuatorVector &desaturation_vector, bool increase_only)
 {
 	float gain = computeDesaturationGain(desaturation_vector, actuator_sp);
 
 	if (increase_only && gain < 0.f) {
-		return;
+		return 0.0f;
 	}
 
 	for (int i = 0; i < _num_actuators; i++) {
@@ -83,6 +83,8 @@ void ControlAllocationSequentialDesaturation::desaturateActuators(
 	for (int i = 0; i < _num_actuators; i++) {
 		actuator_sp(i) += gain * desaturation_vector(i);
 	}
+
+	return gain;
 }
 
 float ControlAllocationSequentialDesaturation::computeDesaturationGain(const ActuatorVector &desaturation_vector,
@@ -197,15 +199,30 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 	}
 
 	// First reduce foward thrust, then sideways thrust
-	desaturateActuators(_actuator_sp, thrust_x, true);
-	desaturateActuators(_actuator_sp, thrust_y, true);
+	float x_sat = desaturateActuators(_actuator_sp, thrust_x, true);
+	float y_sat = desaturateActuators(_actuator_sp, thrust_y, true);
 
 	// only reduce thrust
-	desaturateActuators(_actuator_sp, thrust_z, true);
+	float z_sat = desaturateActuators(_actuator_sp, thrust_z, true);
 
 	// Reduce roll/pitch acceleration if needed to unsaturate
-	desaturateActuators(_actuator_sp, roll);
-	desaturateActuators(_actuator_sp, pitch);
+	float roll_sat = desaturateActuators(_actuator_sp, roll);
+	float pitch_sat = desaturateActuators(_actuator_sp, pitch);
+
+	// Assemble into a message
+	sequential_desaturation_s sqmsg{};
+	sqmsg.timestamp = hrt_absolute_time();
+	sqmsg.x_sat = x_sat;
+	sqmsg.y_sat = y_sat;
+	sqmsg.z_sat = z_sat;
+	sqmsg.roll_sat = roll_sat;
+	sqmsg.pitch_sat = pitch_sat;
+
+	_sequential_desaturation_pub.publish(sqmsg);
+
+	// (void)sqmsg;
+
+	// (void)(x_sat + y_sat + z_sat + roll_sat + pitch_sat); // Unusaed variable repair
 
 	// Mix yaw independently
 	mixYaw();

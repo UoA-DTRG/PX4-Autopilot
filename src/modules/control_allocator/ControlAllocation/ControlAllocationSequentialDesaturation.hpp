@@ -47,12 +47,19 @@
 
 #include <px4_platform_common/module_params.h>
 
+#include <drivers/drv_hrt.h>
+#include <uORB/uORB.h>
+#include <uORB/Publication.hpp>
+#include <uORB/topics/sequential_desaturation.h>
+
 class ControlAllocationSequentialDesaturation: public ControlAllocationPseudoInverse
 {
 public:
 
 	ControlAllocationSequentialDesaturation() = default;
 	virtual ~ControlAllocationSequentialDesaturation() = default;
+
+	uORB::Publication<sequential_desaturation_s>	     _sequential_desaturation_pub{ORB_ID(sequential_desaturation)};
 
 	void allocate() override;
 
@@ -74,7 +81,7 @@ private:
 	 * @param desaturation_vector vector that is added to the outputs, e.g. thrust_scale
 	 * @param increase_only if true, only allow to increase (add) a fraction of desaturation_vector
 	 */
-	void desaturateActuators(ActuatorVector &actuator_sp, const ActuatorVector &desaturation_vector,
+	float desaturateActuators(ActuatorVector &actuator_sp, const ActuatorVector &desaturation_vector,
 				 bool increase_only = false);
 
 	/**
