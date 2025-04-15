@@ -265,6 +265,8 @@ void MulticopterPositionControl::parameters_update(bool force)
 		//DTRG
 		_dtrg_offboard_en = _param_dtrg_offboard_en.get();
 		_dtrg_ht_off_gain = _param_dtrg_ht_off_gain.get();
+
+		_ht_limit = _param_dtrg_ht_max.get();
 	}
 }
 
@@ -578,6 +580,26 @@ void MulticopterPositionControl::Run()
 				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(_dtrg_ht_off_gain * local_pos_sp.thrust[0],
 							_dtrg_ht_off_gain * local_pos_sp.thrust[1]
 							, local_pos_sp.thrust[2]));
+
+
+				// Saturate horizontal thrust between thrust limit paramter
+
+				if(thrust_frd(0) > _ht_limit) {
+					thrust_frd(0) = _ht_limit;
+				}
+
+				if(thrust_frd(0) < -(_ht_limit)) {
+					thrust_frd(0) = -(_ht_limit);
+				}
+
+				if(thrust_frd(1) > _ht_limit) {
+					thrust_frd(1) = _ht_limit;
+				}
+
+				if(thrust_frd(1) < -(_ht_limit)) {
+					thrust_frd(1) = -(_ht_limit);
+				}
+
 
 				// attitude_setpoint.q_d = Eulerf(roll_setpoint, pitch_setpoint, local_pos_sp.yaw);
 				//set the horizontal thrust vector to the values from the position controller

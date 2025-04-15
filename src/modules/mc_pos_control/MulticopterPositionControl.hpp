@@ -133,6 +133,8 @@ private:
 	int _dtrg_offboard_en = 0; /**< enable the dtrg 6d offboard control*/
 	float _dtrg_ht_off_gain = 2.000f; /**< hover thrust offboard gain*/
 
+	float _ht_limit = 1.0f;
+
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
 		.freefall = false,
@@ -193,7 +195,8 @@ private:
 
 		//DTRG
 		(ParamInt<px4::params::DTRG_OFFBOARD_EN>)   _param_dtrg_offboard_en, /**< enable the dtrg 6d offboard control*/
-		(ParamFloat<px4::params::DTRG_HT_OFF_GAIN>) _param_dtrg_ht_off_gain /**< HT gain for the offboard control*/
+		(ParamFloat<px4::params::DTRG_HT_OFF_GAIN>) _param_dtrg_ht_off_gain, /**< HT gain for the offboard control*/
+		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max	/**< horizontal thrust Limit */
 	);
 
 	control::BlockDerivative _vel_x_deriv; /**< velocity derivative in x */
