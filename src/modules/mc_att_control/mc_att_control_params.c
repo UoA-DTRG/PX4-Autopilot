@@ -39,6 +39,22 @@
  * @author Anton Babushkin <anton@px4.io>
  */
 
+ /**
+ * Horizontal Thrust XY Limit
+ *
+ *
+ *
+ * Saturation limit of the commanded horizontal thrust
+ *
+ * @min 0.000
+ * @max 1.000
+ * @decimal 3
+ * @group DTRG
+ */
+PARAM_DEFINE_FLOAT(DTRG_HT_MAN_MAX, 1.000f);
+
+
+
 /**
  * Horizontal Thrust Gain
  *

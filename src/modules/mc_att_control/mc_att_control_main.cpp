@@ -97,6 +97,8 @@ MulticopterAttitudeControl::parameters_updated()
 	_ht_gain  = _param_dtrg_h_t_gain.get();
 	_ht_x_add = _param_dtrg_h_t_X.get()-1;
 	_ht_y_add = _param_dtrg_h_t_Y.get()-1;
+
+	_ht_max = _param_dtrg_ht_max.get();
 }
 
 float
@@ -178,6 +180,24 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 
 		attitude_setpoint.thrust_body[0] = _rc_channels.channels[_ht_x_add] * _ht_gain * 10;
 		attitude_setpoint.thrust_body[1] = _rc_channels.channels[_ht_y_add] * _ht_gain * 10;
+
+		//float total_ht_mag = attitude_setpoint.thrust_body[0];
+
+		if(attitude_setpoint.thrust_body[0] > _ht_max) {
+			attitude_setpoint.thrust_body[0] = _ht_max;
+		}
+
+		if(attitude_setpoint.thrust_body[0] < -(_ht_max)) {
+			attitude_setpoint.thrust_body[0] = -(_ht_max);
+		}
+
+		if(attitude_setpoint.thrust_body[1] > _ht_max) {
+			attitude_setpoint.thrust_body[1] = _ht_max;
+		}
+
+		if(attitude_setpoint.thrust_body[1] < -(_ht_max)) {
+			attitude_setpoint.thrust_body[1] = -(_ht_max);
+		}
 
 		// PX4_INFO("X: %f, Y: %f", (double)attitude_setpoint.thrust_body[0], (double)attitude_setpoint.thrust_body[1]);
 	}
