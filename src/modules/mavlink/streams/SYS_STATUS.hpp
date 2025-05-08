@@ -40,6 +40,10 @@
 #include <uORB/topics/health_report.h>
 #include <px4_platform_common/events.h>
 
+#include <uORB/topics/sequential_desaturation.h>
+#include <uORB/topics/actuator_motors.h>
+#include <uORB/topics/horizontal_thrust_limit.h>
+
 class MavlinkStreamSysStatus : public MavlinkStream
 {
 public:
@@ -62,6 +66,10 @@ private:
 	uORB::Subscription _status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _cpuload_sub{ORB_ID(cpuload)};
 	uORB::Subscription _health_report{ORB_ID(health_report)};
+	uORB::Subscription _sequential_desaturation_sub{ORB_ID(sequential_desaturation)};
+	uORB::Subscription _actuator_motors_sub{ORB_ID(actuator_motors)};
+	uORB::Subscription _horizontal_thrust_limit_sub{ORB_ID(horizontal_thrust_limit)};
+
 	uORB::SubscriptionMultiArray<battery_status_s, battery_status_s::MAX_INSTANCES> _battery_status_subs{ORB_ID::battery_status};
 
 	using health_component_t = events::px4::enums::health_component_t;
@@ -115,6 +123,15 @@ private:
 			health_report_s health_report{};
 			_health_report.copy(&health_report);
 
+			sequential_desaturation_s sequential_desaturation{};
+			_sequential_desaturation_sub.copy(&sequential_desaturation);
+
+			actuator_motors_s actuator_motors{};
+			_actuator_motors_sub.copy(&actuator_motors);
+
+			horizontal_thrust_limit_s horizontal_thrust_limit{};
+			_horizontal_thrust_limit_sub.copy(&horizontal_thrust_limit);
+
 			battery_status_s battery_status[battery_status_s::MAX_INSTANCES] {};
 
 			for (int i = 0; i < _battery_status_subs.size(); i++) {
@@ -156,6 +173,33 @@ private:
 					 msg);
 
 			msg.load = cpuload.load * 1000.0f;
+
+			// Fill in the errors_count fields
+			msg.errors_count1 =
+			((sequential_desaturation.x_sat > 0.01f)) |
+			((sequential_desaturation.y_sat > 0.01f) << 1) |
+			((sequential_desaturation.z_sat > 0.01f) << 2) |
+			((sequential_desaturation.roll_sat > 0.01f) << 3) |
+			((sequential_desaturation.pitch_sat > 0.01f) << 4);
+
+			// check if any motor is near / at saturation
+			const float upper_bound = 0.9f;
+
+			msg.errors_count2 =
+			((actuator_motors.control[0] > upper_bound)) |
+			((actuator_motors.control[1] > upper_bound) << 1) |
+			((actuator_motors.control[2] > upper_bound) << 2) |
+			((actuator_motors.control[3] > upper_bound) << 3) |
+			((actuator_motors.control[4] > upper_bound) << 4) |
+			((actuator_motors.control[5] > upper_bound) << 5) |
+			((actuator_motors.control[6] > upper_bound) << 6) |
+			((actuator_motors.control[7] > upper_bound) << 7);
+
+			msg.errors_count3 =
+			(horizontal_thrust_limit.x_sat) |
+			((horizontal_thrust_limit.y_sat) << 2);
+
+			msg.errors_count4 = 706; // tell the status monitor that this code is running
 
 			// TODO: Determine what data should be put here when there are multiple batteries.
 			//  Right now, it uses the lowest battery. This is a safety decision, because if a client is only checking
