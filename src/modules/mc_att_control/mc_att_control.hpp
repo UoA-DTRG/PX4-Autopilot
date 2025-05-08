@@ -56,6 +56,8 @@
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <uORB/topics/rc_channels.h>
 
+#include <uORB/topics/horizontal_thrust_limit.h>
+
 #include <AttitudeControl.hpp>
 
 using namespace time_literals;
@@ -104,6 +106,7 @@ private:
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 
+
 	//for horitontal thrust switch
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
 	struct rc_channels_s _rc_channels{};
@@ -112,6 +115,8 @@ private:
 
 	uORB::Publication<vehicle_rates_setpoint_s>     _vehicle_rates_setpoint_pub{ORB_ID(vehicle_rates_setpoint)};    /**< rate setpoint publication */
 	uORB::Publication<vehicle_attitude_setpoint_s>  _vehicle_attitude_setpoint_pub;
+	uORB::Publication<horizontal_thrust_limit_s>	     _horizontal_thrust_limit_pub{ORB_ID(horizontal_thrust_limit)};
+
 
 	manual_control_setpoint_s       _manual_control_setpoint {};    /**< manual control setpoint */
 	vehicle_control_mode_s          _vehicle_control_mode {};       /**< vehicle control mode */

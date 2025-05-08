@@ -183,21 +183,32 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 
 		//float total_ht_mag = attitude_setpoint.thrust_body[0];
 
+		horizontal_thrust_limit_s hzlim_msg{};
+		hzlim_msg.timestamp = hrt_absolute_time();
+		hzlim_msg.x_sat = 0;
+		hzlim_msg.y_sat = 0;
+
 		if(attitude_setpoint.thrust_body[0] > _ht_max) {
 			attitude_setpoint.thrust_body[0] = _ht_max;
+			hzlim_msg.x_sat = 1;
 		}
 
 		if(attitude_setpoint.thrust_body[0] < -(_ht_max)) {
 			attitude_setpoint.thrust_body[0] = -(_ht_max);
+			hzlim_msg.x_sat = 2;
 		}
 
 		if(attitude_setpoint.thrust_body[1] > _ht_max) {
 			attitude_setpoint.thrust_body[1] = _ht_max;
+			hzlim_msg.y_sat = 1;
 		}
 
 		if(attitude_setpoint.thrust_body[1] < -(_ht_max)) {
 			attitude_setpoint.thrust_body[1] = -(_ht_max);
+			hzlim_msg.y_sat = 2;
 		}
+
+		_horizontal_thrust_limit_pub.publish(hzlim_msg);
 
 		// PX4_INFO("X: %f, Y: %f", (double)attitude_setpoint.thrust_body[0], (double)attitude_setpoint.thrust_body[1]);
 	}
