@@ -222,6 +222,7 @@ set(msg_files
 	Wind.msg
 	YawEstimatorStatus.msg
 	SequentialDesaturation.msg
+	HorizontalThrustLimit.msg
 )
 list(SORT msg_files)
 

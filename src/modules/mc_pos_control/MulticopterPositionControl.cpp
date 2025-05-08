@@ -584,22 +584,33 @@ void MulticopterPositionControl::Run()
 
 				// Saturate horizontal thrust between thrust limit paramter
 
+				// Assemble into a message
+				horizontal_thrust_limit_s hzlim_msg{};
+				hzlim_msg.timestamp = hrt_absolute_time();
+				hzlim_msg.x_sat = 0;
+				hzlim_msg.y_sat = 0;
+
 				if(thrust_frd(0) > _ht_limit) {
 					thrust_frd(0) = _ht_limit;
+					hzlim_msg.x_sat = 1;
 				}
 
 				if(thrust_frd(0) < -(_ht_limit)) {
 					thrust_frd(0) = -(_ht_limit);
+					hzlim_msg.x_sat = 2;
 				}
 
 				if(thrust_frd(1) > _ht_limit) {
 					thrust_frd(1) = _ht_limit;
+					hzlim_msg.y_sat = 1;
 				}
 
 				if(thrust_frd(1) < -(_ht_limit)) {
 					thrust_frd(1) = -(_ht_limit);
+					hzlim_msg.y_sat = 2;
 				}
 
+				_horizontal_thrust_limit_pub.publish(hzlim_msg);
 
 				// attitude_setpoint.q_d = Eulerf(roll_setpoint, pitch_setpoint, local_pos_sp.yaw);
 				//set the horizontal thrust vector to the values from the position controller
