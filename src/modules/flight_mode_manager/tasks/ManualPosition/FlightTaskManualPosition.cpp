@@ -110,13 +110,15 @@ void FlightTaskManualPosition::_updateXYlock()
 	const bool stopped = (_param_mpc_hold_max_xy.get() < FLT_EPSILON || vel_xy_norm < _param_mpc_hold_max_xy.get());
 
 	if (apply_brake && stopped && !Vector2f(_position_setpoint).isAllFinite()) {
-		_position_setpoint.xy() = _position.xy();
+		_position_setpoint(0) = _position(0);
+ 		_position_setpoint(1) = _position(1);
 
 	} else if (Vector2f(_position_setpoint).isAllFinite() && apply_brake) {
 		// Position is locked but check if a reset event has happened.
 		// We will shift the setpoints.
 		if (_sub_vehicle_local_position.get().xy_reset_counter != _reset_counter) {
-			_position_setpoint.xy() = _position.xy();
+			_position_setpoint(0) = _position(0);
+ 			_position_setpoint(1) = _position(1);
 			_reset_counter = _sub_vehicle_local_position.get().xy_reset_counter;
 		}
 
