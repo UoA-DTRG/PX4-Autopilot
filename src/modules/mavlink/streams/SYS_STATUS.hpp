@@ -114,7 +114,7 @@ private:
 	bool send() override
 	{
 
-		const hrt_abstime start = hrt_absolute_time();
+		//const hrt_abstime start = hrt_absolute_time();
 
 		if (_status_sub.updated() || _cpuload_sub.updated() || _battery_status_subs.updated() || _sequential_desaturation_sub.updated()|| _horizontal_thrust_limit_sub.updated() || _actuator_motors_sub.updated()) {
 
@@ -225,8 +225,8 @@ private:
 
 			mavlink_msg_sys_status_send_struct(_mavlink->get_channel(), &msg);
 
-			const hrt_abstime end = hrt_absolute_time();
-    			PX4_INFO("SYS_STATUS send took %lld us", (long long)(end - start));
+			//const hrt_abstime end = hrt_absolute_time();
+    			//PX4_INFO("SYS_STATUS send took %lld us", (long long)(end - start));
 			return true;
 		}
 
