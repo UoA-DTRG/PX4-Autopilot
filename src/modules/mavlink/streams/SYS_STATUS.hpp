@@ -184,7 +184,8 @@ private:
 			((sequential_desaturation.y_sat > 0.01f) << 1) |
 			((sequential_desaturation.z_sat > 0.01f) << 2) |
 			((sequential_desaturation.roll_sat > 0.01f) << 3) |
-			((sequential_desaturation.pitch_sat > 0.01f) << 4);
+			((sequential_desaturation.pitch_sat > 0.01f) << 4) |
+			((sequential_desaturation.yaw_sat > 0.01f) << 5);
 
 			// check if any motor is near / at saturation
 			const float upper_bound = 0.9f;

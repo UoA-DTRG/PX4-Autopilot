@@ -6,3 +6,4 @@ float32 y_sat
 float32 z_sat
 float32 roll_sat
 float32 pitch_sat
+float32 yaw_sat
