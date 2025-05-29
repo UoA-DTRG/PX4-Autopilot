@@ -209,6 +209,9 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 	float roll_sat = desaturateActuators(_actuator_sp, roll);
 	float pitch_sat = desaturateActuators(_actuator_sp, pitch);
 
+	// Mix yaw independently
+	float yaw_sat = mixYaw();
+
 	// Assemble into a message
 	sequential_desaturation_s sqmsg{};
 	sqmsg.timestamp = hrt_absolute_time();
@@ -217,6 +220,7 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 	sqmsg.z_sat = z_sat;
 	sqmsg.roll_sat = roll_sat;
 	sqmsg.pitch_sat = pitch_sat;
+	sqmsg.yaw_sat = yaw_sat;
 
 	_sequential_desaturation_pub.publish(sqmsg);
 
@@ -224,11 +228,10 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 
 	// (void)(x_sat + y_sat + z_sat + roll_sat + pitch_sat); // Unusaed variable repair
 
-	// Mix yaw independently
-	mixYaw();
+
 }
 
-void
+float
 ControlAllocationSequentialDesaturation::mixYaw()
 {
 	// Add yaw to outputs
@@ -245,11 +248,13 @@ ControlAllocationSequentialDesaturation::mixYaw()
 	// and allow some yaw response at maximum thrust
 	ActuatorVector max_prev = _actuator_max;
 	_actuator_max += (_actuator_max - _actuator_min) * 0.15f;
-	desaturateActuators(_actuator_sp, yaw);
+	float gain = desaturateActuators(_actuator_sp, yaw);
 	_actuator_max = max_prev;
 
 	// reduce thrust only
 	desaturateActuators(_actuator_sp, thrust_z, true);
+
+	return gain;
 }
 
 void

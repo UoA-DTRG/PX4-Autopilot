@@ -127,7 +127,7 @@ private:
 	 * some yaw control on the upper end. On the lower end thrust will never be increased,
 	 * but yaw is decreased as much as required.
 	 */
-	void mixYaw();
+	float mixYaw();
 
 	DEFINE_PARAMETERS_CUSTOM_PARENT(
 		ControlAllocationPseudoInverse,
