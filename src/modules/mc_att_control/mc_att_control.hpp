@@ -55,6 +55,7 @@
 #include <uORB/topics/vehicle_status.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <uORB/topics/rc_channels.h>
+#include <uORB/topics/horizontal_thrust_limit.h>
 
 #include <AttitudeControl.hpp>
 
@@ -104,9 +105,10 @@ private:
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 
-	//for horitontal thrust switch
+	//for DTRG horitontal thrust
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
 	struct rc_channels_s _rc_channels{};
+	uORB::Publication<horizontal_thrust_limit_s>	     _horizontal_thrust_limit_pub{ORB_ID(horizontal_thrust_limit)};
 
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 
@@ -124,8 +126,11 @@ private:
 	float _man_tilt_max;                    /**< maximum tilt allowed for manual flight [rad] */
 	float _ht_gain;                    	/**< DTRG horizontal thrust rate */
 	int _ht_en;                        	/**< DTRG horizontal thrust enable */
-	int _ht_x_add;                         	/**< DTRG horizontal thrust X channel */
-	int _ht_y_add;                         	/**< DTRG horizontal thrust Y channel */
+	int _ht_rc_en_add;				/**< DTRF HT RC enable channel */
+	int _ht_r_add;                         	/**< DTRG horizontal thrust Roll channel */
+	int _ht_p_add; 		       		/**< DTRG horizontal thrust Pitch channel */
+	float _ht_limit = 0.5f; 		/**< DTRG horizontal horizontal thrust limit */
+	int _dtrg_ht_mask;
 
 
 	AlphaFilter<float> _man_roll_input_filter;
@@ -166,9 +171,11 @@ private:
 		(ParamFloat<px4::params::MPC_THR_HOVER>)    _param_mpc_thr_hover,       /**< throttle at stationary hover */
 		(ParamInt<px4::params::MPC_THR_CURVE>)      _param_mpc_thr_curve,       /**< throttle curve behavior */
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
-		(ParamInt<px4::params::DTRG_HT_X>)  	    _param_dtrg_h_t_X,		/**< horizontal thrust X channel */
-		(ParamInt<px4::params::DTRG_HT_Y>)  	    _param_dtrg_h_t_Y,		/**< horizontal thrust Y channel */
-	(	ParamFloat<px4::params::DTRG_HT_GAIN>)      _param_dtrg_h_t_gain	/**< horizontal thrust Y channel */
+		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
+		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_h_t_R,		/**< horizontal thrust Roll channel */
+		(ParamInt<px4::params::DTRG_HT_P>)  	    _param_dtrg_h_t_P,		/**< horizontal thrust Pitch channel */
+		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
+		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask		/**< HT gmask for pitching and rolling using HT thrust*/
 
 	)
 };

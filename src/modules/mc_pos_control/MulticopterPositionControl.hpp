@@ -68,7 +68,7 @@
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/debug_array.h>
 #include <uORB/topics/dtrg_custom.h>
-
+#include <uORB/topics/horizontal_thrust_limit.h>
 
 using namespace time_literals;
 
@@ -116,7 +116,7 @@ private:
 
 	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)};
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
-
+	uORB::Publication<horizontal_thrust_limit_s> _horizontal_thrust_limit_pub{ORB_ID(horizontal_thrust_limit)};
 
 	hrt_abstime _time_stamp_last_loop{0};		/**< time stamp of last loop iteration */
 	hrt_abstime _time_position_control_enabled{0};
@@ -133,13 +133,21 @@ private:
 	};
 
 	// Dtrg
-	rc_channels_s _rc_channels{}; /**< PMEN RC channels*/
+	rc_channels_s _rc_channels{};
 	debug_array_s _debug_array{}; //Joao changed here
 	float roll_setpoint = 0.0f;
 	float pitch_setpoint = 0.0f;
-	int _dtrg_offboard_en = 0; /**< enable the dtrg 6d offboard control*/
-	float _dtrg_ht_off_gain = 2.000f; /**< hover thrust offboard gain*/
+	float _ht_limit = 0.5f; 		/**< DTRG horizontal horizontal thrust limit */
+	float _ht_r_limit = 10.0f;		/**< DTRG horizontal thrust Roll limit */
+	float _ht_p_limit = 10.0f;		/**< DTRG horizontal thrust Pitch limit */
+	int _ht_en; 				/**< DTRG horizontal thrust Enabled*/
+	int _ht_rc_en_add;			/**< DTRF HT RC enable channel */
 	int _dtrg_ht_mask = 0;
+	int _ht_x_add;                         	/**< DTRG horizontal thrust X channel */
+	int _ht_y_add;                         	/**< DTRG horizontal thrust Y channel */
+	int _ht_r_add;                         	/**< DTRG horizontal thrust Roll channel */
+	int _ht_p_add; 		       		/**< DTRG horizontal thrust Pitch channel */
+
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -200,9 +208,15 @@ private:
 		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all,
 
 		//DTRG
-		(ParamInt<px4::params::DTRG_HT_EN>)   _param_dtrg_ht_en, /**< enable the dtrg 6d offboard control*/
-		(ParamFloat<px4::params::DTRG_HT_GAIN>) _param_dtrg_ht_gain, /**< HT gain for the offboard control*/
-		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask /**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en, 		/**< enable the dtrg 6d offboard control*/
+		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
+		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask,	/**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_ht_R,		/**< horizontal thrust Roll channel */
+		(ParamInt<px4::params::DTRG_HT_P>)  	    _param_dtrg_ht_P,		/**< horizontal thrust Pitch channel */
+		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
+		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
+		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max	/**< horizontal thrust pitch angle Limit */
+
 
 	);
 

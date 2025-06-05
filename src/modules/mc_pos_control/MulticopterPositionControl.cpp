@@ -262,9 +262,18 @@ void MulticopterPositionControl::parameters_update(bool force)
 		_takeoff.generateInitialRampValue(_param_mpc_z_vel_p_acc.get());
 
 		//DTRG
-		_dtrg_offboard_en = _param_dtrg_ht_en.get();
-		_dtrg_ht_off_gain = _param_dtrg_ht_gain.get();
-		_dtrg_ht_mask = _param_dtrg_ht_mask.get();
+		_ht_en = _param_dtrg_ht_en.get();
+		if (_ht_en){
+			_ht_rc_en_add = _param_dtrg_ht_rc_en.get()-1;
+			_ht_r_add = _param_dtrg_ht_R.get()-1;
+			_ht_p_add = _param_dtrg_ht_P.get()-1;
+			_dtrg_ht_mask = _param_dtrg_ht_mask.get();
+			_ht_limit = _param_dtrg_ht_max.get();
+			_ht_r_limit = _param_dtrg_ht_r_max.get();
+			_ht_p_limit = _param_dtrg_ht_p_max.get();
+		}
+
+
 	}
 }
 
@@ -343,6 +352,8 @@ void MulticopterPositionControl::Run()
 		const float dt =
 			math::constrain(((vehicle_local_position.timestamp_sample - _time_stamp_last_loop) * 1e-6f), 0.002f, 0.04f);
 		_time_stamp_last_loop = vehicle_local_position.timestamp_sample;
+
+		_rc_channels_sub.update(&_rc_channels);
 
 		// set _dt in controllib Block for BlockDerivative
 		setDt(dt);
@@ -562,24 +573,42 @@ void MulticopterPositionControl::Run()
 			//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
 			//corresponds to the debug_array uorb msg
 			//TODO swap this out for dtrg offboard sp topic
-			if (_debug_array_sub.update(&_debug_array))
-			{
-				roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
-				pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
-			}
 
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
+			if(_ht_en && (_rc_channels.channels[_ht_rc_en_add] > 0.5f)){
 
-			if(_dtrg_offboard_en){
-				//dummy attitude setpoints for roll and pitch and horizontal thrust
+				if(!_vehicle_control_mode.flag_control_offboard_enabled){
+					// if offboard is not enabled, use the RC channels to get roll and pitch setpoints
+					// setpoints are constrained to the limits set by the with 0.01f deadzone
+					roll_setpoint = math::constrain(
+						fabsf(_rc_channels.channels[_ht_r_add]) > 0.01f ?
+						_rc_channels.channels[_ht_r_add] * _ht_r_limit : 0.f,
+						-_ht_r_limit, _ht_r_limit);
+
+					pitch_setpoint = math::constrain(
+						fabsf(_rc_channels.channels[_ht_p_add]) > 0.01f ?
+						_rc_channels.channels[_ht_p_add] * _ht_p_limit : 0.f,
+						-_ht_p_limit, _ht_p_limit);
+					PX4_INFO("DTRG Roll Setpoint FROM RC: %f, Pitch Setpoint: %f", static_cast<double>(roll_setpoint), static_cast<double>(pitch_setpoint));
+
+				}else{
+					if (_debug_array_sub.update(&_debug_array)){
+
+						// if offboard is enabled, use the roll and pitch setpoints from the debug array
+						roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
+						pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
+						PX4_INFO("DTRG Roll Setpoint FROM OFFBOARD: %f, Pitch Setpoint: %f", static_cast<double>(roll_setpoint), static_cast<double>(pitch_setpoint));
+					}
+				}
+
+				// dummy attitude setpoints for mixed actuation
 				vehicle_attitude_setpoint_s attitude_RP{};
 
-				//Standard attitude setpoint generation
+				// //Standard attitude setpoint generation
 				_control.getAttitudeSetpoint(attitude_RP);
 
 				// Pick and Choose the attitude stuff using parameter
-
 				if (_dtrg_ht_mask == 1) {// Roll for y axis
 					attitude_setpoint.roll_body = attitude_RP.roll_body;
 					attitude_setpoint.pitch_body = pitch_setpoint;
@@ -599,8 +628,8 @@ void MulticopterPositionControl::Run()
 				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
 				q_sp.copyTo(attitude_setpoint.q_d);
 				// convert thrusts from inertial to body frame
-				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(_dtrg_ht_off_gain * local_pos_sp.thrust[0],
-							_dtrg_ht_off_gain * local_pos_sp.thrust[1]
+				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(_ht_limit * local_pos_sp.thrust[0],
+					_ht_limit * local_pos_sp.thrust[1]
 							, local_pos_sp.thrust[2]));
 
 
@@ -617,18 +646,18 @@ void MulticopterPositionControl::Run()
 					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
 				}
 
+				// check for saturation
+				horizontal_thrust_limit_s hzlim_msg{};
+				hzlim_msg.timestamp = hrt_absolute_time();
+				attitude_setpoint.thrust_body[0] = math::constrain(attitude_setpoint.thrust_body[0] * _ht_limit, -_ht_limit, _ht_limit);
+				hzlim_msg.x_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[0]) - _ht_limit) < FLT_EPSILON);
+				attitude_setpoint.thrust_body[1] = math::constrain(attitude_setpoint.thrust_body[1] * _ht_limit, -_ht_limit, _ht_limit);
+				hzlim_msg.y_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[1]) - _ht_limit) < FLT_EPSILON);
+
+				_horizontal_thrust_limit_pub.publish(hzlim_msg);
+
 				//vertical thrust
 				attitude_setpoint.thrust_body[2] = thrust_frd(2);
-
-				// Print the whole attitude setpoint to the console
-				// PX4_INFO("Attitude Setpoint: roll=%8.4f, pitch=%8.4f, yaw=%8.4f, thrust x=%8.4f, thrust y=%8.4f, thrust z=%8.4f",
-				// 		 (double)attitude_setpoint.roll_body,
-				// 		 (double)attitude_setpoint.pitch_body,
-				// 		 (double)attitude_setpoint.yaw_body,
-				// 		 (double)attitude_setpoint.thrust_body[0],
-				// 		 (double)attitude_setpoint.thrust_body[1],
-				// 		 (double)attitude_setpoint.thrust_body[2]);
-
 			}else{
 				//Standard attitude setpoint
 				_control.getAttitudeSetpoint(attitude_setpoint);

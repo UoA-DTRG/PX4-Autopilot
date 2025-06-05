@@ -42,34 +42,50 @@
  */
 
 /**
- * DTRG Horizontal Thrust
+ * DTRG Horizontal Roll Channel
  *
+ * Define which aux channel will be used for the horizontal thrust control in the roll direction. (default is channel 10)
  *
- *
- * Enable the horizontal thrust control for manual, position, and offboard flight modes.
- *
+ * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio
+ * @value 1 Alerion (Channel 1)
+ * @value 2 Elevator (Channel 2)
+ * @value 5 Aux 4 (channel 5)
+ * @value 6 Aux 5 (channel 6)
+ * @value 7 Aux 6 (channel 7)
+ * @value 8 Aux 1 (channel 8)
+ * @value 9 Aux 2 (channel 9)
+ * @value 10 Aux 3 (channel 10)
+ * @value 11 Aux 4 (channel 11)
+ * @value 12 Aux 5 (channel 12)
+ * @value 13 Aux 6 (channel 13)
  * @reboot_required true
- * @boolean
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
-
+PARAM_DEFINE_INT32(DTRG_HT_R, 10);
 /**
- * Horizontal Thrust Gain for offboard control
+ * DTRG Horizontal Pitch Channel
  *
+ * Define which aux channel will be used for the horizontal thrust control in the pitch direction. (default is channel 11)
  *
- *
- * Adjust the control gain for horizontal thrust control, higher values result in faster translational speeds with lower inputs.
- *
- * @min 0.000
- * @max 5.000
- * @decimal 3
+ * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio
+ * @value 1 Alerion (Channel 1)
+ * @value 2 Elevator (Channel 2)
+ * @value 5 (channel 5)
+ * @value 6 (channel 6)
+ * @value 7 (channel 7)
+ * @value 8 Aux 1 (channel 8)
+ * @value 9 Aux 2 (channel 9)
+ * @value 10 Aux 3 (channel 10)
+ * @value 11 Aux 4 (channel 11)
+ * @value 12 Aux 5 (channel 12)
+ * @value 13 Aux 6 (channel 13)
+ * @reboot_required true
  * @group DTRG
  */
-PARAM_DEFINE_FLOAT(DTRG_HT_GAIN, 2.000f);
+PARAM_DEFINE_INT32(DTRG_HT_P, 11);
 
 /**
- * Horizontal Thrust Gain for offboard control
+ * Horizontal Thrust Mask
  *
  *
  *
