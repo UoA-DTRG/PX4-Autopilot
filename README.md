@@ -27,6 +27,12 @@ This DTRG fork is designed with the following airframes in mind:
 
 Documentation for features implemented in v1.14 can be found in the DTRG teams drive documentation folder. It is highly recommended to read the documentation before attempting to use the firmware as some features may pose a safety risk if not used correctly.
 
+### Python Mavlink Generation
+To generate the custom dialect for use in python run the following inside `src/modules/mavlink/mavlink'
+```bash
+python3 pymavlink/tools/mavgen.py   --lang Python   --wire-protocol 2.0   --output dtrg   message_definitions/v1.0/dtrg.xml
+```
+
 ## Project Governance
 
 The PX4 Autopilot project including all of its trademarks is hosted under [Dronecode](https://www.dronecode.org/), part of the Linux Foundation.

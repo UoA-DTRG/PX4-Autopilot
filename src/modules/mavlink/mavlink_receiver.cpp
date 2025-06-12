@@ -1071,6 +1071,18 @@ MavlinkReceiver::handle_message_six_axis_load_cell(mavlink_message_t *msg)
 	    (mavlink_system.compid == load_cell_data.target_component || load_cell_data.target_component == 0)) {
 
 		// Process message here
+		six_axis_load_cell_s data{};
+
+		data.fx = load_cell_data.fx;
+		data.fy = load_cell_data.fy;
+		data.fz = load_cell_data.fz;
+
+		data.mx = load_cell_data.mx;
+		data.my = load_cell_data.my;
+		data.mz = load_cell_data.mz;
+
+		data.timestamp = hrt_absolute_time();
+		_six_axis_load_cell_pub.publish(data);
 	}
 }
 
