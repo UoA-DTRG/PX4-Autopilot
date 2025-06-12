@@ -1060,6 +1060,21 @@ MavlinkReceiver::handle_message_set_position_target_local_ned(mavlink_message_t 
 }
 
 void
+MavlinkReceiver::handle_message_six_axis_load_cell(mavlink_message_t *msg)
+{
+	mavlink_six_axis_load_cell_t load_cell_data;
+	mavlink_msg_six_axis_load_cell_decode(msg, &load_cell_data);
+
+	/* Only accept messages which are intended for this system */
+	if (_mavlink->get_forward_externalsp() &&
+	    (mavlink_system.sysid == load_cell_data.target_system || load_cell_data.target_system == 0) &&
+	    (mavlink_system.compid == load_cell_data.target_component || load_cell_data.target_component == 0)) {
+
+		// Process message here
+	}
+}
+
+void
 MavlinkReceiver::handle_message_set_position_target_global_int(mavlink_message_t *msg)
 {
 	mavlink_set_position_target_global_int_t target_global_int;
