@@ -582,12 +582,12 @@ void MulticopterPositionControl::Run()
 					// if offboard is not enabled, use the RC channels to get roll and pitch setpoints
 					// setpoints are constrained to the limits set by the with 0.01f deadzone
 					roll_setpoint = math::constrain(
-						fabsf(_rc_channels.channels[_ht_r_add]) > 0.01f ?
+						fabsf(_rc_channels.channels[_ht_r_add]) > 0.02f ?
 						_rc_channels.channels[_ht_r_add] * _ht_r_limit : 0.f,
 						-_ht_r_limit, _ht_r_limit);
 
 					pitch_setpoint = math::constrain(
-						fabsf(_rc_channels.channels[_ht_p_add]) > 0.01f ?
+						fabsf(_rc_channels.channels[_ht_p_add]) > 0.02f ?
 						_rc_channels.channels[_ht_p_add] * _ht_p_limit : 0.f,
 						-_ht_p_limit, _ht_p_limit);
 					PX4_INFO("DTRG Roll Setpoint FROM RC: %f, Pitch Setpoint: %f", static_cast<double>(roll_setpoint), static_cast<double>(pitch_setpoint));
@@ -628,9 +628,8 @@ void MulticopterPositionControl::Run()
 				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
 				q_sp.copyTo(attitude_setpoint.q_d);
 				// convert thrusts from inertial to body frame
-				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(_ht_limit * local_pos_sp.thrust[0],
-					_ht_limit * local_pos_sp.thrust[1]
-							, local_pos_sp.thrust[2]));
+				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0],
+					local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
 
 
 				// Pick and Choose the horizontal thrust stuff using parameter
@@ -649,9 +648,9 @@ void MulticopterPositionControl::Run()
 				// check for saturation
 				horizontal_thrust_limit_s hzlim_msg{};
 				hzlim_msg.timestamp = hrt_absolute_time();
-				attitude_setpoint.thrust_body[0] = math::constrain(attitude_setpoint.thrust_body[0] * _ht_limit, -_ht_limit, _ht_limit);
+				attitude_setpoint.thrust_body[0] = math::constrain(attitude_setpoint.thrust_body[0], -_ht_limit, _ht_limit);
 				hzlim_msg.x_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[0]) - _ht_limit) < FLT_EPSILON);
-				attitude_setpoint.thrust_body[1] = math::constrain(attitude_setpoint.thrust_body[1] * _ht_limit, -_ht_limit, _ht_limit);
+				attitude_setpoint.thrust_body[1] = math::constrain(attitude_setpoint.thrust_body[1], -_ht_limit, _ht_limit);
 				hzlim_msg.y_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[1]) - _ht_limit) < FLT_EPSILON);
 
 				_horizontal_thrust_limit_pub.publish(hzlim_msg);
