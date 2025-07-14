@@ -269,8 +269,8 @@ void MulticopterPositionControl::parameters_update(bool force)
 			_ht_p_add = _param_dtrg_ht_P.get()-1;
 			_dtrg_ht_mask = _param_dtrg_ht_mask.get();
 			_ht_limit = _param_dtrg_ht_max.get();
-			_ht_r_limit = _param_dtrg_ht_r_max.get();
-			_ht_p_limit = _param_dtrg_ht_p_max.get();
+			_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
+			_ht_p_limit = math::radians(_param_dtrg_ht_p_max.get());
 		}
 
 
