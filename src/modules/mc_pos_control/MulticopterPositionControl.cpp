@@ -558,7 +558,6 @@ void MulticopterPositionControl::Run()
 				_control.setVelocityLimits(_param_mpc_xy_vel_max.get(), _param_mpc_z_vel_max_up.get(), _param_mpc_z_vel_max_dn.get());
 				_control.update(dt);
 			}
-
 			// Publish internal position control setpoints
 			// on top of the input/feed-forward setpoints these containt the PID corrections
 			// This message is used by other modules (such as Landdetector) to determine vehicle intention.
@@ -590,15 +589,12 @@ void MulticopterPositionControl::Run()
 						fabsf(_rc_channels.channels[_ht_p_add]) > 0.02f ?
 						_rc_channels.channels[_ht_p_add] * _ht_p_limit : 0.f,
 						-_ht_p_limit, _ht_p_limit);
-					PX4_INFO("DTRG Roll Setpoint FROM RC: %f, Pitch Setpoint: %f", static_cast<double>(roll_setpoint), static_cast<double>(pitch_setpoint));
-
 				}else{
 					if (_debug_array_sub.update(&_debug_array)){
 
 						// if offboard is enabled, use the roll and pitch setpoints from the debug array
 						roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
 						pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
-						PX4_INFO("DTRG Roll Setpoint FROM OFFBOARD: %f, Pitch Setpoint: %f", static_cast<double>(roll_setpoint), static_cast<double>(pitch_setpoint));
 					}
 				}
 
@@ -630,8 +626,6 @@ void MulticopterPositionControl::Run()
 				// convert thrusts from inertial to body frame
 				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0],
 					local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
-
-
 				// Pick and Choose the horizontal thrust stuff using parameter
 				if (_dtrg_ht_mask == 1) { //roll for y
 					attitude_setpoint.thrust_body[0] =  thrust_frd(0); //thrust for x
@@ -652,7 +646,6 @@ void MulticopterPositionControl::Run()
 				hzlim_msg.x_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[0]) - _ht_limit) < FLT_EPSILON);
 				attitude_setpoint.thrust_body[1] = math::constrain(attitude_setpoint.thrust_body[1], -_ht_limit, _ht_limit);
 				hzlim_msg.y_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[1]) - _ht_limit) < FLT_EPSILON);
-
 				_horizontal_thrust_limit_pub.publish(hzlim_msg);
 
 				//vertical thrust
