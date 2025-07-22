@@ -221,6 +221,9 @@ set(msg_files
 	VtolVehicleStatus.msg
 	Wind.msg
 	YawEstimatorStatus.msg
+	DtrgCustom.msg
+	HorizontalThrustLimit.msg
+	SequentialDesaturation.msg
 )
 list(SORT msg_files)
 

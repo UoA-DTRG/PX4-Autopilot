@@ -52,6 +52,7 @@ MulticopterRateControl::MulticopterRateControl(bool vtol) :
 {
 	_vehicle_status.vehicle_type = vehicle_status_s::VEHICLE_TYPE_ROTARY_WING;
 
+	_vector_thrust_sp.setAll(0.f); //DTRG
 	parameters_updated();
 	_controller_status_pub.advertise();
 }
@@ -95,6 +96,7 @@ MulticopterRateControl::parameters_updated()
 	// manual rate control acro mode rate limits
 	_acro_rate_max = Vector3f(radians(_param_mc_acro_r_max.get()), radians(_param_mc_acro_p_max.get()),
 				  radians(_param_mc_acro_y_max.get()));
+
 }
 
 void

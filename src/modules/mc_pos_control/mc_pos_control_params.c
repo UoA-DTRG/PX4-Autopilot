@@ -36,7 +36,73 @@
  * Multicopter position controller parameters.
  *
  * @author Anton Babushkin <anton@px4.io>
+ *
+ * DTRG Changes by
+ * @author Jaap Skinner <jski306@aucklanduni.ac.nz>
  */
+
+/**
+ * DTRG Horizontal Roll Channel
+ *
+ * Define which aux channel will be used for the horizontal thrust control in the roll direction. (default is channel 10)
+ *
+ * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio
+ * @value 1 Alerion (Channel 1)
+ * @value 2 Elevator (Channel 2)
+ * @value 5 Aux 4 (channel 5)
+ * @value 6 Aux 5 (channel 6)
+ * @value 7 Aux 6 (channel 7)
+ * @value 8 Aux 1 (channel 8)
+ * @value 9 Aux 2 (channel 9)
+ * @value 10 Aux 3 (channel 10)
+ * @value 11 Aux 4 (channel 11)
+ * @value 12 Aux 5 (channel 12)
+ * @value 13 Aux 6 (channel 13)
+ * @reboot_required true
+ * @group DTRG
+ */
+PARAM_DEFINE_INT32(DTRG_HT_R, 10);
+/**
+ * DTRG Horizontal Pitch Channel
+ *
+ * Define which aux channel will be used for the horizontal thrust control in the pitch direction. (default is channel 11)
+ *
+ * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio
+ * @value 1 Alerion (Channel 1)
+ * @value 2 Elevator (Channel 2)
+ * @value 5 (channel 5)
+ * @value 6 (channel 6)
+ * @value 7 (channel 7)
+ * @value 8 Aux 1 (channel 8)
+ * @value 9 Aux 2 (channel 9)
+ * @value 10 Aux 3 (channel 10)
+ * @value 11 Aux 4 (channel 11)
+ * @value 12 Aux 5 (channel 12)
+ * @value 13 Aux 6 (channel 13)
+ * @reboot_required true
+ * @group DTRG
+ */
+PARAM_DEFINE_INT32(DTRG_HT_P, 11);
+
+/**
+ * Horizontal Thrust Mask
+ *
+ *
+ *
+ * Horizontal thrust mask for position based control allowing pitch and roll control mixed with horizontal thrust control.
+ *
+ *
+ *
+ * @min 0
+ * @max 3
+ * @value 0 Default - HT for x and y
+ * @value 1 Horizontal thrust for x and roll for y
+ * @value 2 Horizontal thrust for y and pitch for x
+ * @value 3 Horizontal thrust for x and y and pitch and roll (WARNING: Non-default values are untested and might not be stable!)
+ * @group Multicopter Position Control
+ * @group DTRG
+ */
+PARAM_DEFINE_INT32(DTRG_HT_MASK, 0);
 
 /**
  * Minimum collective thrust in auto thrust control

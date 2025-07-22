@@ -93,10 +93,17 @@ MulticopterAttitudeControl::parameters_updated()
 						radians(_param_mc_yawrate_max.get())));
 
 	_man_tilt_max = math::radians(_param_mpc_man_tilt_max.get());
+
+	//DTRG horizontal thrust Params
 	_ht_en = _param_dtrg_ht_en.get();
-	_ht_gain  = _param_dtrg_h_t_gain.get();
-	_ht_x_add = _param_dtrg_h_t_X.get()-1;
-	_ht_y_add = _param_dtrg_h_t_Y.get()-1;
+	if (_ht_en){
+		_ht_rc_en_add = _param_dtrg_ht_rc_en.get()-1;
+		_ht_limit = _param_dtrg_ht_max.get();
+		_ht_r_add = _param_dtrg_h_t_R.get()-1;
+		_ht_p_add = _param_dtrg_h_t_P.get()-1;
+		_dtrg_ht_mask = _param_dtrg_ht_mask.get();
+	}
+
 }
 
 float
@@ -119,6 +126,8 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	const float yaw = Eulerf(q).psi();
 
 	attitude_setpoint.yaw_sp_move_rate = _manual_control_setpoint.yaw * math::radians(_param_mpc_man_y_max.get());
+
+	if (_ht_en) _rc_channels_sub.update(&_rc_channels);
 
 	// Avoid accumulating absolute yaw error with arming stick gesture in case heading_good_for_control stays true
 	if ((_manual_control_setpoint.throttle < -.9f) && (_param_mc_airmode.get() != 2)) {
@@ -147,8 +156,19 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 	_man_pitch_input_filter.setParameters(dt, _param_mc_man_tilt_tau.get());
 
 	// we want to fly towards the direction of (roll, pitch)
-	Vector2f v = Vector2f(_man_roll_input_filter.update(_manual_control_setpoint.roll * _man_tilt_max),
-			      -_man_pitch_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max));
+
+	Vector2f v = Vector2f();
+
+
+
+	if (_ht_en && (_rc_channels.channels[_ht_rc_en_add] > 0.5f)){
+		v = Vector2f(_man_roll_input_filter.update(_rc_channels.channels[_ht_r_add] * _man_tilt_max),
+		-_man_pitch_input_filter.update(_rc_channels.channels[_ht_p_add] * _man_tilt_max));
+	}else{
+		v = Vector2f(_man_roll_input_filter.update(_manual_control_setpoint.roll * _man_tilt_max),
+				      -_man_pitch_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max));
+	}
+
 	float v_norm = v.norm(); // the norm of v defines the tilt angle
 
 	if (v_norm > _man_tilt_max) { // limit to the configured maximum tilt angle
@@ -171,15 +191,42 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt,
 		AttitudeControlMath::correctTiltSetpointForYawError(q_sp_rp, q, q_sp_yaw);
 	}
 
+
+
 	//DTRG horizontal thrust switch
-	if(_ht_en)
+	if(_ht_en && (_rc_channels.channels[_ht_rc_en_add] > 0.5f))
 	{
-		_rc_channels_sub.update(&_rc_channels);
+		// DTRG horizontal thrust saturation topic
+		horizontal_thrust_limit_s hzlim_msg{};
+		hzlim_msg.timestamp = hrt_absolute_time();
+		hzlim_msg.x_sat = 0;
+		hzlim_msg.y_sat = 0;
 
-		attitude_setpoint.thrust_body[0] = _rc_channels.channels[_ht_x_add] * _ht_gain * 10;
-		attitude_setpoint.thrust_body[1] = _rc_channels.channels[_ht_y_add] * _ht_gain * 10;
+		// Constrain thrust and check for saturation
+		// Pick and Choose the horizontal thrust stuff using parameter
+		if (_dtrg_ht_mask == 1) { //roll for y
+			attitude_setpoint.roll_body = _manual_control_setpoint.roll * _man_tilt_max;
+			attitude_setpoint.thrust_body[0] = math::constrain(_manual_control_setpoint.pitch * _ht_limit, -_ht_limit, _ht_limit);
+		} else if (_dtrg_ht_mask == 2) { //pitch for x
+			attitude_setpoint.pitch_body = _manual_control_setpoint.pitch * _man_tilt_max;
+			attitude_setpoint.roll_body = _rc_channels.channels[_ht_r_add] * _man_tilt_max;
+			attitude_setpoint.thrust_body[1] = math::constrain(_manual_control_setpoint.roll * _ht_limit, -_ht_limit, _ht_limit);
+		} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
+			attitude_setpoint.roll_body = _manual_control_setpoint.pitch * _man_tilt_max;
+			attitude_setpoint.pitch_body = _manual_control_setpoint.roll * _man_tilt_max;
+			attitude_setpoint.thrust_body[0] = math::constrain(_manual_control_setpoint.pitch * _ht_limit, -_ht_limit, _ht_limit);
+			attitude_setpoint.thrust_body[1] = math::constrain(_manual_control_setpoint.roll * _ht_limit, -_ht_limit, _ht_limit);
+		} else { //standard HT
+			attitude_setpoint.roll_body = _rc_channels.channels[_ht_r_add] * _man_tilt_max;
+			attitude_setpoint.pitch_body = _rc_channels.channels[_ht_p_add] * _man_tilt_max;
+			attitude_setpoint.thrust_body[0] = math::constrain(_manual_control_setpoint.pitch * _ht_limit, -_ht_limit, _ht_limit);
+			attitude_setpoint.thrust_body[1] = math::constrain(_manual_control_setpoint.roll * _ht_limit, -_ht_limit, _ht_limit);
+		}
 
-		// PX4_INFO("X: %f, Y: %f", (double)attitude_setpoint.thrust_body[0], (double)attitude_setpoint.thrust_body[1]);
+		hzlim_msg.x_sat = (fabsf(attitude_setpoint.thrust_body[0]) >= _ht_limit);
+		hzlim_msg.y_sat = (fabsf(attitude_setpoint.thrust_body[1]) >= _ht_limit);
+		// Publish horizontal thrust saturation
+		_horizontal_thrust_limit_pub.publish(hzlim_msg);
 	}
 
 	// Align the desired tilt with the yaw setpoint

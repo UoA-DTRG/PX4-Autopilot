@@ -130,6 +130,9 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("vtol_vehicle_status", 200);
 	add_topic("wind", 1000);
 
+	add_topic("sequential_desaturation");
+	add_topic("horizontal_thrust_limit");
+
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);
@@ -201,6 +204,10 @@ void LoggedTopics::add_default_topics()
 	// add_optional_topic_multi("estimator_aid_src_optical_flow", 100, MAX_ESTIMATOR_INSTANCES);
 	// add_optional_topic_multi("estimator_aid_src_terrain_optical_flow", 100, MAX_ESTIMATOR_INSTANCES);
 	// add_optional_topic_multi("estimator_aid_src_ev_yaw", 100, MAX_ESTIMATOR_INSTANCES);
+
+	// dtrg
+	add_topic("debug_vect");
+	add_topic("dtrg_custom");
 
 	// log all raw sensors at minimal rate (at least 1 Hz)
 	add_topic_multi("battery_status", 200, 2);

@@ -39,26 +39,14 @@
  * @author Anton Babushkin <anton@px4.io>
  */
 
-/**
- * Horizontal Thrust Gain
- *
- *
- *
- * Adjust the control gain for horizontal thrust control, higher values result in faster translational speeds with lower stick input.
- *
- * @min 0.000
- * @max 2.000
- * @decimal 3
- * @group DTRG
- */
-PARAM_DEFINE_FLOAT(DTRG_HT_GAIN, 1.000f);
 
 /**
- * DTRG Horizontal Thrust
+ * DTRG Horizontal Thrust Enable
  *
  *
  *
- * Enable the horizontal thrust control for manual flight. Roll and pitch stick inputs will be used to control horizontal thrust.
+ * Enable the horizontal thrust control feature for manual, position, and offboard flight modes.
+ * HT mode is still dependent on the HT thrust Enable Channel.
  *
  * @reboot_required true
  * @boolean
@@ -67,14 +55,17 @@ PARAM_DEFINE_FLOAT(DTRG_HT_GAIN, 1.000f);
 PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
 
 /**
- * DTRG Horizontal Thrust Switch
+ * DTRG Horizontal Thrust Enable Channel
  *
- * Define which aux channel will be used for the horizontal thrust control in the X direction. (default is channel 8)
  *
- * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio, typically use channels 8 -13 for this function as they are unlikely to be used for other functions.
- * @value 5 Aux 4 (channel 5)
- * @value 6 Aux 5 (channel 6)
- * @value 7 Aux 6 (channel 7)
+ *
+ * Enable the horizontal thrust control via RC channel, Defualts to 8 which is default arming channel.
+ * If you would like to have the UAV fly only in HT mode then this can be set to 5 or the arming channel.
+ *
+ * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio
+ * @value 5 (channel 5)
+ * @value 6 (channel 6)
+ * @value 7 (channel 7)
  * @value 8 Aux 1 (channel 8)
  * @value 9 Aux 2 (channel 9)
  * @value 10 Aux 3 (channel 10)
@@ -84,26 +75,43 @@ PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
  * @reboot_required true
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_H_T_X, 8);
+PARAM_DEFINE_INT32(DTRG_HT_RC_EN, 8);
+
 /**
- * DTRG Horizontal Thrust Switch
+ * Horizontal Thrust XY Limit
  *
- * Define which aux channel will be used for the horizontal thrust control in the Y direction. (default is channel 9)
+ * Saturation limit of the commanded horizontal thrust.
  *
- * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio, typically use channels 8 -13 for this function as they are unlikely to be used for other functions.
- * @value 5 Aux 4 (channel 5)
- * @value 6 Aux 5 (channel 6)
- * @value 7 Aux 6 (channel 7)
- * @value 8 Aux 1 (channel 8)
- * @value 9 Aux 2 (channel 9)
- * @value 10 Aux 3 (channel 10)
- * @value 11 Aux 4 (channel 11)
- * @value 12 Aux 5 (channel 12)
- * @value 13 Aux 6 (channel 13)
- * @reboot_required true
+ * @min 0.000
+ * @max 1.000
+ * @decimal 3
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_H_T_Y, 6);
+PARAM_DEFINE_FLOAT(DTRG_HT_MAX, 0.500f);
+/**
+ * Horizontal Thrust Roll Angle Limit (degrees)
+ *
+ * Saturation limit of the commanded horizontal thrust.
+ *
+ * @unit deg
+ * @min 0.000
+ * @max 45.000
+ * @decimal 1
+ * @group DTRG
+ */
+PARAM_DEFINE_FLOAT(DTRG_HT_R_MAX, 10.0f);
+/**
+ * Horizontal Thrust Pitch Angle Limit (degrees)
+ *
+ * Saturation limit of the commanded horizontal thrust.
+ *
+ * @unit deg
+ * @min 0.000
+ * @max 45.000
+ * @decimal 1
+ * @group DTRG
+ */
+PARAM_DEFINE_FLOAT(DTRG_HT_P_MAX, 10.0f);
 
 /**
  * Roll P gain

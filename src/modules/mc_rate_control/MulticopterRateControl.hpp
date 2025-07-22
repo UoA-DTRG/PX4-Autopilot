@@ -126,6 +126,9 @@ private:
 	float _battery_status_scale{0.0f};
 	matrix::Vector3f _thrust_setpoint{};
 
+	matrix::Vector3f _vector_thrust_sp{};
+	float _vec_thr_xy_p; /**< gain for vector thrust XY direction. */
+
 	float _energy_integration_time{0.0f};
 	float _control_energy[4] {};
 
@@ -160,5 +163,6 @@ private:
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPOY>) _param_mc_acro_supexpoy,		/**< superexpo stick curve shape (yaw) */
 
 		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en
+
 	)
 };

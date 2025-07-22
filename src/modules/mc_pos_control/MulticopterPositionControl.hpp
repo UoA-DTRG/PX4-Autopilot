@@ -64,6 +64,11 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+// Dtrg includes
+#include <uORB/topics/rc_channels.h>
+#include <uORB/topics/debug_array.h>
+#include <uORB/topics/dtrg_custom.h>
+#include <uORB/topics/horizontal_thrust_limit.h>
 
 using namespace time_literals;
 
@@ -101,15 +106,23 @@ private:
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
-	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
+	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)}; //TODO this was commented out in the old 6D offboard with the tag "Using Addmittance"
 	uORB::Subscription _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
+	//TODO this existed replacing the trajectory_setpoint_sub
+	// uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
+
+	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)};
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	uORB::Publication<horizontal_thrust_limit_s> _horizontal_thrust_limit_pub{ORB_ID(horizontal_thrust_limit)};
+
 	hrt_abstime _time_stamp_last_loop{0};		/**< time stamp of last loop iteration */
 	hrt_abstime _time_position_control_enabled{0};
 
-	trajectory_setpoint_s _setpoint{PositionControl::empty_trajectory_setpoint};
+	trajectory_setpoint_s _setpoint{PositionControl::empty_trajectory_setpoint}; //TODO in old 6D offboard this doesnt exist (probs cuz addmittance)
+
 	vehicle_control_mode_s _vehicle_control_mode{};
 
 	vehicle_constraints_s _vehicle_constraints {
@@ -118,6 +131,23 @@ private:
 		.speed_down = NAN,
 		.want_takeoff = false,
 	};
+
+	// Dtrg
+	rc_channels_s _rc_channels{};
+	debug_array_s _debug_array{}; //Joao changed here
+	float roll_setpoint = 0.0f;
+	float pitch_setpoint = 0.0f;
+	float _ht_limit = 0.5f; 		/**< DTRG horizontal horizontal thrust limit */
+	float _ht_r_limit = 10.0f;		/**< DTRG horizontal thrust Roll limit */
+	float _ht_p_limit = 10.0f;		/**< DTRG horizontal thrust Pitch limit */
+	int _ht_en; 				/**< DTRG horizontal thrust Enabled*/
+	int _ht_rc_en_add;			/**< DTRF HT RC enable channel */
+	int _dtrg_ht_mask = 0;
+	int _ht_x_add;                         	/**< DTRG horizontal thrust X channel */
+	int _ht_y_add;                         	/**< DTRG horizontal thrust Y channel */
+	int _ht_r_add;                         	/**< DTRG horizontal thrust Roll channel */
+	int _ht_p_add; 		       		/**< DTRG horizontal thrust Pitch channel */
+
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -175,7 +205,19 @@ private:
 		(ParamFloat<px4::params::MPC_MAN_Y_TAU>)    _param_mpc_man_y_tau,
 
 		(ParamFloat<px4::params::MPC_XY_VEL_ALL>)   _param_mpc_xy_vel_all,
-		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all
+		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all,
+
+		//DTRG
+		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en, 		/**< enable the dtrg 6d offboard control*/
+		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
+		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask,	/**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_ht_R,		/**< horizontal thrust Roll channel */
+		(ParamInt<px4::params::DTRG_HT_P>)  	    _param_dtrg_ht_P,		/**< horizontal thrust Pitch channel */
+		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
+		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
+		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max	/**< horizontal thrust pitch angle Limit */
+
+
 	);
 
 	control::BlockDerivative _vel_x_deriv; /**< velocity derivative in x */
