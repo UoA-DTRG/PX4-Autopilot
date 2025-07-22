@@ -13,11 +13,11 @@ The DTRG fork of PX4 includes the following additions:
 Implemented:
 * Mixer Injection from csv file
 * Manual Horizontal Thrust Control via RC (level mode)
-
-Upcoming:
 * Horizontal Thrust Position Mode
 * Horizontal Thrust Offboard Mode
 * Sequential Desaturation and Thrust Limits (HT)
+
+Upcoming:
 * Status Monitor
 * Dynamixel Servo Control with easy configuration
 * Wrench Estimator
@@ -28,8 +28,13 @@ This DTRG fork is designed with the following airframes in mind:
 * BlueOcto (stacked octocopter)
 * PlanarOcto (flat octocopter)
 * Planatary Hex (modified flat hexacopter)
+* P#1
+
+Precompiled binaries for relevant flight controllers and information about the firmware can be found in the releases tab of this reporitory
 
 Documentation for features implemented in v1.14 can be found in the DTRG teams drive documentation folder. It is highly recommended to read the documentation before attempting to use the firmware as some features may pose a safety risk if not used correctly.
+
+
 
 ## Project Governance
 
