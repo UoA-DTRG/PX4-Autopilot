@@ -72,6 +72,9 @@ then
 	# Internal magnetometer on I2c
 	bmm150 -I -R 6 start
 
+	# Auto start power monitors
+	pm_selector_auterion start
+
 else
 	#FMUv5Xbase board orientation
 

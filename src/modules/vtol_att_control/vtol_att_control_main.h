@@ -32,7 +32,7 @@
  ****************************************************************************/
 
 /**
- * @file VTOL_att_control_main.cpp
+ * @file vtol_att_control_main.h
  * Implementation of an attitude controller for VTOL airframes. This module receives data
  * from both the fixed wing- and the multicopter attitude controllers and processes it.
  * It computes the correct actuator controls depending on which mode the vehicle is in (hover,forward-
@@ -50,7 +50,7 @@
 #pragma once
 
 #include <drivers/drv_hrt.h>
-#include <lib/geo/geo.h>
+#include <lib/atmosphere/atmosphere.h>
 #include <lib/mathlib/mathlib.h>
 #include <lib/perf/perf_counter.h>
 #include <matrix/math.hpp>
@@ -87,12 +87,11 @@
 #include "standard.h"
 #include "tailsitter.h"
 #include "tiltrotor.h"
+#include "vtol_type.h"
 
 using namespace time_literals;
 
 extern "C" __EXPORT int vtol_att_control_main(int argc, char *argv[]);
-
-static constexpr float kMaxVTOLAttitudeControlTimeStep = 0.1f; // max time step [s]
 
 class VtolAttitudeControl : public ModuleBase<VtolAttitudeControl>, public ModuleParams, public px4::WorkItem
 {
@@ -151,8 +150,8 @@ private:
 	void Run() override;
 	uORB::SubscriptionCallbackWorkItem _vehicle_torque_setpoint_virtual_fw_sub{this, ORB_ID(vehicle_torque_setpoint_virtual_fw)};
 	uORB::SubscriptionCallbackWorkItem _vehicle_torque_setpoint_virtual_mc_sub{this, ORB_ID(vehicle_torque_setpoint_virtual_mc)};
-	uORB::SubscriptionCallbackWorkItem _vehicle_thrust_setpoint_virtual_fw_sub{this, ORB_ID(vehicle_thrust_setpoint_virtual_fw)};
-	uORB::SubscriptionCallbackWorkItem _vehicle_thrust_setpoint_virtual_mc_sub{this, ORB_ID(vehicle_thrust_setpoint_virtual_mc)};
+	uORB::Subscription _vehicle_thrust_setpoint_virtual_fw_sub{ORB_ID(vehicle_thrust_setpoint_virtual_fw)};
+	uORB::Subscription _vehicle_thrust_setpoint_virtual_mc_sub{ORB_ID(vehicle_thrust_setpoint_virtual_mc)};
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
@@ -207,11 +206,14 @@ private:
 	vehicle_local_position_setpoint_s	_local_pos_sp{};
 	vehicle_status_s 			_vehicle_status{};
 	vtol_vehicle_status_s 			_vtol_vehicle_status{};
+	vtol_vehicle_status_s 			_prev_published_vtol_vehicle_status{};
 	float _home_position_z{NAN};
 
-	float _air_density{CONSTANTS_AIR_DENSITY_SEA_LEVEL_15C};	// [kg/m^3]
+	float _air_density{atmosphere::kAirDensitySeaLevelStandardAtmos};	// [kg/m^3]
 
-	hrt_abstime _last_run_timestamp{0};
+#if !defined(ENABLE_LOCKSTEP_SCHEDULER)
+	hrt_abstime _last_run_timestamp {0};
+#endif // !ENABLE_LOCKSTEP_SCHEDULER
 
 	/* For multicopters it is usual to have a non-zero idle speed of the engines
 	 * for fixed wings we want to have an idle speed of zero since we do not want
@@ -222,6 +224,7 @@ private:
 	uint8_t _nav_state_prev;
 
 	VtolType	*_vtol_type{nullptr};	// base class for different vtol types
+	mode		_previous_vtol_mode;
 
 	bool		_initialized{false};
 
@@ -234,6 +237,8 @@ private:
 	void		vehicle_cmd_poll();
 
 	void 		parameters_update();
+
+	void		update_callbacks();
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::VT_TYPE>) _param_vt_type,

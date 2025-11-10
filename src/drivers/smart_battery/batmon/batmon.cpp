@@ -43,6 +43,7 @@
 
 #include "batmon.h"
 #include <mathlib/mathlib.h>
+#include <lib/atmosphere/atmosphere.h>
 
 extern "C" __EXPORT int batmon_main(int argc, char *argv[]);
 
@@ -145,13 +146,11 @@ void Batmon::RunImpl()
 
 	// Convert millivolts to volts.
 	new_report.voltage_v = ((float)result) / 1000.0f;
-	new_report.voltage_filtered_v = new_report.voltage_v;
 
 	// Read current.
 	ret |= _interface->read_word(BATT_SMBUS_CURRENT, result);
 
 	new_report.current_a = (-1.0f * ((float)(*(int16_t *)&result)) / 1000.0f);
-	new_report.current_filtered_a = new_report.current_a;
 
 	// Read average current.
 	ret |= _interface->read_word(BATT_SMBUS_AVERAGE_CURRENT, result);
@@ -186,7 +185,7 @@ void Batmon::RunImpl()
 
 	// Read battery temperature and covert to Celsius.
 	ret |= _interface->read_word(BATT_SMBUS_TEMP, result);
-	new_report.temperature = ((float)result / 10.0f) + CONSTANTS_ABSOLUTE_NULL_CELSIUS;
+	new_report.temperature = ((float)result / 10.0f) + atmosphere::kAbsoluteNullCelsius;
 
 	// Only publish if no errors.
 	if (ret == PX4_OK) {
@@ -200,19 +199,19 @@ void Batmon::RunImpl()
 		// TODO: This critical setting should be set with BMS info or through a paramter
 		// Setting a hard coded BATT_CELL_VOLTAGE_THRESHOLD_FAILED may not be appropriate
 		//if (_lifetime_max_delta_cell_voltage > BATT_CELL_VOLTAGE_THRESHOLD_FAILED) {
-		//	new_report.warning = battery_status_s::BATTERY_WARNING_CRITICAL;
+		//	new_report.warning = battery_status_s::WARNING_CRITICAL;
 
 		if (new_report.remaining > _low_thr) {
-			new_report.warning = battery_status_s::BATTERY_WARNING_NONE;
+			new_report.warning = battery_status_s::WARNING_NONE;
 
 		} else if (new_report.remaining > _crit_thr) {
-			new_report.warning = battery_status_s::BATTERY_WARNING_LOW;
+			new_report.warning = battery_status_s::WARNING_LOW;
 
 		} else if (new_report.remaining > _emergency_thr) {
-			new_report.warning = battery_status_s::BATTERY_WARNING_CRITICAL;
+			new_report.warning = battery_status_s::WARNING_CRITICAL;
 
 		} else {
-			new_report.warning = battery_status_s::BATTERY_WARNING_EMERGENCY;
+			new_report.warning = battery_status_s::WARNING_EMERGENCY;
 		}
 
 		new_report.interface_error = perf_event_count(_interface->_interface_errors);
@@ -239,7 +238,7 @@ int Batmon::get_batmon_startup_info()
 	_cell_count = math::min((uint8_t)num_cells, (uint8_t)MAX_CELL_COUNT);
 
 	int32_t _num_cells = num_cells;
-	param_set(param_find("BAT_N_CELLS"), &_num_cells);
+	param_set(param_find("BAT1_N_CELLS"), &_num_cells);
 
 	return ret;
 }

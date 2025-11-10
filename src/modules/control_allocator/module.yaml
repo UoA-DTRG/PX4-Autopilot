@@ -48,7 +48,12 @@ parameters:
                 7: Motors (6DOF)
                 8: Multirotor with Tilt
                 9: Custom
-                10: Helicopter
+                10: Helicopter (tail ESC)
+                11: Helicopter (tail Servo)
+                12: Helicopter (Coaxial)
+                13: Rover (Mecanum)
+                14: Spacecraft 2D
+                15: Spacecraft 3D
             default: 0
 
         CA_METHOD:
@@ -56,7 +61,7 @@ parameters:
                 short: Control allocation method
                 long: |
                   Selects the algorithm and desaturation method.
-                  If set to Automtic, the selection is based on the airframe (CA_AIRFRAME).
+                  If set to Automatic, the selection is based on the airframe (CA_AIRFRAME).
             type: enum
             values:
                 0: Pseudo-inverse with output clipping
@@ -89,15 +94,14 @@ parameters:
             description:
                 short: Motor ${i} slew rate limit
                 long: |
-                  Minimum time allowed for the motor input signal to pass through
-                  the full output range. A value x means that the motor signal
-                  can only go from 0 to 1 in minimum x seconds (in case of
-                  reversible motors, the range is -1 to 1).
+                  Forces the motor output signal to take at least the configured time (in seconds)
+                  to traverse its full range (normally [0, 1], or if reversible [-1, 1]).
 
                   Zero means that slew rate limiting is disabled.
             type: float
             decimal: 2
             increment: 0.01
+            unit: s
             num_instances: *max_num_mc_motors
             min: 0
             max: 10
@@ -108,14 +112,14 @@ parameters:
             description:
                 short: Servo ${i} slew rate limit
                 long: |
-                  Minimum time allowed for the servo input signal to pass through
-                  the full output range. A value x means that the servo signal
-                  can only go from -1 to 1 in minimum x seconds.
+                  Forces the servo output signal to take at least the configured time (in seconds)
+                  to traverse its full range [-100%, 100%].
 
                   Zero means that slew rate limiting is disabled.
             type: float
             decimal: 2
             increment: 0.05
+            unit: s
             num_instances: *max_num_servos
             min: 0
             max: 10
@@ -144,7 +148,7 @@ parameters:
             default: 0
         CA_ROTOR${i}_PX:
             description:
-                short: Position of rotor ${i} along X body axis
+                short: Position of rotor ${i} along X body axis relative to center of gravity
             type: float
             decimal: 2
             increment: 0.1
@@ -155,7 +159,7 @@ parameters:
             default: 0.0
         CA_ROTOR${i}_PY:
             description:
-                short: Position of rotor ${i} along Y body axis
+                short: Position of rotor ${i} along Y body axis relative to center of gravity
             type: float
             decimal: 2
             increment: 0.1
@@ -166,7 +170,7 @@ parameters:
             default: 0.0
         CA_ROTOR${i}_PZ:
             description:
-                short: Position of rotor ${i} along Z body axis
+                short: Position of rotor ${i} along Z body axis relative to center of gravity
             type: float
             decimal: 2
             increment: 0.1
@@ -436,6 +440,7 @@ parameters:
                 short: Number of swash plates servos
             type: enum
             values:
+                2: '2'
                 3: '3'
                 4: '4'
             default: 3
@@ -545,6 +550,55 @@ parameters:
               which is mostly the case when the main rotor turns counter-clockwise.
           type: boolean
           default: 0
+        CA_HELI_RPM_SP:
+          description:
+            short: Setpoint for main rotor rpm
+            long: |
+              Requires rpm feedback for the controller.
+          type: float
+          decimal: 0
+          increment: 1
+          min: 100
+          max: 10000
+          default: 1500
+        CA_HELI_RPM_P:
+          description:
+            short: Proportional gain for rpm control
+            long: |
+              Ratio between rpm error devided by 1000 to how much normalized output gets added to correct for it.
+
+              motor_command = throttle_curve + CA_HELI_RPM_P * (rpm_setpoint - rpm_measurement) / 1000
+          type: float
+          decimal: 3
+          increment: 0.1
+          min: 0
+          max: 10
+          default: 0.0
+        CA_HELI_RPM_I:
+          description:
+            short: Integral gain for rpm control
+            long: |
+              Same definition as the proportional gain but for integral.
+          type: float
+          decimal: 3
+          increment: 0.1
+          min: 0
+          max: 10
+          default: 0.0
+        CA_MAX_SVO_THROW:
+          description:
+            short: Throw angle of swashplate servo at maximum commands for linearization
+            long: |
+              Used to linearize mechanical output of swashplate servos to avoid axis coupling and binding with 4 servo redundancy.
+              This requires a symmetric setup where the servo horn is exactly centered with a 0 command.
+              Setting to zero disables feature.
+          type: float
+          decimal: 1
+          unit: deg
+          increment: 0.1
+          min: 0
+          max: 75
+          default: 0.0
 
         # Others
         CA_FAILURE_MODE:
@@ -968,21 +1022,21 @@ mixer:
                   - actuator_type: 'motor'
                     instances:
                       - name: 'Throttle'
-                        position: [ -1., 0, 0 ]
+                        position: [ -1, 0, 0 ]
                   - actuator_type: 'servo'
                     instances:
                       - name: 'Steering'
-                        position: [ 1., 0, 0 ]
+                        position: [ 1, 0, 0 ]
 
             6: # Rover (Differential)
                 title: 'Rover (Differential)'
                 actuators:
                   - actuator_type: 'motor'
                     instances:
-                      - name: 'Left Motor'
-                        position: [ 0, -1., 0 ]
                       - name: 'Right Motor'
-                        position: [ 0, 1., 0 ]
+                        position: [ 0, 1, 0 ]
+                      - name: 'Left Motor'
+                        position: [ 0, -1, 0 ]
 
             7: # Motors (6DOF)
                 actuators:
@@ -1079,7 +1133,7 @@ mixer:
                             advanced: true
                             identifier: 'servo-scale-spoiler'
 
-            10: # Helicopter
+            10: # Helicopter (tail ESC)
                 actuators:
                   - actuator_type: 'motor'
                     count: 1
@@ -1099,6 +1153,8 @@ mixer:
                           - name: 'CA_SV_CS${i}_TRIM'
                             label: 'Trim'
                     parameters:
+                      - label: 'Collective pitch offset to align least amount of rotor drag'
+                        name: CA_HELI_YAW_CP_O
                       - label: 'Yaw compensation scale based on collective pitch'
                         name: CA_HELI_YAW_CP_S
                       - label: 'Yaw compensation scale based on throttle'
@@ -1108,3 +1164,65 @@ mixer:
                       - label: 'Throttle spoolup time'
                         name: COM_SPOOLUP_TIME
 
+            11: # Helicopter (tail Servo)
+              actuators:
+                - actuator_type: 'motor'
+                  count: 1
+                  item_label_prefix: ['Rotor']
+                - actuator_type: 'servo'
+                  item_label_prefix: ['Yaw tail Servo']
+                  count: 1
+                - actuator_type: 'servo'
+                  group_label: 'Swash plate servos'
+                  count: 'CA_SP0_COUNT'
+                  per_item_parameters:
+                    extra:
+                      - name: 'CA_SP0_ANG${i}'
+                        label: 'Angle'
+                      - name: 'CA_SP0_ARM_L${i}'
+                        label: 'Arm Length (relative)'
+                      - name: 'CA_SV_CS${i}_TRIM'
+                        label: 'Trim'
+                  parameters:
+                    - label: 'Yaw compensation scale based on collective pitch'
+                      name: CA_HELI_YAW_CP_S
+                    - label: 'Yaw compensation scale based on throttle'
+                      name: CA_HELI_YAW_TH_S
+                    - label: 'Main rotor turns counter-clockwise'
+                      name: CA_HELI_YAW_CCW
+                    - label: 'Throttle spoolup time'
+                      name: COM_SPOOLUP_TIME
+
+            12: # Helicopter (Coaxial)
+                actuators:
+                  - actuator_type: 'motor'
+                    count: 2
+                    item_label_prefix: ['Clockwise Rotor', 'Counter-clockwise Rotor']
+                  - actuator_type: 'servo'
+                    group_label: 'Swash plate servos'
+                    count: 'CA_SP0_COUNT'
+                    per_item_parameters:
+                        extra:
+                          - name: 'CA_SP0_ANG${i}'
+                            label: 'Angle'
+                          - name: 'CA_SP0_ARM_L${i}'
+                            label: 'Arm Length (relative)'
+                          - name: 'CA_SV_CS${i}_TRIM'
+                            label: 'Trim'
+                    parameters:
+                      - label: 'Throttle spoolup time'
+                        name: COM_SPOOLUP_TIME
+
+            13: # Rover (Mecanum)
+                title: 'Rover (Mecanum)'
+                actuators:
+                  - actuator_type: 'motor'
+                    instances:
+                      - name: 'Right Motor Front'
+                        position: [ 1, 1, 0 ]
+                      - name: 'Left Motor Front'
+                        position: [ 1, -1, 0 ]
+                      - name: 'Right Motor Back'
+                        position: [ -1, 1, 0 ]
+                      - name: 'Left Motor Back'
+                        position: [ -1, -1, 0 ]

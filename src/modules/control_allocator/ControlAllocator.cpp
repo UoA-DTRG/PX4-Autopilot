@@ -98,11 +98,6 @@ ControlAllocator::init()
 		return false;
 	}
 
-	if (!_vehicle_thrust_setpoint_sub.registerCallback()) {
-		PX4_ERR("callback registration failed");
-		return false;
-	}
-
 #ifndef ENABLE_LOCKSTEP_SCHEDULER // Backup schedule would interfere with lockstep
 	ScheduleDelayed(50_ms);
 #endif
@@ -242,7 +237,7 @@ ControlAllocator::update_effectiveness_source()
 			break;
 
 		case EffectivenessSource::ROVER_DIFFERENTIAL:
-			tmp = new ActuatorEffectivenessRoverDifferential();
+			// rover_differential_control does allocation and publishes directly to actuator_motors topic
 			break;
 
 		case EffectivenessSource::FIXED_WING:
@@ -261,8 +256,24 @@ ControlAllocator::update_effectiveness_source()
 			tmp = new ActuatorEffectivenessCustom(this);
 			break;
 
-		case EffectivenessSource::HELICOPTER:
-			tmp = new ActuatorEffectivenessHelicopter(this);
+		case EffectivenessSource::HELICOPTER_TAIL_ESC:
+			tmp = new ActuatorEffectivenessHelicopter(this, ActuatorType::MOTORS);
+			break;
+
+		case EffectivenessSource::HELICOPTER_TAIL_SERVO:
+			tmp = new ActuatorEffectivenessHelicopter(this, ActuatorType::SERVOS);
+			break;
+
+		case EffectivenessSource::HELICOPTER_COAXIAL:
+			tmp = new ActuatorEffectivenessHelicopterCoaxial(this);
+			break;
+
+		case EffectivenessSource::SPACECRAFT_2D:
+			// spacecraft_allocation does allocation and publishes directly to actuator_motors topic
+			break;
+
+		case EffectivenessSource::SPACECRAFT_3D:
+			// spacecraft_allocation does allocation and publishes directly to actuator_motors topic
 			break;
 
 		default:
@@ -296,7 +307,6 @@ ControlAllocator::Run()
 {
 	if (should_exit()) {
 		_vehicle_torque_setpoint_sub.unregisterCallback();
-		_vehicle_thrust_setpoint_sub.unregisterCallback();
 		exit_and_cleanup();
 		return;
 	}
@@ -309,7 +319,7 @@ ControlAllocator::Run()
 #endif
 
 	// Check if parameters have changed
-	if (_parameter_update_sub.updated() && !_armed) {
+	if (_parameter_update_sub.updated()) {
 		// clear update
 		parameter_update_s param_update;
 		_parameter_update_sub.copy(&param_update);
@@ -358,6 +368,14 @@ ControlAllocator::Run()
 		}
 	}
 
+	{
+		vehicle_control_mode_s vehicle_control_mode;
+
+		if (_vehicle_control_mode_sub.update(&vehicle_control_mode)) {
+			_publish_controls = vehicle_control_mode.flag_control_allocation_enabled;
+		}
+	}
+
 	// Guard against too small (< 0.2ms) and too large (> 20ms) dt's.
 	const hrt_abstime now = hrt_absolute_time();
 	const float dt = math::constrain(((now - _last_run) / 1e6f), 0.0002f, 0.02f);
@@ -375,15 +393,8 @@ ControlAllocator::Run()
 
 	}
 
-	// Also run allocator on thrust setpoint changes if the torque setpoint
-	// has not been updated for more than 5ms
 	if (_vehicle_thrust_setpoint_sub.update(&vehicle_thrust_setpoint)) {
 		_thrust_sp = matrix::Vector3f(vehicle_thrust_setpoint.xyz);
-
-		if (dt > 5_ms) {
-			do_update = true;
-			_timestamp_sample = vehicle_thrust_setpoint.timestamp_sample;
-		}
 	}
 
 	if (do_update) {
@@ -640,6 +651,10 @@ ControlAllocator::publish_control_allocator_status(int matrix_index)
 void
 ControlAllocator::publish_actuator_controls()
 {
+	if (!_publish_controls) {
+		return;
+	}
+
 	actuator_motors_s actuator_motors;
 	actuator_motors.timestamp = hrt_absolute_time();
 	actuator_motors.timestamp_sample = _timestamp_sample;

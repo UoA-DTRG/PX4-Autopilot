@@ -64,7 +64,7 @@ static inline constexpr bool PX4_ISFINITE(double x) { return __builtin_isfinite(
  ****************************************************************************/
 
 #define PX4_ROOTFSDIR ""
-#define PX4_STORAGEDIR PX4_ROOTFSDIR "/fs/microsd"
+#define PX4_STORAGEDIR PX4_ROOTFSDIR CONFIG_BOARD_ROOT_PATH
 #define _PX4_IOC(x,y) _IOC(x,y)
 
 // mode for open with O_CREAT
@@ -97,7 +97,7 @@ __BEGIN_DECLS
 extern long PX4_TICKS_PER_SEC;
 __END_DECLS
 
-#define PX4_ROOTFSDIR CONFIG_BOARD_ROOTFSDIR
+#define PX4_ROOTFSDIR CONFIG_BOARD_ROOT_PATH
 
 // Qurt doesn't have an SD card for storage
 #ifndef __PX4_QURT

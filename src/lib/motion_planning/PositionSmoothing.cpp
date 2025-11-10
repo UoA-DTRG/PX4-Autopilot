@@ -35,8 +35,6 @@
 #include "TrajectoryConstraints.hpp"
 #include <mathlib/mathlib.h>
 #include <matrix/matrix/math.hpp>
-#include <matrix/matrix/helper_functions.hpp>
-
 
 void PositionSmoothing::_generateSetpoints(
 	const Vector3f &position,
@@ -108,16 +106,32 @@ float PositionSmoothing::_getMaxXYSpeed(const Vector3f(&waypoints)[3]) const
 
 float PositionSmoothing::_getMaxZSpeed(const Vector3f(&waypoints)[3]) const
 {
+	const Vector3f &start_position = {_trajectory[0].getCurrentPosition(),
+					  _trajectory[1].getCurrentPosition(),
+					  _trajectory[2].getCurrentPosition()
+					 };
+	const Vector3f &target = waypoints[1];
+	const Vector3f &next_target = waypoints[2];
 
-	const auto &target = waypoints[1];
+	const Vector2f start_position_xy_z = {start_position.xy().norm(), start_position(2)};
+	const Vector2f target_xy_z = {target.xy().norm(), target(2)};
+	const Vector2f next_target_xy_z = {next_target.xy().norm(), next_target(2)};
 
-	Vector3f pos_traj(_trajectory[0].getCurrentPosition(),
-			  _trajectory[1].getCurrentPosition(),
-			  _trajectory[2].getCurrentPosition());
+	float arrival_z_speed = 0.0f;
+	const bool target_next_different = fabsf(target(2) - next_target(2)) > 0.001f;
 
-	const float distance_start_target = fabs(target(2) - pos_traj(2));
-	const float arrival_z_speed = 0.f;
+	if (target_next_different) {
+		const float alpha = acosf(Vector2f((target_xy_z - start_position_xy_z)).unit_or_zero().dot(
+						  Vector2f((target_xy_z - next_target_xy_z)).unit_or_zero()));
 
+		const float safe_alpha = math::constrain(alpha, 0.f, M_PI_F - FLT_EPSILON);
+		float accel_tmp = _trajectory[2].getMaxAccel();
+		float max_speed_in_turn = math::trajectory::computeMaxSpeedInWaypoint(safe_alpha, accel_tmp,
+					  _vertical_acceptance_radius);
+		arrival_z_speed = math::min(max_speed_in_turn, _trajectory[2].getMaxVel());
+	}
+
+	const float distance_start_target = fabs(target(2) - start_position(2));
 	float max_speed = math::min(_trajectory[2].getMaxVel(), math::trajectory::computeMaxSpeedFromDistance(
 					    _trajectory[2].getMaxJerk(), _trajectory[2].getMaxAccel(),
 					    distance_start_target, arrival_z_speed));
@@ -279,9 +293,14 @@ void PositionSmoothing::_generateTrajectory(
 	Vector2f drone_to_trajectory_xy(position_trajectory_xy - position_xy);
 	float position_error = drone_to_trajectory_xy.length();
 
-	float time_stretch = 1.f - math::constrain(position_error / _max_allowed_horizontal_error, 0.f, 1.f);
+	float time_stretch = 1.f;
 
-	// Don't stretch time if the drone is ahead of the position setpoint
+	// Only stretch time if there's no division by zero and the drone isn't ahead of the position setpoint
+	if ((_max_allowed_horizontal_error > FLT_EPSILON)
+	    && drone_to_trajectory_xy.dot(vel_traj_xy) >= 0) {
+		time_stretch = 1.f - math::constrain(position_error / _max_allowed_horizontal_error, 0.f, 1.f);
+	}
+
 	if (drone_to_trajectory_xy.dot(vel_traj_xy) < 0.f) {
 		time_stretch = 1.f;
 	}

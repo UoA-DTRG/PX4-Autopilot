@@ -12,7 +12,7 @@ EkfWrapper::~EkfWrapper()
 
 void EkfWrapper::setBaroHeightRef()
 {
-	_ekf_params->height_sensor_ref = HeightSensor::BARO;
+	_ekf_params->height_sensor_ref = static_cast<int32_t>(HeightSensor::BARO);
 }
 
 void EkfWrapper::enableBaroHeightFusion()
@@ -32,17 +32,17 @@ bool EkfWrapper::isIntendingBaroHeightFusion() const
 
 void EkfWrapper::setGpsHeightRef()
 {
-	_ekf_params->height_sensor_ref = HeightSensor::GNSS;
+	_ekf_params->height_sensor_ref = static_cast<int32_t>(HeightSensor::GNSS);
 }
 
 void EkfWrapper::enableGpsHeightFusion()
 {
-	_ekf_params->gnss_ctrl |= GnssCtrl::VPOS;
+	_ekf_params->gnss_ctrl |= static_cast<int32_t>(GnssCtrl::VPOS);
 }
 
 void EkfWrapper::disableGpsHeightFusion()
 {
-	_ekf_params->gnss_ctrl &= ~GnssCtrl::VPOS;
+	_ekf_params->gnss_ctrl &= ~static_cast<int32_t>(GnssCtrl::VPOS);
 }
 
 bool EkfWrapper::isIntendingGpsHeightFusion() const
@@ -52,17 +52,17 @@ bool EkfWrapper::isIntendingGpsHeightFusion() const
 
 void EkfWrapper::setRangeHeightRef()
 {
-	_ekf_params->height_sensor_ref = HeightSensor::RANGE;
+	_ekf_params->height_sensor_ref = static_cast<int32_t>(HeightSensor::RANGE);
 }
 
 void EkfWrapper::enableRangeHeightFusion()
 {
-	_ekf_params->rng_ctrl = RngCtrl::ENABLED;
+	_ekf_params->rng_ctrl = static_cast<int32_t>(RngCtrl::ENABLED);
 }
 
 void EkfWrapper::disableRangeHeightFusion()
 {
-	_ekf_params->rng_ctrl = RngCtrl::DISABLED;
+	_ekf_params->rng_ctrl = static_cast<int32_t>(RngCtrl::DISABLED);
 }
 
 bool EkfWrapper::isIntendingRangeHeightFusion() const
@@ -72,7 +72,7 @@ bool EkfWrapper::isIntendingRangeHeightFusion() const
 
 void EkfWrapper::setExternalVisionHeightRef()
 {
-	_ekf_params->height_sensor_ref = HeightSensor::EV;
+	_ekf_params->height_sensor_ref = static_cast<int32_t>(HeightSensor::EV);
 }
 
 void EkfWrapper::enableExternalVisionHeightFusion()
@@ -100,34 +100,39 @@ bool EkfWrapper::isIntendingBetaFusion() const
 	return _ekf->control_status_flags().fuse_beta;
 }
 
+bool EkfWrapper::isIntendingAirspeedFusion() const
+{
+	return _ekf->control_status_flags().fuse_aspd;
+}
+
 void EkfWrapper::enableGpsFusion()
 {
-	_ekf_params->gnss_ctrl |= GnssCtrl::HPOS | GnssCtrl::VEL;
+	_ekf_params->gnss_ctrl |= static_cast<int32_t>(GnssCtrl::HPOS) | static_cast<int32_t>(GnssCtrl::VEL);
 }
 
 void EkfWrapper::disableGpsFusion()
 {
-	_ekf_params->gnss_ctrl &= ~(GnssCtrl::HPOS | GnssCtrl::VEL);
+	_ekf_params->gnss_ctrl &= ~(static_cast<int32_t>(GnssCtrl::HPOS) | static_cast<int32_t>(GnssCtrl::VEL));
 }
 
 bool EkfWrapper::isIntendingGpsFusion() const
 {
-	return _ekf->control_status_flags().gps;
+	return _ekf->control_status_flags().gnss_vel || _ekf->control_status_flags().gnss_pos;
 }
 
 void EkfWrapper::enableGpsHeadingFusion()
 {
-	_ekf_params->gnss_ctrl |= GnssCtrl::YAW;
+	_ekf_params->gnss_ctrl |= static_cast<int32_t>(GnssCtrl::YAW);
 }
 
 void EkfWrapper::disableGpsHeadingFusion()
 {
-	_ekf_params->gnss_ctrl &= ~GnssCtrl::YAW;
+	_ekf_params->gnss_ctrl &= ~static_cast<int32_t>(GnssCtrl::YAW);
 }
 
 bool EkfWrapper::isIntendingGpsHeadingFusion() const
 {
-	return _ekf->control_status_flags().gps_yaw;
+	return _ekf->control_status_flags().gnss_yaw;
 }
 
 void EkfWrapper::enableFlowFusion()
@@ -205,6 +210,11 @@ bool EkfWrapper::isIntendingMag3DFusion() const
 	return _ekf->control_status_flags().mag_3D;
 }
 
+bool EkfWrapper::isMagHeadingConsistent() const
+{
+	return _ekf->control_status_flags().mag_heading_consistent;
+}
+
 void EkfWrapper::setMagFuseTypeNone()
 {
 	_ekf_params->mag_fusion_type = MagFuseType::NONE;
@@ -212,7 +222,17 @@ void EkfWrapper::setMagFuseTypeNone()
 
 void EkfWrapper::enableMagStrengthCheck()
 {
-	_ekf_params->check_mag_strength = 1;
+	_ekf_params->mag_check |= static_cast<int32_t>(MagCheckMask::STRENGTH);
+}
+
+void EkfWrapper::enableMagInclinationCheck()
+{
+	_ekf_params->mag_check |= static_cast<int32_t>(MagCheckMask::INCLINATION);
+}
+
+void EkfWrapper::enableMagCheckForceWMM()
+{
+	_ekf_params->mag_check |= static_cast<int32_t>(MagCheckMask::FORCE_WMM);
 }
 
 bool EkfWrapper::isWindVelocityEstimated() const
@@ -220,38 +240,14 @@ bool EkfWrapper::isWindVelocityEstimated() const
 	return _ekf->control_status_flags().wind;
 }
 
-void EkfWrapper::enableTerrainRngFusion()
-{
-	_ekf_params->terrain_fusion_mode |= TerrainFusionMask::TerrainFuseRangeFinder;
-}
-
-void EkfWrapper::disableTerrainRngFusion()
-{
-	_ekf_params->terrain_fusion_mode &= ~TerrainFusionMask::TerrainFuseRangeFinder;
-}
-
 bool EkfWrapper::isIntendingTerrainRngFusion() const
 {
-	terrain_fusion_status_u terrain_status;
-	terrain_status.value = _ekf->getTerrainEstimateSensorBitfield();
-	return terrain_status.flags.range_finder;
-}
-
-void EkfWrapper::enableTerrainFlowFusion()
-{
-	_ekf_params->terrain_fusion_mode |= TerrainFusionMask::TerrainFuseOpticalFlow;
-}
-
-void EkfWrapper::disableTerrainFlowFusion()
-{
-	_ekf_params->terrain_fusion_mode &= ~TerrainFusionMask::TerrainFuseOpticalFlow;
+	return _ekf->control_status_flags().rng_terrain;
 }
 
 bool EkfWrapper::isIntendingTerrainFlowFusion() const
 {
-	terrain_fusion_status_u terrain_status;
-	terrain_status.value = _ekf->getTerrainEstimateSensorBitfield();
-	return terrain_status.flags.flow;
+	return _ekf->control_status_flags().opt_flow_terrain;
 }
 
 Eulerf EkfWrapper::getEulerAngles() const
@@ -265,22 +261,12 @@ float EkfWrapper::getYawAngle() const
 	return euler(2);
 }
 
-matrix::Vector4f EkfWrapper::getQuaternionVariance() const
-{
-	return matrix::Vector4f(_ekf->orientation_covariances().diag());
-}
-
 int EkfWrapper::getQuaternionResetCounter() const
 {
 	float tmp[4];
 	uint8_t counter;
 	_ekf->get_quat_reset(tmp, &counter);
 	return static_cast<int>(counter);
-}
-
-matrix::Vector3f EkfWrapper::getDeltaVelBiasVariance() const
-{
-	return _ekf->covariances_diagonal().slice<3, 1>(13, 0);
 }
 
 void EkfWrapper::enableDragFusion()
@@ -298,4 +284,19 @@ void EkfWrapper::setDragFusionParameters(const float &bcoef_x, const float &bcoe
 	_ekf_params->bcoef_x = bcoef_x;
 	_ekf_params->bcoef_y = bcoef_y;
 	_ekf_params->mcoef = mcoef;
+}
+
+float EkfWrapper::getMagHeadingNoise() const
+{
+	return _ekf_params->mag_heading_noise;
+}
+
+void EkfWrapper::enableGyroBiasEstimation()
+{
+	_ekf_params->imu_ctrl |= static_cast<int32_t>(ImuCtrl::GyroBias);
+}
+
+void EkfWrapper::disableGyroBiasEstimation()
+{
+	_ekf_params->imu_ctrl &= ~static_cast<int32_t>(ImuCtrl::GyroBias);
 }

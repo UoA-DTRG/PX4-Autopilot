@@ -112,6 +112,7 @@ PARAM_DEFINE_FLOAT(RTL_MIN_DIST, 10.0f);
  * @value 1 Return to closest safe point other than home (mission landing pattern or rally point), via direct path. If no mission landing or rally points are defined return home via direct path. Always chose closest safe landing point if vehicle is a VTOL in hover mode.
  * @value 2 Return to a planned mission landing, if available, using the mission path, else return to home via the reverse mission path. Do not consider rally points.
  * @value 3 Return via direct path to closest destination: home, start of mission landing pattern or safe point. If the destination is a mission landing pattern, follow the pattern to land.
+ * @value 4 Return to the planned mission landing, or to home via the reverse mission path, whichever is closer by counting waypoints. Do not consider rally points.
  * @group Return Mode
  */
 PARAM_DEFINE_INT32(RTL_TYPE, 0);
@@ -139,6 +140,7 @@ PARAM_DEFINE_INT32(RTL_CONE_ANG, 45);
  * RTL precision land mode
  *
  * Use precision landing when doing an RTL landing phase.
+ * This setting does not apply for RTL destinations planned as part of a mission.
  *
  * @value 0 No precision landing
  * @value 1 Opportunistic precision landing
@@ -159,18 +161,6 @@ PARAM_DEFINE_INT32(RTL_PLD_MD, 0);
  * @group Return Mode
  */
 PARAM_DEFINE_FLOAT(RTL_LOITER_RAD, 80.0f);
-
-/**
- * RTL heading mode
- *
- * Defines the heading behavior during RTL
- *
- * @value 0 Towards next waypoint.
- * @value 1 Heading matches destination.
- * @value 2 Use current heading.
- * @group Return Mode
- */
-PARAM_DEFINE_INT32(RTL_HDG_MD, 0);
 
 /**
  * RTL time estimate safety margin factor
@@ -200,3 +190,13 @@ PARAM_DEFINE_FLOAT(RTL_TIME_FACTOR, 1.1f);
  * @group Return To Land
  */
 PARAM_DEFINE_INT32(RTL_TIME_MARGIN, 100);
+
+/**
+ * RTL force approach landing
+ *
+ * Only consider RTL point, if it has an approach defined.
+ *
+ * @boolean
+ * @group Return To Land
+ */
+PARAM_DEFINE_INT32(RTL_APPR_FORCE, 0);

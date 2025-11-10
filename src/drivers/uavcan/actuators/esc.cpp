@@ -40,6 +40,7 @@
 #include "esc.hpp"
 #include <systemlib/err.h>
 #include <drivers/drv_hrt.h>
+#include <lib/atmosphere/atmosphere.h>
 
 #define MOTOR_BIT(x) (1<<(x))
 
@@ -63,6 +64,8 @@ UavcanEscController::init()
 		PX4_ERR("ESC status sub failed %i", res);
 		return res;
 	}
+
+	_esc_status_pub.advertise();
 
 	return res;
 }
@@ -138,7 +141,7 @@ UavcanEscController::esc_status_sub_cb(const uavcan::ReceivedDataStructure<uavca
 		ref.esc_address = msg.getSrcNodeID().get();
 		ref.esc_voltage     = msg.voltage;
 		ref.esc_current     = msg.current;
-		ref.esc_temperature = msg.temperature;
+		ref.esc_temperature = msg.temperature + atmosphere::kAbsoluteNullCelsius; // Kelvin to Celsius
 		ref.esc_rpm         = msg.rpm;
 		ref.esc_errorcount  = msg.error_count;
 

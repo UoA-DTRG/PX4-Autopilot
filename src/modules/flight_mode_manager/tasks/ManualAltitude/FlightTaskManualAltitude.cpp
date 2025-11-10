@@ -32,7 +32,7 @@
  ****************************************************************************/
 
 /**
- * @file FlightManualAltitude.cpp
+ * @file FlightTaskManualAltitude.cpp
  */
 
 #include "FlightTaskManualAltitude.hpp"
@@ -64,6 +64,7 @@ bool FlightTaskManualAltitude::activate(const trajectory_setpoint_s &last_setpoi
 	_acceleration_setpoint = Vector3f(0.f, 0.f, NAN); // altitude is controlled from position/velocity
 	_position_setpoint(2) = _position(2);
 	_velocity_setpoint(2) = 0.f;
+	_stick_yaw.reset(_yaw, _unaided_yaw);
 	_setDefaultConstraints();
 
 	_updateConstraintsFromEstimator();
@@ -80,23 +81,17 @@ void FlightTaskManualAltitude::_updateConstraintsFromEstimator()
 		_min_distance_to_ground = -INFINITY;
 	}
 
-	if (PX4_ISFINITE(_sub_vehicle_local_position.get().hagl_max)) {
-		_max_distance_to_ground = _sub_vehicle_local_position.get().hagl_max;
-
-	} else {
-		_max_distance_to_ground = INFINITY;
+	if (!PX4_ISFINITE(_max_distance_to_ground) && PX4_ISFINITE(_sub_vehicle_local_position.get().hagl_max_z)) {
+		_max_distance_to_ground = _sub_vehicle_local_position.get().hagl_max_z;
 	}
 }
 
 void FlightTaskManualAltitude::_scaleSticks()
 {
-	// Use stick input with deadzone, exponential curve and first order lpf for yawspeed
-	_stick_yaw.generateYawSetpoint(_yawspeed_setpoint, _yaw_setpoint, _sticks.getYawExpo(), _yaw,
-				       _is_yaw_good_for_control, _deltatime);
-
 	// Use sticks input with deadzone and exponential curve for vertical velocity
-	const float vel_max_z = (_sticks.getPosition()(2) > 0.0f) ? _param_mpc_z_vel_max_dn.get() :
-				_param_mpc_z_vel_max_up.get();
+	const float vel_max_up = fminf(_param_mpc_z_vel_max_up.get(), _velocity_constraint_up);
+	const float vel_max_down = fminf(_param_mpc_z_vel_max_dn.get(), _velocity_constraint_down);
+	const float vel_max_z = (_sticks.getPosition()(2) > 0.0f) ? vel_max_down : vel_max_up;
 	_velocity_setpoint(2) = vel_max_z * _sticks.getPositionExpo()(2);
 }
 
@@ -134,11 +129,12 @@ void FlightTaskManualAltitude::_updateAltitudeLock()
 
 				} else {
 					_position_setpoint(2) = _position(2);
+					_dist_to_ground_lock = NAN;
 				}
 			}
 
 		} else {
-			bool not_moving = spd_xy < 0.5f * _param_mpc_hold_max_xy.get();
+			bool not_moving = spd_xy < 0.5f * _param_mpc_hold_max_xy.get() && stopped;
 
 			if (!stick_input && not_moving && PX4_ISFINITE(_dist_to_bottom)) {
 				// Start using distance to ground
@@ -156,8 +152,6 @@ void FlightTaskManualAltitude::_updateAltitudeLock()
 	if ((_param_mpc_alt_mode.get() == 1 || _terrain_hold) && PX4_ISFINITE(_dist_to_bottom)) {
 		// terrain following
 		_terrainFollowing(apply_brake, stopped);
-		// respect maximum altitude
-		_respectMaxAltitude();
 
 	} else {
 		// normal mode where height is dependent on local frame
@@ -187,9 +181,10 @@ void FlightTaskManualAltitude::_updateAltitudeLock()
 			// user demands velocity change
 			_position_setpoint(2) = NAN;
 			// ensure that maximum altitude is respected
-			_respectMaxAltitude();
 		}
 	}
+
+	_respectMaxAltitude();
 }
 
 void FlightTaskManualAltitude::_respectMinAltitude()
@@ -231,29 +226,20 @@ void FlightTaskManualAltitude::_respectMaxAltitude()
 {
 	if (PX4_ISFINITE(_dist_to_bottom)) {
 
-		// if there is a valid maximum distance to ground, linearly increase speed limit with distance
-		// below the maximum, preserving control loop vertical position error gain.
-		// TODO: manipulate the velocity setpoint instead of tweaking the saturation of the controller
+		float vel_constrained = _param_mpc_z_p.get() * (_max_distance_to_ground - _dist_to_bottom);
+
 		if (PX4_ISFINITE(_max_distance_to_ground)) {
-			_constraints.speed_up = math::constrain(_param_mpc_z_p.get() * (_max_distance_to_ground - _dist_to_bottom),
-								-_param_mpc_z_vel_max_dn.get(), _param_mpc_z_vel_max_up.get());
+			_constraints.speed_up = math::constrain(vel_constrained, -_param_mpc_z_vel_max_dn.get(), _param_mpc_z_vel_max_up.get());
 
 		} else {
 			_constraints.speed_up = _param_mpc_z_vel_max_up.get();
 		}
 
-		// if distance to bottom exceeded maximum distance, slowly approach maximum distance
-		if (_dist_to_bottom > _max_distance_to_ground) {
-			// difference between current distance to ground and maximum distance to ground
-			const float delta_distance_to_max = _dist_to_bottom - _max_distance_to_ground;
-			// set position setpoint to maximum distance to ground
-			_position_setpoint(2) = _position(2) + delta_distance_to_max;
-			// limit speed downwards to 0.7m/s
-			_constraints.speed_down = math::min(_param_mpc_z_vel_max_dn.get(), 0.7f);
-
-		} else {
-			_constraints.speed_down = _param_mpc_z_vel_max_dn.get();
+		if (_dist_to_bottom > _max_distance_to_ground && !(_sticks.getThrottleZeroCenteredExpo() < FLT_EPSILON)) {
+			_velocity_setpoint(2) = math::constrain(-vel_constrained, 0.f, _param_mpc_z_vel_max_dn.get());
 		}
+
+		_constraints.speed_down = _param_mpc_z_vel_max_dn.get();
 	}
 }
 
@@ -271,51 +257,24 @@ void FlightTaskManualAltitude::_respectGroundSlowdown()
 	}
 }
 
-void FlightTaskManualAltitude::_updateHeadingSetpoints()
-{
-	if (_isYawInput() || !_is_yaw_good_for_control) {
-		_unlockYaw();
-
-	} else {
-		_lockYaw();
-	}
-}
-
-bool FlightTaskManualAltitude::_isYawInput()
-{
-	/*
-	 * A threshold larger than FLT_EPSILON is required because the
-	 * _yawspeed_setpoint comes from an IIR filter and takes too much
-	 * time to reach zero.
-	 */
-	return fabsf(_yawspeed_setpoint) > 0.001f;
-}
-
-void FlightTaskManualAltitude::_unlockYaw()
-{
-	// no fixed heading when rotating around yaw by stick
-	_yaw_setpoint = NAN;
-}
-
-void FlightTaskManualAltitude::_lockYaw()
-{
-	// hold the current heading when no more rotation commanded
-	if (!PX4_ISFINITE(_yaw_setpoint)) {
-		_yaw_setpoint = _yaw;
-	}
-}
-
 void FlightTaskManualAltitude::_ekfResetHandlerHeading(float delta_psi)
 {
 	// Only reset the yaw setpoint when the heading is locked
 	if (PX4_ISFINITE(_yaw_setpoint)) {
-		_yaw_setpoint += delta_psi;
+		_yaw_setpoint = wrap_pi(_yaw_setpoint + delta_psi);
 	}
+
+	_stick_yaw.ekfResetHandler(delta_psi);
+}
+
+void FlightTaskManualAltitude::_ekfResetHandlerHagl(float delta_hagl)
+{
+	_dist_to_ground_lock = NAN;
 }
 
 void FlightTaskManualAltitude::_updateSetpoints()
 {
-	_updateHeadingSetpoints(); // get yaw setpoint
+	_stick_yaw.generateYawSetpoint(_yawspeed_setpoint, _yaw_setpoint, _sticks.getYawExpo(), _yaw, _deltatime, _unaided_yaw);
 	_acceleration_setpoint.xy() = _stick_tilt_xy.generateAccelerationSetpoints(_sticks.getPitchRoll(), _deltatime, _yaw,
 				      _yaw_setpoint);
 	_updateAltitudeLock();
@@ -335,6 +294,7 @@ bool FlightTaskManualAltitude::update()
 	_scaleSticks();
 	_updateSetpoints();
 	_constraints.want_takeoff = _checkTakeoff();
+	_max_distance_to_ground = INFINITY;
 
 	return ret;
 }
