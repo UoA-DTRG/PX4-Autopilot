@@ -248,7 +248,7 @@ ControlAllocationSequentialDesaturation::mixYaw()
 	// and allow some yaw response at maximum thrust
 	ActuatorVector max_prev = _actuator_max;
 	_actuator_max += (_actuator_max - _actuator_min) * MINIMUM_YAW_MARGIN;
-	desaturateActuators(_actuator_sp, yaw);
+	float gain = desaturateActuators(_actuator_sp, yaw);
 	_actuator_max = max_prev;
 
 	// reduce thrust only
