@@ -618,7 +618,7 @@ void MulticopterPositionControl::Run()
 			_local_pos_sp_pub.publish(local_pos_sp);
 
 
-		// DTRG changes
+			// DTRG changes
 
 			//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
 			//corresponds to the debug_array uorb msg
@@ -649,30 +649,37 @@ void MulticopterPositionControl::Run()
 					}
 				}
 
-				// dummy attitude setpoints for mixed actuation
+				// Get standard attitude setpoint for mixed actuation
 				vehicle_attitude_setpoint_s attitude_RP{};
-
-				// //Standard attitude setpoint generation
 				_control.getAttitudeSetpoint(attitude_RP);
+
+				// Extract roll/pitch from standard attitude setpoint quaternion
+				Eulerf euler_RP(Quatf(attitude_RP.q_d));
+				float roll_RP = euler_RP.phi();
+				float pitch_RP = euler_RP.theta();
+
+				// Temporary variables for final roll/pitch to use in quaternion
+				float final_roll = 0.f;
+				float final_pitch = 0.f;
 
 				// Pick and Choose the attitude stuff using parameter
 				if (_dtrg_ht_mask == 1) {// Roll for y axis
-					attitude_setpoint.roll_body = attitude_RP.roll_body;
-					attitude_setpoint.pitch_body = pitch_setpoint;
+					final_roll = roll_RP;
+					final_pitch = pitch_setpoint;
 				} else if (_dtrg_ht_mask == 2) { //Pitch for x axis
-					attitude_setpoint.pitch_body = attitude_RP.pitch_body;
-					attitude_setpoint.roll_body = roll_setpoint;
+					final_pitch = pitch_RP;
+					final_roll = roll_setpoint;
 				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
-					attitude_setpoint.roll_body = attitude_RP.roll_body;
-					attitude_setpoint.pitch_body = attitude_RP.pitch_body;
+					final_roll = roll_RP;
+					final_pitch = pitch_RP;
 				} else {
-					attitude_setpoint.roll_body = roll_setpoint;
-					attitude_setpoint.pitch_body = pitch_setpoint;
+					final_roll = roll_setpoint;
+					final_pitch = pitch_setpoint;
 				}
 
 				// set the yaw setpoint and complete the qd quaternion
 				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
-				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
+				Quatf q_sp = Eulerf(final_roll, final_pitch, local_pos_sp.yaw);
 				q_sp.copyTo(attitude_setpoint.q_d);
 				// convert thrusts from inertial to body frame
 				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0],
