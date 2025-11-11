@@ -185,7 +185,9 @@ private:
 		(ParamFloat<px4::params::MPC_THR_HOVER>) _param_mpc_thr_hover,
 		(ParamInt<px4::params::MPC_THR_CURVE>) _param_mpc_thr_curve,
 		(ParamFloat<px4::params::MPC_YAW_EXPO>) _param_mpc_yaw_expo,
-		
+
+		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
+
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
 		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
 		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_h_t_R,		/**< horizontal thrust Roll channel */
