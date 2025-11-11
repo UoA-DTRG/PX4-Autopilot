@@ -79,6 +79,9 @@ protected:
 	void updateParams() override { ModuleParams::updateParams(); }
 
 private:
+	bool readMixerFromCSV(const char *filename,
+			      matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
+
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
 	bool _normalization_needs_update{false};
