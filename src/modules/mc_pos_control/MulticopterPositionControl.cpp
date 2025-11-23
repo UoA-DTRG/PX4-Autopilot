@@ -590,9 +590,19 @@ void MulticopterPositionControl::Run()
 				hzlim_msg.x_sat = 0;
 				hzlim_msg.y_sat = 0;
 
+				const float warn_level = 0.8f;
+
+				if(thrust_frd(0) > (_ht_limit * warn_level) || thrust_frd(0) < -(_ht_limit * warn_level)) {
+					hzlim_msg.x_sat = 1;
+				}
+
+				if(thrust_frd(1) > (_ht_limit * warn_level) || thrust_frd(1) < -(_ht_limit * warn_level)) {
+					hzlim_msg.y_sat = 1;
+				}
+
 				if(thrust_frd(0) > _ht_limit) {
 					thrust_frd(0) = _ht_limit;
-					hzlim_msg.x_sat = 1;
+					hzlim_msg.x_sat = 2;
 				}
 
 				if(thrust_frd(0) < -(_ht_limit)) {
@@ -602,7 +612,7 @@ void MulticopterPositionControl::Run()
 
 				if(thrust_frd(1) > _ht_limit) {
 					thrust_frd(1) = _ht_limit;
-					hzlim_msg.y_sat = 1;
+					hzlim_msg.y_sat = 2;
 				}
 
 				if(thrust_frd(1) < -(_ht_limit)) {

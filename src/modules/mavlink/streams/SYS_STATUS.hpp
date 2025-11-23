@@ -180,8 +180,8 @@ private:
 
 			// Fill in the errors_count fields
 			msg.errors_count1 =
-			((sequential_desaturation.x_sat > 0.01f)) |
-			((sequential_desaturation.y_sat > 0.01f) << 1) |
+			// ((sequential_desaturation.x_sat > 0.01f)) |
+			// ((sequential_desaturation.y_sat > 0.01f) << 1) |
 			((sequential_desaturation.z_sat > 0.01f) << 2) |
 			((sequential_desaturation.roll_sat > 0.01f) << 3) |
 			((sequential_desaturation.pitch_sat > 0.01f) << 4) |
@@ -189,6 +189,7 @@ private:
 
 			// check if any motor is near / at saturation
 			const float upper_bound = 0.9f;
+			const float lower_bound = 0.00f;
 
 			msg.errors_count2 =
 			((actuator_motors.control[0] > upper_bound)) |
@@ -198,11 +199,30 @@ private:
 			((actuator_motors.control[4] > upper_bound) << 4) |
 			((actuator_motors.control[5] > upper_bound) << 5) |
 			((actuator_motors.control[6] > upper_bound) << 6) |
-			((actuator_motors.control[7] > upper_bound) << 7);
+			((actuator_motors.control[7] > upper_bound) << 7) |
+			((actuator_motors.control[0] < lower_bound) << 8) |
+			((actuator_motors.control[1] < lower_bound) << 9) |
+			((actuator_motors.control[2] < lower_bound) << 10) |
+			((actuator_motors.control[3] < lower_bound) << 11) |
+			((actuator_motors.control[4] < lower_bound) << 12) |
+			((actuator_motors.control[5] < lower_bound) << 13) |
+			((actuator_motors.control[6] < lower_bound) << 14) |
+			((actuator_motors.control[7] < lower_bound) << 15);
 
-			msg.errors_count3 =
-			(horizontal_thrust_limit.x_sat) |
-			((horizontal_thrust_limit.y_sat) << 2);
+			// Set a warning at 80% and a critial when cap reached
+			msg.errors_count3 = 0;
+			// TODO: refactor these 3 error message fields into 3 steps of criticallaity instead of sperate meanings
+			if(horizontal_thrust_limit.x_sat == 1 || horizontal_thrust_limit.y_sat == 1) {
+				msg.errors_count3 = 1;
+			}
+
+			if(horizontal_thrust_limit.x_sat > 1 || horizontal_thrust_limit.y_sat > 1) {
+				msg.errors_count1 += (1 << 8);
+			}
+
+			msg.errors_count3 |=
+			((sequential_desaturation.x_sat > 0.01f) << 1) |
+			((sequential_desaturation.y_sat > 0.01f) << 2);
 
 			msg.errors_count4 = 706; // tell the status monitor that this code is running
 
