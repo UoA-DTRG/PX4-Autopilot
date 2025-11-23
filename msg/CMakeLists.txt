@@ -223,6 +223,7 @@ set(msg_files
 	YawEstimatorStatus.msg
 	SequentialDesaturation.msg
 	HorizontalThrustLimit.msg
+	SixAxisLoadCell.msg
 )
 list(SORT msg_files)
 

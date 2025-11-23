@@ -133,6 +133,8 @@ void LoggedTopics::add_default_topics()
 	add_topic("sequential_desaturation");
 	add_topic("horizontal_thrust_limit");
 
+	add_topic("six_axis_load_cell");
+
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);

@@ -273,6 +273,9 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	case MAVLINK_MSG_ID_STATUSTEXT:
 		handle_message_statustext(msg);
 		break;
+	case MAVLINK_MSG_ID_SIX_AXIS_LOAD_CELL:
+		handle_message_six_axis_load_cell(msg);
+		break;
 
 #if !defined(CONSTRAINED_FLASH)
 
@@ -1056,6 +1059,36 @@ MavlinkReceiver::handle_message_set_position_target_local_ned(mavlink_message_t 
 			events::send(events::ID("mavlink_rcv_sp_target_invalid"), events::Log::Error,
 				     "SET_POSITION_TARGET_LOCAL_NED: invalid, missing position, velocity or acceleration");
 		}
+	}
+}
+
+void
+MavlinkReceiver::handle_message_six_axis_load_cell(mavlink_message_t *msg)
+{
+
+	//PX4_INFO("Recieved loadcell");
+	mavlink_six_axis_load_cell_t load_cell_data;
+	mavlink_msg_six_axis_load_cell_decode(msg, &load_cell_data);
+
+	/* Only accept messages which are intended for this system */
+	if ((mavlink_system.sysid == load_cell_data.target_system || load_cell_data.target_system == 0) &&
+	    (mavlink_system.compid == load_cell_data.target_component || load_cell_data.target_component == 0)) {
+
+		// Process message here
+		six_axis_load_cell_s data{};
+
+		data.fx = load_cell_data.fx;
+		data.fy = load_cell_data.fy;
+		data.fz = load_cell_data.fz;
+
+		data.mx = load_cell_data.mx;
+		data.my = load_cell_data.my;
+		data.mz = load_cell_data.mz;
+
+		//PX4_INFO("processed loadcell");
+
+		data.timestamp = hrt_absolute_time();
+		_six_axis_load_cell_pub.publish(data);
 	}
 }
 
