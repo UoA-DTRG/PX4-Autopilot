@@ -1,0 +1,8 @@
+menuconfig MODULES_MULTISINE_EXCITATION
+	bool "multisine_excitation"
+	default n
+	---help---
+		Enable support for orthogonal multisine excitation signal
+		generation for RLS system identification. This module
+		generates excitation signals that are applied to motor
+		outputs by the control allocator.

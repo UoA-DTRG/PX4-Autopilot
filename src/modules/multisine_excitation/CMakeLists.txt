@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2020-2021 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2024 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,14 +31,14 @@
 #
 ############################################################################
 
-px4_add_library(SystemIdentification
-	system_identification.cpp
-	system_identification.hpp
-	multisine_excitation.cpp
-	multisine_excitation.hpp
-	arx_rls.hpp
-)
-
-px4_add_unit_gtest(SRC arx_rls_test.cpp LINKLIBS SystemIdentification)
-px4_add_unit_gtest(SRC system_identification_test.cpp LINKLIBS SystemIdentification mathlib)
-px4_add_unit_gtest(SRC multisine_excitation_test.cpp LINKLIBS SystemIdentification mathlib)
+px4_add_module(
+	MODULE modules__multisine_excitation
+	MAIN multisine_excitation
+	SRCS
+		multisine_excitation.cpp
+	MODULE_CONFIG
+		module.yaml
+	DEPENDS
+		px4_work_queue
+		SystemIdentification
+	)

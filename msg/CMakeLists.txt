@@ -136,6 +136,7 @@ set(msg_files
 	Mission.msg
 	MissionResult.msg
 	MountOrientation.msg
+	MultisineExcitationStatus.msg
 	NavigatorMissionItem.msg
 	NavigatorStatus.msg
 	NormalizedUnsignedSetpoint.msg

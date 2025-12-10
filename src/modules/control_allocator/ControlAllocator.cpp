@@ -686,6 +686,17 @@ ControlAllocator::publish_actuator_controls()
 		++actuator_idx;
 	}
 
+	// Apply multisine excitation if active (additive to motor outputs)
+	multisine_excitation_status_s excitation_status;
+
+	if (_multisine_excitation_status_sub.copy(&excitation_status) && excitation_status.active) {
+		for (int i = 0; i < motors_idx && i < (int)multisine_excitation_status_s::NUM_EXCITATION; i++) {
+			if (PX4_ISFINITE(actuator_motors.control[i]) && PX4_ISFINITE(excitation_status.excitation[i])) {
+				actuator_motors.control[i] += excitation_status.excitation[i];
+			}
+		}
+	}
+
 	for (int i = motors_idx; i < actuator_motors_s::NUM_CONTROLS; i++) {
 		actuator_motors.control[i] = NAN;
 	}

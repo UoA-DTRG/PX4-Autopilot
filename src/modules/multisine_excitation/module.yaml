@@ -1,0 +1,109 @@
+module_name: Multisine Excitation
+
+parameters:
+    - group: DTRG Multisine Excitation
+      definitions:
+
+        DTRG_MSINE_EN:
+            description:
+                short: Enable multisine excitation module
+                long: |
+                  When enabled, the module generates orthogonal multisine
+                  excitation signals for system identification when triggered.
+                  The signals are published for the control allocator to apply.
+            type: boolean
+            default: 0
+
+        DTRG_MSINE_AMP:
+            description:
+                short: Excitation amplitude
+                long: |
+                  Amplitude scaling factor for the multisine excitation signal.
+                  The signal is normalized to [-1, 1] then multiplied by this
+                  amplitude. Start with small values (0.05-0.1) and increase
+                  if needed. Too high values may cause instability.
+            type: float
+            min: 0.01
+            max: 0.5
+            default: 0.1
+            decimal: 3
+
+        DTRG_MSINE_T:
+            description:
+                short: Excitation period per motor
+                long: |
+                  Duration of excitation for each motor in seconds.
+                  This determines the frequency resolution: f0 = 1/T.
+                  Longer periods give better low-frequency resolution.
+                  Total excitation time = T * num_motors (in sequential mode).
+            type: float
+            unit: s
+            min: 5.0
+            max: 60.0
+            default: 15.0
+            decimal: 1
+
+        DTRG_MSINE_FMIN:
+            description:
+                short: Minimum excitation frequency
+                long: |
+                  Minimum frequency of the multisine signal in Hz.
+                  Should be chosen based on the expected system dynamics.
+                  For multirotor attitude dynamics, 0.1 Hz is typically sufficient.
+            type: float
+            unit: Hz
+            min: 0.01
+            max: 5.0
+            default: 0.1
+            decimal: 2
+
+        DTRG_MSINE_FMAX:
+            description:
+                short: Maximum excitation frequency
+                long: |
+                  Maximum frequency of the multisine signal in Hz.
+                  Should be chosen based on the expected system bandwidth.
+                  For multirotor attitude dynamics, 1-5 Hz covers the relevant range.
+            type: float
+            unit: Hz
+            min: 0.5
+            max: 25.0
+            default: 1.0
+            decimal: 2
+
+        DTRG_MSINE_AUX:
+            description:
+                short: RC aux channel for trigger
+                long: |
+                  RC auxiliary channel (1-6) used to trigger the excitation.
+                  Set to 0 to disable RC triggering (use only manual commands).
+                  When the aux channel value exceeds 0.5, excitation starts.
+                  When it drops below 0.5, excitation stops.
+            type: int32
+            min: 0
+            max: 6
+            default: 0
+
+        DTRG_MSINE_NMOT:
+            description:
+                short: Number of motors
+                long: |
+                  Number of motors to generate excitation signals for.
+                  In sequential mode, each motor is excited one at a time.
+                  In simultaneous mode, all motors receive orthogonal signals.
+                  Must match the actual motor count of the vehicle.
+            type: int32
+            min: 2
+            max: 16
+            default: 8
+
+        DTRG_MSINE_SEQ:
+            description:
+                short: Sequential motor excitation
+                long: |
+                  When enabled, motors are excited one at a time (recommended
+                  for system identification). When disabled, all motors receive
+                  their orthogonal excitation signals simultaneously.
+                  Sequential mode gives cleaner data for B-matrix identification.
+            type: boolean
+            default: 1
