@@ -58,6 +58,7 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionInterval.hpp>
+#include <uORB/topics/actuator_test.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/multisine_excitation_status.h>
 #include <uORB/topics/parameter_update.h>
@@ -118,6 +119,14 @@ private:
 	 */
 	bool isRcTriggered() const;
 
+	/**
+	 * Run a bench test with motors at low throttle + excitation
+	 * This is a blocking function for test bed verification
+	 * @param baseline_throttle The baseline throttle value (0.0 to 1.0)
+	 * @return 0 on success, error code otherwise
+	 */
+	static int runBenchTest(float baseline_throttle);
+
 	// Subscriptions
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
@@ -161,6 +170,7 @@ private:
 		(ParamFloat<px4::params::DTRG_MSINE_FMAX>) _param_freq_max,
 		(ParamInt<px4::params::DTRG_MSINE_AUX>) _param_aux_channel,
 		(ParamInt<px4::params::DTRG_MSINE_NMOT>) _param_num_motors,
-		(ParamBool<px4::params::DTRG_MSINE_SEQ>) _param_sequential
+		(ParamBool<px4::params::DTRG_MSINE_SEQ>) _param_sequential,
+		(ParamFloat<px4::params::DTRG_MSINE_BTHR>) _param_bench_throttle
 	)
 };

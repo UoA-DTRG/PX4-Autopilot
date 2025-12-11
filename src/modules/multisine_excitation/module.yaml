@@ -107,3 +107,19 @@ parameters:
                   Sequential mode gives cleaner data for B-matrix identification.
             type: boolean
             default: 1
+
+        DTRG_MSINE_BTHR:
+            description:
+                short: Bench test baseline throttle
+                long: |
+                  The baseline throttle value for bench testing mode.
+                  This is the static throttle applied to all motors, on top of
+                  which the excitation signal is added.
+                  Use a low value (0.1-0.2) sufficient to spin the motors
+                  but safe for test bench operation with props removed.
+            type: float
+            unit: norm
+            decimal: 2
+            min: 0.05
+            max: 0.5
+            default: 0.15

@@ -41,6 +41,11 @@
 
 #include <mathlib/mathlib.h>
 #include <cmath>
+#include <fcntl.h>
+#include <errno.h>
+#include <uORB/Publication.hpp>
+#include <uORB/topics/actuator_test.h>
+#include <px4_platform_common/param.h>
 
 MultisineExcitationModule::MultisineExcitationModule() :
 	ModuleParams(nullptr),
@@ -312,6 +317,182 @@ int MultisineExcitationModule::task_spawn(int argc, char *argv[])
 	return PX4_ERROR;
 }
 
+int MultisineExcitationModule::runBenchTest(float throttle_override)
+{
+	PX4_WARN("================================================================");
+	PX4_WARN("                      BENCH TEST MODE                          ");
+	PX4_WARN("================================================================");
+	PX4_WARN("WARNING: This will spin motors! Ensure propellers are REMOVED!");
+	PX4_WARN("Press Enter to start, Ctrl+C to abort...");
+	PX4_WARN("================================================================");
+
+	// Wait for user confirmation
+	char c;
+	ssize_t ret = read(0, &c, 1);
+
+	if (ret < 0) {
+		PX4_ERR("Read failed: %i", errno);
+		return PX4_ERROR;
+	}
+
+	// Load parameters
+	param_t param_handle;
+	int32_t num_motors = 8;
+	param_handle = param_find("DTRG_MSINE_NMOT");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &num_motors);
+	}
+
+	float amplitude = 0.05f;
+	param_handle = param_find("DTRG_MSINE_AMP");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &amplitude);
+	}
+
+	float period = 15.0f;
+	param_handle = param_find("DTRG_MSINE_T");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &period);
+	}
+
+	float freq_min = 0.1f;
+	param_handle = param_find("DTRG_MSINE_FMIN");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &freq_min);
+	}
+
+	float freq_max = 1.0f;
+	param_handle = param_find("DTRG_MSINE_FMAX");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &freq_max);
+	}
+
+	int32_t sequential = 1;
+	param_handle = param_find("DTRG_MSINE_SEQ");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &sequential);
+	}
+
+	float baseline_throttle = 0.15f;
+	param_handle = param_find("DTRG_MSINE_BTHR");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &baseline_throttle);
+	}
+
+	// Use override if specified
+	if (throttle_override > 0.f) {
+		baseline_throttle = throttle_override;
+	}
+
+	// Configure the generator
+	multisine::MultisineExcitation generator;
+
+	if (!generator.configure(static_cast<uint8_t>(num_motors), period, freq_min, freq_max, amplitude)) {
+		PX4_ERR("Failed to configure multisine generator");
+		return PX4_ERROR;
+	}
+
+	// Set sequential mode
+	generator.setSequentialMode(sequential != 0);
+
+	float total_duration = generator.getTotalDuration();
+
+	PX4_INFO("Starting bench test:");
+	PX4_INFO("  Motors: %d", (int)num_motors);
+	PX4_INFO("  Baseline throttle: %.0f%%", (double)(baseline_throttle * 100.f));
+	PX4_INFO("  Excitation amplitude: %.1f%%", (double)(amplitude * 100.f));
+	PX4_INFO("  Period per motor: %.1f s", (double)period);
+	PX4_INFO("  Total duration: %.1f s", (double)total_duration);
+	PX4_INFO("  Sequential mode: %s", sequential ? "yes" : "no");
+	PX4_INFO("");
+	PX4_INFO("Press Enter to stop at any time...");
+
+	// Create actuator test publisher
+	uORB::Publication<actuator_test_s> actuator_test_pub{ORB_ID(actuator_test)};
+
+	// Start the generator
+	generator.start();
+
+	// Calculate update interval (4ms = 250Hz)
+	const uint32_t update_interval_us = 4000;
+	const float dt_s = static_cast<float>(update_interval_us) / 1e6f;
+	const uint32_t timeout_ms = 100;  // Keep alive timeout
+
+	hrt_abstime last_print_time = hrt_absolute_time();
+	bool running = true;
+
+	// Set stdin to non-blocking
+	int flags = fcntl(0, F_GETFL, 0);
+	fcntl(0, F_SETFL, flags | O_NONBLOCK);
+
+	while (running && generator.isActive()) {
+		hrt_abstime now = hrt_absolute_time();
+
+		// Check for user input to stop
+		char input;
+
+		if (read(0, &input, 1) > 0) {
+			PX4_INFO("User requested stop");
+			running = false;
+			break;
+		}
+
+		// Update the generator with dt
+		float excitation[multisine::MAX_MOTORS];
+		generator.update(dt_s, excitation);
+
+		// Apply baseline + excitation to each motor via actuator_test
+		for (int motor = 0; motor < num_motors; motor++) {
+			actuator_test_s msg{};
+			msg.timestamp = now;
+			msg.function = actuator_test_s::FUNCTION_MOTOR1 + motor;
+			msg.value = baseline_throttle + excitation[motor];
+			msg.action = actuator_test_s::ACTION_DO_CONTROL;
+			msg.timeout_ms = timeout_ms;
+
+			actuator_test_pub.publish(msg);
+		}
+
+		// Print progress every second
+		if ((now - last_print_time) > 1000000) {
+			float elapsed = generator.getElapsedTime();
+			int current_motor = generator.getCurrentMotor();
+			float progress = elapsed / total_duration * 100.f;
+			PX4_INFO("Progress: %.1f%% | Motor: %d | Time: %.1f/%.1f s",
+				 (double)progress, current_motor, (double)elapsed, (double)total_duration);
+			last_print_time = now;
+		}
+
+		// Sleep until next update
+		px4_usleep(update_interval_us);
+	}
+
+	// Restore stdin blocking mode
+	fcntl(0, F_SETFL, flags);
+
+	// Stop all motors by releasing control
+	for (int motor = 0; motor < num_motors; motor++) {
+		actuator_test_s msg{};
+		msg.timestamp = hrt_absolute_time();
+		msg.function = actuator_test_s::FUNCTION_MOTOR1 + motor;
+		msg.value = NAN;
+		msg.action = actuator_test_s::ACTION_RELEASE_CONTROL;
+		msg.timeout_ms = 0;
+
+		actuator_test_pub.publish(msg);
+	}
+
+	PX4_INFO("Bench test completed");
+	return PX4_OK;
+}
+
 int MultisineExcitationModule::print_status()
 {
 	PX4_INFO("Multisine Excitation Module");
@@ -400,6 +581,22 @@ int MultisineExcitationModule::custom_command(int argc, char *argv[])
 		return print_usage();
 	}
 
+	if (!strcmp(argv[0], "bench_test")) {
+		// Parse optional throttle override from command line
+		float throttle_override = -1.f;
+
+		if (argc >= 2) {
+			throttle_override = strtof(argv[1], nullptr);
+
+			if (throttle_override < 0.05f || throttle_override > 0.5f) {
+				PX4_ERR("Throttle must be between 0.05 and 0.5");
+				return PX4_ERROR;
+			}
+		}
+
+		return runBenchTest(throttle_override);
+	}
+
 	return print_usage("unknown command");
 }
 
@@ -435,6 +632,8 @@ The excitation is applied by the control_allocator module.
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("start_excitation", "Manually trigger excitation (must be armed)");
 	PRINT_MODULE_USAGE_COMMAND_DESCR("stop_excitation", "Manually stop excitation");
+	PRINT_MODULE_USAGE_COMMAND_DESCR("bench_test", "Run motors at low throttle with excitation (REMOVE PROPS!)");
+	PRINT_MODULE_USAGE_ARG("<throttle>", "Optional baseline throttle (0.05-0.5), default from DTRG_MSINE_BTHR", true);
 	PRINT_MODULE_USAGE_COMMAND_DESCR("test", "Print help/usage info");
 
 	return 0;
