@@ -101,12 +101,13 @@ parameters:
             description:
                 short: Sequential motor excitation
                 long: |
-                  When enabled, motors are excited one at a time (recommended
-                  for system identification). When disabled, all motors receive
-                  their orthogonal excitation signals simultaneously.
-                  Sequential mode gives cleaner data for B-matrix identification.
+                  When disabled (default), all motors receive their orthogonal
+                  excitation signals simultaneously - this is the standard mode
+                  for RLS system identification matching the MATLAB implementation.
+                  When enabled, motors are excited one at a time which may give
+                  cleaner data in some scenarios.
             type: boolean
-            default: 1
+            default: 0
 
         DTRG_MSINE_BTHR:
             description:

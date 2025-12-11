@@ -127,6 +127,14 @@ private:
 	 */
 	static int runBenchTest(float baseline_throttle);
 
+	/**
+	 * Run a non-interactive excitation verification test
+	 * Runs for a short duration and verifies signals are generated correctly
+	 * Useful for SITL automated testing
+	 * @return 0 if verification passed, error code otherwise
+	 */
+	static int runVerifyExcitation();
+
 	// Subscriptions
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};

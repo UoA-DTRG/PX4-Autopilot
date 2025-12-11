@@ -493,6 +493,124 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 	return PX4_OK;
 }
 
+int MultisineExcitationModule::runVerifyExcitation()
+{
+	PX4_INFO("Running excitation verification test...");
+
+	// Load parameters
+	param_t param_handle;
+	int32_t num_motors = 4;
+	param_handle = param_find("DTRG_MSINE_NMOT");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &num_motors);
+	}
+
+	float amplitude = 0.05f;
+	param_handle = param_find("DTRG_MSINE_AMP");
+
+	if (param_handle != PARAM_INVALID) {
+		param_get(param_handle, &amplitude);
+	}
+
+	// Use short period for quick test
+	const float period = 2.0f;
+	const float freq_min = 0.5f;
+	const float freq_max = 2.0f;
+
+	// Configure the generator in simultaneous mode
+	multisine::MultisineExcitation generator;
+
+	if (!generator.configure(static_cast<uint8_t>(num_motors), period, freq_min, freq_max, amplitude)) {
+		PX4_ERR("FAIL: Failed to configure multisine generator");
+		return PX4_ERROR;
+	}
+
+	generator.setSequentialMode(false);  // Simultaneous mode
+
+	PX4_INFO("Test config: %d motors, period=%.1fs, freq=[%.1f-%.1f]Hz, amp=%.2f",
+		 (int)num_motors, (double)period, (double)freq_min, (double)freq_max, (double)amplitude);
+
+	// Start the generator
+	generator.start();
+
+	// Run for one full period
+	const float test_duration = period;
+	const uint32_t update_interval_us = 4000;  // 250Hz
+	const float dt_s = static_cast<float>(update_interval_us) / 1e6f;
+
+	// Track min/max for each motor
+	float min_val[multisine::MAX_MOTORS];
+	float max_val[multisine::MAX_MOTORS];
+	float sum_val[multisine::MAX_MOTORS];
+	int sample_count = 0;
+
+	for (int i = 0; i < (int)num_motors; i++) {
+		min_val[i] = 1.0f;
+		max_val[i] = -1.0f;
+		sum_val[i] = 0.0f;
+	}
+
+	hrt_abstime start_time = hrt_absolute_time();
+
+	while (generator.isActive()) {
+		float elapsed = static_cast<float>(hrt_absolute_time() - start_time) / 1e6f;
+
+		if (elapsed > test_duration) {
+			break;
+		}
+
+		float excitation[multisine::MAX_MOTORS];
+		generator.update(dt_s, excitation);
+
+		for (int motor = 0; motor < (int)num_motors; motor++) {
+			if (excitation[motor] < min_val[motor]) {
+				min_val[motor] = excitation[motor];
+			}
+
+			if (excitation[motor] > max_val[motor]) {
+				max_val[motor] = excitation[motor];
+			}
+
+			sum_val[motor] += excitation[motor];
+		}
+
+		sample_count++;
+		px4_usleep(update_interval_us);
+	}
+
+	generator.stop();
+
+	// Verify results
+	PX4_INFO("Verification results (%d samples):", sample_count);
+
+	bool all_passed = true;
+	const float min_expected_range = amplitude * 0.5f;  // Expect at least 50% of amplitude as range
+
+	for (int motor = 0; motor < (int)num_motors; motor++) {
+		float range = max_val[motor] - min_val[motor];
+		float mean = sum_val[motor] / static_cast<float>(sample_count);
+		bool passed = (range > min_expected_range);
+
+		PX4_INFO("  Motor %d: range=%.4f, min=%.4f, max=%.4f, mean=%.4f %s",
+			 motor, (double)range, (double)min_val[motor], (double)max_val[motor],
+			 (double)mean, passed ? "[PASS]" : "[FAIL]");
+
+		if (!passed) {
+			all_passed = false;
+		}
+	}
+
+	if (all_passed) {
+		PX4_INFO("VERIFICATION PASSED: All motors show proper excitation");
+		return PX4_OK;
+
+	} else {
+		PX4_ERR("VERIFICATION FAILED: Some motors not showing proper excitation");
+		return PX4_ERROR;
+	}
+}
+
 int MultisineExcitationModule::print_status()
 {
 	PX4_INFO("Multisine Excitation Module");
@@ -597,6 +715,12 @@ int MultisineExcitationModule::custom_command(int argc, char *argv[])
 		return runBenchTest(throttle_override);
 	}
 
+	if (!strcmp(argv[0], "verify_excitation")) {
+		// Non-interactive verification test for SITL
+		// Runs for a short time and verifies excitation signals are generated
+		return runVerifyExcitation();
+	}
+
 	return print_usage("unknown command");
 }
 
@@ -634,6 +758,7 @@ The excitation is applied by the control_allocator module.
 	PRINT_MODULE_USAGE_COMMAND_DESCR("stop_excitation", "Manually stop excitation");
 	PRINT_MODULE_USAGE_COMMAND_DESCR("bench_test", "Run motors at low throttle with excitation (REMOVE PROPS!)");
 	PRINT_MODULE_USAGE_ARG("<throttle>", "Optional baseline throttle (0.05-0.5), default from DTRG_MSINE_BTHR", true);
+	PRINT_MODULE_USAGE_COMMAND_DESCR("verify_excitation", "Run automated excitation verification (for SITL testing)");
 	PRINT_MODULE_USAGE_COMMAND_DESCR("test", "Print help/usage info");
 
 	return 0;
