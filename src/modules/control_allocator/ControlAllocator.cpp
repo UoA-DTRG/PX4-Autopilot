@@ -686,6 +686,7 @@ ControlAllocator::publish_actuator_controls()
 		++actuator_idx;
 	}
 
+#if defined(CONFIG_MODULES_MULTISINE_EXCITATION)
 	// Apply multisine excitation if active (additive to motor outputs)
 	multisine_excitation_status_s excitation_status;
 
@@ -696,6 +697,8 @@ ControlAllocator::publish_actuator_controls()
 			}
 		}
 	}
+
+#endif
 
 	for (int i = motors_idx; i < actuator_motors_s::NUM_CONTROLS; i++) {
 		actuator_motors.control[i] = NAN;
