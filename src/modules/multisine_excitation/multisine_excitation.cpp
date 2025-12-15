@@ -202,7 +202,7 @@ void MultisineExcitationModule::Run()
 			}
 
 			PX4_INFO("Starting excitation: %d motors, %.1fs period, %.2f-%.2f Hz",
-				 _param_num_motors.get(), (double)_param_period.get(),
+				 (int)_param_num_motors.get(), (double)_param_period.get(),
 				 (double)_param_freq_min.get(), (double)_param_freq_max.get());
 
 			_phase = Phase::PRE_SETTLE;
@@ -335,74 +335,54 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 		return PX4_ERROR;
 	}
 
-	// Load parameters
-	param_t param_handle;
+	// Load parameters efficiently
 	int32_t num_motors = 8;
-	param_handle = param_find("DTRG_MSINE_NMOT");
-
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &num_motors);
-	}
-
 	float amplitude = 0.05f;
-	param_handle = param_find("DTRG_MSINE_AMP");
-
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &amplitude);
-	}
-
 	float period = 15.0f;
-	param_handle = param_find("DTRG_MSINE_T");
-
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &period);
-	}
-
 	float freq_min = 0.1f;
-	param_handle = param_find("DTRG_MSINE_FMIN");
-
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &freq_min);
-	}
-
 	float freq_max = 1.0f;
-	param_handle = param_find("DTRG_MSINE_FMAX");
-
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &freq_max);
-	}
-
 	int32_t sequential = 1;
-	param_handle = param_find("DTRG_MSINE_SEQ");
-
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &sequential);
-	}
-
 	float baseline_throttle = 0.15f;
-	param_handle = param_find("DTRG_MSINE_BTHR");
 
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &baseline_throttle);
-	}
+	param_t handle = param_find("DTRG_MSINE_NMOT");
+	if (handle != PARAM_INVALID) { param_get(handle, &num_motors); }
+
+	handle = param_find("DTRG_MSINE_AMP");
+	if (handle != PARAM_INVALID) { param_get(handle, &amplitude); }
+
+	handle = param_find("DTRG_MSINE_T");
+	if (handle != PARAM_INVALID) { param_get(handle, &period); }
+
+	handle = param_find("DTRG_MSINE_FMIN");
+	if (handle != PARAM_INVALID) { param_get(handle, &freq_min); }
+
+	handle = param_find("DTRG_MSINE_FMAX");
+	if (handle != PARAM_INVALID) { param_get(handle, &freq_max); }
+
+	handle = param_find("DTRG_MSINE_SEQ");
+	if (handle != PARAM_INVALID) { param_get(handle, &sequential); }
+
+	handle = param_find("DTRG_MSINE_BTHR");
+	if (handle != PARAM_INVALID) { param_get(handle, &baseline_throttle); }
 
 	// Use override if specified
 	if (throttle_override > 0.f) {
 		baseline_throttle = throttle_override;
 	}
 
-	// Configure the generator
-	multisine::MultisineExcitation generator;
+	// Configure the generator (use dynamic allocation to reduce stack frame)
+	multisine::MultisineExcitation *generator = new multisine::MultisineExcitation();
 
-	if (!generator.configure(static_cast<uint8_t>(num_motors), period, freq_min, freq_max, amplitude)) {
+	if (!generator->configure(static_cast<uint8_t>(num_motors), period, freq_min, freq_max, amplitude)) {
 		PX4_ERR("Failed to configure multisine generator");
+		delete generator;
 		return PX4_ERROR;
 	}
 
 	// Set sequential mode
-	generator.setSequentialMode(sequential != 0);
+	generator->setSequentialMode(sequential != 0);
 
-	float total_duration = generator.getTotalDuration();
+	float total_duration = generator->getTotalDuration();
 
 	PX4_INFO("Starting bench test:");
 	PX4_INFO("  Motors: %d", (int)num_motors);
@@ -418,7 +398,7 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 	uORB::Publication<actuator_test_s> actuator_test_pub{ORB_ID(actuator_test)};
 
 	// Start the generator
-	generator.start();
+	generator->start();
 
 	// Calculate update interval (4ms = 250Hz)
 	const uint32_t update_interval_us = 4000;
@@ -432,7 +412,7 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 	int flags = fcntl(0, F_GETFL, 0);
 	fcntl(0, F_SETFL, flags | O_NONBLOCK);
 
-	while (running && generator.isActive()) {
+	while (running && generator->isActive()) {
 		hrt_abstime now = hrt_absolute_time();
 
 		// Check for user input to stop
@@ -446,7 +426,7 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 
 		// Update the generator with dt
 		float excitation[multisine::MAX_MOTORS];
-		generator.update(dt_s, excitation);
+		generator->update(dt_s, excitation);
 
 		// Apply baseline + excitation to each motor via actuator_test
 		for (int motor = 0; motor < num_motors; motor++) {
@@ -462,8 +442,8 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 
 		// Print progress every second
 		if ((now - last_print_time) > 1000000) {
-			float elapsed = generator.getElapsedTime();
-			int current_motor = generator.getCurrentMotor();
+			float elapsed = generator->getElapsedTime();
+			int current_motor = generator->getCurrentMotor();
 			float progress = elapsed / total_duration * 100.f;
 			PX4_INFO("Progress: %.1f%% | Motor: %d | Time: %.1f/%.1f s",
 				 (double)progress, current_motor, (double)elapsed, (double)total_duration);
@@ -489,6 +469,7 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 		actuator_test_pub.publish(msg);
 	}
 
+	delete generator;
 	PX4_INFO("Bench test completed");
 	return PX4_OK;
 }
@@ -497,52 +478,47 @@ int MultisineExcitationModule::runVerifyExcitation()
 {
 	PX4_INFO("Running excitation verification test...");
 
-	// Load parameters
-	param_t param_handle;
+	// Load parameters efficiently
 	int32_t num_motors = 4;
-	param_handle = param_find("DTRG_MSINE_NMOT");
-
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &num_motors);
-	}
-
 	float amplitude = 0.05f;
-	param_handle = param_find("DTRG_MSINE_AMP");
 
-	if (param_handle != PARAM_INVALID) {
-		param_get(param_handle, &amplitude);
-	}
+	param_t handle = param_find("DTRG_MSINE_NMOT");
+	if (handle != PARAM_INVALID) { param_get(handle, &num_motors); }
+
+	handle = param_find("DTRG_MSINE_AMP");
+	if (handle != PARAM_INVALID) { param_get(handle, &amplitude); }
 
 	// Use short period for quick test
 	const float period = 2.0f;
 	const float freq_min = 0.5f;
 	const float freq_max = 2.0f;
 
-	// Configure the generator in simultaneous mode
-	multisine::MultisineExcitation generator;
+	// Configure the generator in simultaneous mode (use dynamic allocation)
+	multisine::MultisineExcitation *generator = new multisine::MultisineExcitation();
 
-	if (!generator.configure(static_cast<uint8_t>(num_motors), period, freq_min, freq_max, amplitude)) {
+	if (!generator->configure(static_cast<uint8_t>(num_motors), period, freq_min, freq_max, amplitude)) {
 		PX4_ERR("FAIL: Failed to configure multisine generator");
+		delete generator;
 		return PX4_ERROR;
 	}
 
-	generator.setSequentialMode(false);  // Simultaneous mode
+	generator->setSequentialMode(false);  // Simultaneous mode
 
 	PX4_INFO("Test config: %d motors, period=%.1fs, freq=[%.1f-%.1f]Hz, amp=%.2f",
 		 (int)num_motors, (double)period, (double)freq_min, (double)freq_max, (double)amplitude);
 
 	// Start the generator
-	generator.start();
+	generator->start();
 
 	// Run for one full period
 	const float test_duration = period;
 	const uint32_t update_interval_us = 4000;  // 250Hz
 	const float dt_s = static_cast<float>(update_interval_us) / 1e6f;
 
-	// Track min/max for each motor
-	float min_val[multisine::MAX_MOTORS];
-	float max_val[multisine::MAX_MOTORS];
-	float sum_val[multisine::MAX_MOTORS];
+	// Track min/max for each motor (use dynamic arrays to save stack space)
+	float *min_val = new float[num_motors];
+	float *max_val = new float[num_motors];
+	float *sum_val = new float[num_motors];
 	int sample_count = 0;
 
 	for (int i = 0; i < (int)num_motors; i++) {
@@ -553,7 +529,7 @@ int MultisineExcitationModule::runVerifyExcitation()
 
 	hrt_abstime start_time = hrt_absolute_time();
 
-	while (generator.isActive()) {
+	while (generator->isActive()) {
 		float elapsed = static_cast<float>(hrt_absolute_time() - start_time) / 1e6f;
 
 		if (elapsed > test_duration) {
@@ -561,7 +537,7 @@ int MultisineExcitationModule::runVerifyExcitation()
 		}
 
 		float excitation[multisine::MAX_MOTORS];
-		generator.update(dt_s, excitation);
+		generator->update(dt_s, excitation);
 
 		for (int motor = 0; motor < (int)num_motors; motor++) {
 			if (excitation[motor] < min_val[motor]) {
@@ -579,7 +555,7 @@ int MultisineExcitationModule::runVerifyExcitation()
 		px4_usleep(update_interval_us);
 	}
 
-	generator.stop();
+	generator->stop();
 
 	// Verify results
 	PX4_INFO("Verification results (%d samples):", sample_count);
@@ -600,6 +576,12 @@ int MultisineExcitationModule::runVerifyExcitation()
 			all_passed = false;
 		}
 	}
+
+	// Cleanup dynamic arrays
+	delete[] min_val;
+	delete[] max_val;
+	delete[] sum_val;
+	delete generator;
 
 	if (all_passed) {
 		PX4_INFO("VERIFICATION PASSED: All motors show proper excitation");
