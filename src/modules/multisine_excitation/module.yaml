@@ -13,6 +13,7 @@ parameters:
                   The signals are published for the control allocator to apply.
             type: boolean
             default: 0
+            reboot_required: true
 
         DTRG_MSINE_AMP:
             description:
