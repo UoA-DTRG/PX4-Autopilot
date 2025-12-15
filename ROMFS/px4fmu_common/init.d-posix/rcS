@@ -337,6 +337,12 @@ then
 	gyro_calibration start
 fi
 
+# Start multisine excitation module if enabled
+if param compare -s DTRG_MSINE_EN 1
+then
+	multisine_excitation start
+fi
+
 payload_deliverer start
 
 if param compare -s ICE_EN 1

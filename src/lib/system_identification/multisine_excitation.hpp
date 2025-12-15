@@ -119,7 +119,7 @@ public:
 	 * Get the total duration of the excitation sequence
 	 * @return Total duration in seconds
 	 */
-	float getTotalDuration() const { return _total_duration_s; }
+	float getTotalDuration() const { return _sequential_mode ? _total_duration_s : _period_s; }
 
 	/**
 	 * Get the elapsed time since start

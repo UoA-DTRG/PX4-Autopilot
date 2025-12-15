@@ -36,9 +36,10 @@ px4_add_module(
 	MAIN multisine_excitation
 	SRCS
 		multisine_excitation.cpp
-	MODULE_CONFIG
-		module.yaml
+		multisine_excitation.hpp
 	DEPENDS
 		px4_work_queue
 		SystemIdentification
+	MODULE_CONFIG
+		module.yaml
 	)

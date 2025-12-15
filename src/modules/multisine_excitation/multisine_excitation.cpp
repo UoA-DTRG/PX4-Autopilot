@@ -79,49 +79,69 @@ bool MultisineExcitationModule::init()
 
 void MultisineExcitationModule::parameters_updated()
 {
-	// Update sequential mode
-	_generator.setSequentialMode(_param_sequential.get());
+	if (_parameter_update_sub.updated()) {
+		parameter_update_s param_update;
+		_parameter_update_sub.copy(&param_update);
+
+		updateParams();
+	}
 }
 
 bool MultisineExcitationModule::configureGenerator()
 {
-	return _generator.configure(
+	// Calculate period per motor based on mode
+	float total_time = _param_period.get();
+	float period_per_motor;
+
+	if (_param_sequential.get()) {
+		// Sequential mode: divide total time among motors
+		period_per_motor = total_time / static_cast<float>(_param_num_motors.get());
+	} else {
+		// Simultaneous mode: use full total time for each motor
+		period_per_motor = total_time;
+	}
+
+	bool success = _generator.configure(
 		       static_cast<uint8_t>(_param_num_motors.get()),
-		       _param_period.get(),
+		       period_per_motor,
 		       _param_freq_min.get(),
 		       _param_freq_max.get(),
 		       _param_amplitude.get()
 	       );
+
+	if (success) {
+		// Set sequential mode after successful configuration
+		_generator.setSequentialMode(_param_sequential.get());
+	}
+
+	return success;
 }
 
-float MultisineExcitationModule::getRcAuxValue() const
+float MultisineExcitationModule::getRcChannelValue() const
 {
-	int channel = _param_aux_channel.get();
+	int channel = _param_rc_channel.get();
 
-	if (channel < 1 || channel > 6) {
+	if (channel < 1 || channel > 18) {
 		return 0.0f;
 	}
 
-	switch (channel) {
-	case 1: return _manual_control_setpoint.aux1;
-
-	case 2: return _manual_control_setpoint.aux2;
-
-	case 3: return _manual_control_setpoint.aux3;
-
-	case 4: return _manual_control_setpoint.aux4;
-
-	case 5: return _manual_control_setpoint.aux5;
-
-	case 6: return _manual_control_setpoint.aux6;
-
-	default: return 0.0f;
+	if (_input_rc.channel_count < channel) {
+		return 0.0f;
 	}
+
+	// Convert from PWM (1000-2000us) to normalized (0-1)
+	uint16_t pwm_value = _input_rc.values[channel - 1];  // channels are 0-indexed in array
+
+	// Clamp to typical RC range
+	if (pwm_value < 1000) pwm_value = 1000;
+	if (pwm_value > 2000) pwm_value = 2000;
+
+	return (pwm_value - 1000.0f) / 1000.0f;  // Convert to 0-1 range
 }
 
 bool MultisineExcitationModule::isRcTriggered() const
 {
-	return getRcAuxValue() > 0.5f;
+	return getRcChannelValue() > 0.5f;
 }
 
 void MultisineExcitationModule::Run()
@@ -179,7 +199,7 @@ void MultisineExcitationModule::Run()
 	}
 
 	// Update manual control setpoint (for RC aux channel)
-	_manual_control_setpoint_sub.copy(&_manual_control_setpoint);
+	_input_rc_sub.copy(&_input_rc);
 
 	// Check for RC trigger
 	bool rc_triggered = isRcTriggered();
@@ -388,9 +408,11 @@ int MultisineExcitationModule::runBenchTest(float throttle_override)
 	PX4_INFO("  Motors: %d", (int)num_motors);
 	PX4_INFO("  Baseline throttle: %.0f%%", (double)(baseline_throttle * 100.f));
 	PX4_INFO("  Excitation amplitude: %.1f%%", (double)(amplitude * 100.f));
-	PX4_INFO("  Period per motor: %.1f s", (double)period);
 	PX4_INFO("  Total duration: %.1f s", (double)total_duration);
 	PX4_INFO("  Sequential mode: %s", sequential ? "yes" : "no");
+	if (sequential) {
+		PX4_INFO("  Duration per motor: %.1f s", (double)(total_duration / num_motors));
+	}
 	PX4_INFO("");
 	PX4_INFO("Press Enter to stop at any time...");
 
@@ -608,8 +630,8 @@ int MultisineExcitationModule::print_status()
 	if (_generator.isConfigured()) {
 		PX4_INFO("  Configuration:");
 		PX4_INFO("    Motors: %d", _generator.getNumMotors());
-		PX4_INFO("    Period: %.1f s", (double)_generator.getPeriodPerMotor());
-		PX4_INFO("    Total duration: %.1f s", (double)_generator.getTotalDuration());
+		PX4_INFO("    Period per motor: %.1f s", (double)_generator.getPeriodPerMotor());
+		PX4_INFO("    Total duration: %.1f s", (double)_param_period.get());
 		PX4_INFO("    Freq range: %.2f - %.2f Hz", (double)_param_freq_min.get(), (double)_param_freq_max.get());
 		PX4_INFO("    Amplitude: %.3f", (double)_param_amplitude.get());
 	}

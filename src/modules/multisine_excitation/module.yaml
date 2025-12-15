@@ -1,7 +1,7 @@
 module_name: Multisine Excitation
 
 parameters:
-    - group: DTRG Multisine Excitation
+    - group: Multisine Excitation
       definitions:
 
         DTRG_MSINE_EN:
@@ -30,17 +30,18 @@ parameters:
 
         DTRG_MSINE_T:
             description:
-                short: Excitation period per motor
+                short: Total excitation duration
                 long: |
-                  Duration of excitation for each motor in seconds.
-                  This determines the frequency resolution: f0 = 1/T.
+                  Total duration of excitation in seconds.
+                  In simultaneous mode (default): All motors are excited for this duration.
+                  In sequential mode: This time is divided evenly among motors (T/num_motors per motor).
+                  This determines the frequency resolution: f0 = 1/T_per_motor.
                   Longer periods give better low-frequency resolution.
-                  Total excitation time = T * num_motors (in sequential mode).
             type: float
             unit: s
             min: 5.0
-            max: 60.0
-            default: 15.0
+            max: 120.0
+            default: 30.0
             decimal: 1
 
         DTRG_MSINE_FMIN:
@@ -71,17 +72,18 @@ parameters:
             default: 1.0
             decimal: 2
 
-        DTRG_MSINE_AUX:
+        DTRG_MSINE_RC_CH:
             description:
-                short: RC aux channel for trigger
+                short: RC channel for trigger
                 long: |
-                  RC auxiliary channel (1-6) used to trigger the excitation.
+                  RC channel (1-18) used to trigger the excitation.
                   Set to 0 to disable RC triggering (use only manual commands).
-                  When the aux channel value exceeds 0.5, excitation starts.
-                  When it drops below 0.5, excitation stops.
+                  When the RC channel value exceeds 0.5 (1500us), excitation starts.
+                  When it drops below 0.5 (1500us), excitation stops.
+                  Can use any RC channel including throttle, aux, or switch channels.
             type: int32
             min: 0
-            max: 6
+            max: 18
             default: 0
 
         DTRG_MSINE_NMOT:

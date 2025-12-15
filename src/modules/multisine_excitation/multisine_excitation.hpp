@@ -59,6 +59,7 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionInterval.hpp>
 #include <uORB/topics/actuator_test.h>
+#include <uORB/topics/input_rc.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/multisine_excitation_status.h>
 #include <uORB/topics/parameter_update.h>
@@ -108,10 +109,10 @@ private:
 	void publishStatus(const float excitation[multisine::MAX_MOTORS]);
 
 	/**
-	 * Get the RC aux channel value based on the configured channel
-	 * @return RC aux value in range [-1, 1]
+	 * Get the RC channel value based on the configured channel
+	 * @return RC channel value in range [0, 1] or 0 if channel disabled
 	 */
-	float getRcAuxValue() const;
+	float getRcChannelValue() const;
 
 	/**
 	 * Check if the RC trigger switch is activated
@@ -138,7 +139,7 @@ private:
 	// Subscriptions
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
-	uORB::Subscription _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
+	uORB::Subscription _input_rc_sub{ORB_ID(input_rc)};
 
 	// Publications
 	uORB::Publication<multisine_excitation_status_s> _status_pub{ORB_ID(multisine_excitation_status)};
@@ -155,7 +156,7 @@ private:
 	bool _rc_triggered_prev{false};
 	bool _manual_trigger{false};  // For debug command triggering
 	hrt_abstime _last_run{0};
-	manual_control_setpoint_s _manual_control_setpoint{};
+	input_rc_s _input_rc{};
 
 	// Excitation phase enum
 	enum class Phase : uint8_t {
@@ -169,16 +170,16 @@ private:
 	float _settle_time{0.0f};
 	static constexpr float SETTLE_DURATION_S = 0.5f;  // Time to settle before/after excitation
 
-	// Parameters
 	DEFINE_PARAMETERS(
 		(ParamBool<px4::params::DTRG_MSINE_EN>) _param_enable,
 		(ParamFloat<px4::params::DTRG_MSINE_AMP>) _param_amplitude,
 		(ParamFloat<px4::params::DTRG_MSINE_T>) _param_period,
 		(ParamFloat<px4::params::DTRG_MSINE_FMIN>) _param_freq_min,
 		(ParamFloat<px4::params::DTRG_MSINE_FMAX>) _param_freq_max,
-		(ParamInt<px4::params::DTRG_MSINE_AUX>) _param_aux_channel,
+		(ParamInt<px4::params::DTRG_MSINE_RC_CH>) _param_rc_channel,
 		(ParamInt<px4::params::DTRG_MSINE_NMOT>) _param_num_motors,
 		(ParamBool<px4::params::DTRG_MSINE_SEQ>) _param_sequential,
 		(ParamFloat<px4::params::DTRG_MSINE_BTHR>) _param_bench_throttle
 	)
+
 };
