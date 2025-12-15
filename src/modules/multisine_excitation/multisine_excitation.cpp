@@ -677,7 +677,7 @@ int MultisineExcitationModule::custom_command(int argc, char *argv[])
 		}
 	}
 
-	if (!strcmp(argv[0], "test")) {
+	if (!strcmp(argv[0], "help")) {
 		return print_usage();
 	}
 
@@ -741,7 +741,7 @@ The excitation is applied by the control_allocator module.
 	PRINT_MODULE_USAGE_COMMAND_DESCR("bench_test", "Run motors at low throttle with excitation (REMOVE PROPS!)");
 	PRINT_MODULE_USAGE_ARG("<throttle>", "Optional baseline throttle (0.05-0.5), default from DTRG_MSINE_BTHR", true);
 	PRINT_MODULE_USAGE_COMMAND_DESCR("verify_excitation", "Run automated excitation verification (for SITL testing)");
-	PRINT_MODULE_USAGE_COMMAND_DESCR("test", "Print help/usage info");
+	PRINT_MODULE_USAGE_COMMAND_DESCR("help", "Print help/usage info");
 
 	return 0;
 }
