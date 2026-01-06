@@ -8,7 +8,18 @@ module_name: Control Allocation
 parameters:
     - group: DTRG
       definitions:
-        DTRG_CSV_MIXER:
+        DTRG_WINDUP_EN:
+            description:
+                short: Enables antiwind-up for attitude Control
+                long: |
+                    Enables antiwind-up for attitude Control. Will be automatically disabled for CSV Mixer.
+                    This is case until discripancy is resolved.
+            type: enum
+            values:
+                0: Disabled
+                1: Enabled
+            default: 1
+        DTRG_MIXER_CSV:
             description:
                 short: Mixer CSV Overide
                 long: |
