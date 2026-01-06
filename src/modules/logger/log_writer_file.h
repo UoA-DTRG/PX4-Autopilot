@@ -79,7 +79,7 @@ public:
 
 	void thread_stop();
 
-	void start_log(LogType type, const char *filename);
+	bool start_log(LogType type, const char *filename);
 
 	void stop_log(LogType type);
 
@@ -132,6 +132,8 @@ public:
 		return _need_reliable_transfer;
 	}
 
+	bool had_write_error() const { return _buffers[(int)LogType::Full]._had_write_error.load(); }
+
 	pthread_t thread_id() const { return _thread; }
 
 #if defined(PX4_CRYPTO)
@@ -167,7 +169,8 @@ private:
 	class LogFileBuffer
 	{
 	public:
-		LogFileBuffer(size_t log_buffer_size, perf_counter_t perf_write, perf_counter_t perf_fsync);
+		LogFileBuffer(size_t log_buffer_desired_size, size_t log_buffer_min_size,
+			      perf_counter_t perf_write, perf_counter_t perf_fsync);
 
 		~LogFileBuffer();
 
@@ -199,8 +202,10 @@ private:
 		size_t count() const { return _count; }
 
 		bool _should_run = false;
+		px4::atomic_bool _had_write_error{false};
 	private:
-		const size_t _buffer_size;
+		size_t _buffer_size;
+		const size_t _buffer_size_min;
 		int	_fd = -1;
 		uint8_t *_buffer = nullptr;
 		size_t _head = 0; ///< next position to write to
@@ -219,7 +224,7 @@ private:
 	pthread_cond_t		_cv;
 	pthread_t _thread = 0;
 #if defined(PX4_CRYPTO)
-	bool init_logfile_encryption(const char *filename);
+	bool init_logfile_encryption(const LogType type);
 	PX4Crypto _crypto;
 	int _min_blocksize;
 	px4_crypto_algorithm_t _algorithm;

@@ -4,16 +4,16 @@ if [ -z ${PX4_DOCKER_REPO+x} ]; then
 	echo "guessing PX4_DOCKER_REPO based on input";
 	if [[ $@ =~ .*px4_fmu.* ]]; then
 		# nuttx-px4fmu-v{1,2,3,4,5}
-		PX4_DOCKER_REPO="px4io/px4-dev-nuttx-focal:2021-09-08"
-	elif [[ $@ =~ .*navio2.* ]] || [[ $@ =~ .*raspberry.* ]] || [[ $@ =~ .*beaglebone.* ]] || [[ $@ =~ .*pilotpi.default ]]; then
-		# beaglebone_blue_default, emlid_navio2_default, px4_raspberrypi_default, scumaker_pilotpi_default
-		PX4_DOCKER_REPO="px4io/px4-dev-armhf:2021-08-18"
+		PX4_DOCKER_REPO="px4io/px4-dev-nuttx-focal:2022-08-12"
+	elif [[ $@ =~ .*navio2.* ]] || [[ $@ =~ .*raspberry.* ]] || [[ $@ =~ .*beaglebone.* ]] || [[ $@ =~ .*pilotpi.default ]] || [[ $@ =~ .*navigator.* ]]; then
+		# beaglebone_blue_default, emlid_navio2_default, px4_raspberrypi_default, scumaker_pilotpi_default, bluerobotics_navigator_default
+		PX4_DOCKER_REPO="px4io/px4-dev-armhf:2023-06-26"
 	elif [[ $@ =~ .*pilotpi.arm64 ]]; then
 		# scumaker_pilotpi_arm64
-		PX4_DOCKER_REPO="px4io/px4-dev-aarch64:latest"
+		PX4_DOCKER_REPO="px4io/px4-dev-aarch64:2022-08-12"
 	elif [[ $@ =~ .*navio2.* ]] || [[ $@ =~ .*raspberry.* ]] || [[ $@ =~ .*bebop.* ]]; then
 		# posix_rpi_cross, posix_bebop_default
-		PX4_DOCKER_REPO="px4io/px4-dev-armhf:2021-08-18"
+		PX4_DOCKER_REPO="px4io/px4-dev-armhf:2023-06-26"
 	elif [[ $@ =~ .*clang.* ]] || [[ $@ =~ .*scan-build.* ]]; then
 		# clang tools
 		PX4_DOCKER_REPO="px4io/px4-dev-clang:2021-02-04"
@@ -27,7 +27,7 @@ fi
 
 # otherwise default to nuttx
 if [ -z ${PX4_DOCKER_REPO+x} ]; then
-	PX4_DOCKER_REPO="px4io/px4-dev-nuttx-focal:2021-09-08"
+	PX4_DOCKER_REPO="px4io/px4-dev-nuttx-focal:2022-08-12"
 fi
 
 # docker hygiene
@@ -47,6 +47,7 @@ CCACHE_DIR=${HOME}/.ccache
 mkdir -p "${CCACHE_DIR}"
 
 docker run -it --rm -w "${SRC_DIR}" \
+	--user="$(id -u):$(id -g)" \
 	--env=AWS_ACCESS_KEY_ID \
 	--env=AWS_SECRET_ACCESS_KEY \
 	--env=BRANCH_NAME \
@@ -54,7 +55,6 @@ docker run -it --rm -w "${SRC_DIR}" \
 	--env=CI \
 	--env=CODECOV_TOKEN \
 	--env=COVERALLS_REPO_TOKEN \
-	--env=LOCAL_USER_ID="$(id -u)" \
 	--env=PX4_ASAN \
 	--env=PX4_MSAN \
 	--env=PX4_TSAN \

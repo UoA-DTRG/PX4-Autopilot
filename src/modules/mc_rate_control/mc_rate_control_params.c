@@ -33,10 +33,8 @@
 
 /**
  * @file mc_rate_control_params.c
- * Parameters for multicopter attitude controller.
  *
- * @author Lorenz Meier <lorenz@px4.io>
- * @author Anton Babushkin <anton@px4.io>
+ * Parameters for multicopter rate controller
  */
 
 /**
@@ -282,110 +280,6 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_FF, 0.0f);
 PARAM_DEFINE_FLOAT(MC_YAWRATE_K, 1.0f);
 
 /**
- * Max acro roll rate
- *
- * default: 2 turns per second
- *
- * @unit deg/s
- * @min 0.0
- * @max 1800.0
- * @decimal 1
- * @increment 5
- * @group Multicopter Rate Control
- */
-PARAM_DEFINE_FLOAT(MC_ACRO_R_MAX, 720.0f);
-
-/**
- * Max acro pitch rate
- *
- * default: 2 turns per second
- *
- * @unit deg/s
- * @min 0.0
- * @max 1800.0
- * @decimal 1
- * @increment 5
- * @group Multicopter Rate Control
- */
-PARAM_DEFINE_FLOAT(MC_ACRO_P_MAX, 720.0f);
-
-/**
- * Max acro yaw rate
- *
- * default 1.5 turns per second
- *
- * @unit deg/s
- * @min 0.0
- * @max 1800.0
- * @decimal 1
- * @increment 5
- * @group Multicopter Rate Control
- */
-PARAM_DEFINE_FLOAT(MC_ACRO_Y_MAX, 540.0f);
-
-/**
- * Acro mode Expo factor for Roll and Pitch.
- *
- * Exponential factor for tuning the input curve shape.
- *
- * 0 Purely linear input curve
- * 1 Purely cubic input curve
- *
- * @min 0
- * @max 1
- * @decimal 2
- * @group Multicopter Rate Control
- */
-PARAM_DEFINE_FLOAT(MC_ACRO_EXPO, 0.69f);
-
-/**
- * Acro mode Expo factor for Yaw.
- *
- * Exponential factor for tuning the input curve shape.
- *
- * 0 Purely linear input curve
- * 1 Purely cubic input curve
- *
- * @min 0
- * @max 1
- * @decimal 2
- * @group Multicopter Rate Control
- */
-PARAM_DEFINE_FLOAT(MC_ACRO_EXPO_Y, 0.69f);
-
-/**
- * Acro mode SuperExpo factor for Roll and Pitch.
- *
- * SuperExpo factor for refining the input curve shape tuned using MC_ACRO_EXPO.
- *
- * 0 Pure Expo function
- * 0.7 reasonable shape enhancement for intuitive stick feel
- * 0.95 very strong bent input curve only near maxima have effect
- *
- * @min 0
- * @max 0.95
- * @decimal 2
- * @group Multicopter Rate Control
- */
-PARAM_DEFINE_FLOAT(MC_ACRO_SUPEXPO, 0.7f);
-
-/**
- * Acro mode SuperExpo factor for Yaw.
- *
- * SuperExpo factor for refining the input curve shape tuned using MC_ACRO_EXPO_Y.
- *
- * 0 Pure Expo function
- * 0.7 reasonable shape enhancement for intuitive stick feel
- * 0.95 very strong bent input curve only near maxima have effect
- *
- * @min 0
- * @max 0.95
- * @decimal 2
- * @group Multicopter Rate Control
- */
-PARAM_DEFINE_FLOAT(MC_ACRO_SUPEXPOY, 0.7f);
-
-/**
  * Battery power level scaler
  *
  * This compensates for voltage drop of the battery over time by attempting to
@@ -398,3 +292,17 @@ PARAM_DEFINE_FLOAT(MC_ACRO_SUPEXPOY, 0.7f);
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
+
+/**
+ * Low pass filter cutoff frequency for yaw torque setpoint
+ *
+ * Reduces vibrations by lowering high frequency torque caused by rotor acceleration.
+ * 0 disables the filter
+ *
+ * @min 0
+ * @max 10
+ * @unit Hz
+ * @decimal 3
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_YAW_TQ_CUTOFF, 2.f);

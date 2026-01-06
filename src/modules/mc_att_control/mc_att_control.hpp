@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2013-2019 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013-2025 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,13 +47,17 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/autotune_attitude_control_status.h>
+#include <uORB/topics/hover_thrust_estimate.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_control_mode.h>
+#include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_rates_setpoint.h>
 #include <uORB/topics/vehicle_status.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
+#include <lib/slew_rate/SlewRate.hpp>
+#include <lib/stick_yaw/StickYaw.hpp>
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/horizontal_thrust_limit.h>
 
@@ -92,16 +96,19 @@ private:
 	/**
 	 * Generate & publish an attitude setpoint from stick inputs
 	 */
-	void generate_attitude_setpoint(const matrix::Quatf &q, float dt, bool reset_yaw_sp);
+	void generate_attitude_setpoint(const matrix::Quatf &q, float dt);
 
 	AttitudeControl _attitude_control; /**< class for attitude control calculations */
+	StickYaw _stick_yaw{this};
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
+	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
+	uORB::Subscription _vehicle_attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Subscription _autotune_attitude_control_status_sub{ORB_ID(autotune_attitude_control_status)};
 	uORB::Subscription _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
-	uORB::Subscription _vehicle_attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
+	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 
@@ -122,8 +129,13 @@ private:
 
 	matrix::Vector3f _thrust_setpoint_body; /**< body frame 3D thrust vector */
 
-	float _man_yaw_sp{0.f};                 /**< current yaw setpoint in manual mode */
-	float _man_tilt_max;                    /**< maximum tilt allowed for manual flight [rad] */
+	float _hover_thrust_estimate{NAN};
+	SlewRate<float> _hover_thrust_slew_rate{.5f};
+
+	float _yaw_setpoint_stabilized{0.f};
+	bool _heading_good_for_control{true}; // initialized true to have heading lock when local position never published
+	float _unaided_heading{NAN}; // initialized NAN to not distract heading lock when local position never published
+	float _man_tilt_max{0.f};			/**< maximum tilt allowed for manual flight [rad] */
 	float _ht_gain;                    	/**< DTRG horizontal thrust rate */
 	int _ht_en;                        	/**< DTRG horizontal thrust enable */
 	int _ht_rc_en_add;				/**< DTRF HT RC enable channel */
@@ -133,14 +145,16 @@ private:
 	int _dtrg_ht_mask;
 
 
+	SlewRate<float> _manual_throttle_minimum{0.f}; ///< 0 when landed and ramped to MPC_MANTHR_MIN in air
+	SlewRate<float> _manual_throttle_maximum{0.f}; ///< 0 when disarmed ramped to 1 when spooled up
 	AlphaFilter<float> _man_roll_input_filter;
 	AlphaFilter<float> _man_pitch_input_filter;
 
 	hrt_abstime _last_run{0};
 	hrt_abstime _last_attitude_setpoint{0};
 
-	bool _reset_yaw_sp{true};
-	bool _heading_good_for_control{true}; ///< initialized true to have heading lock when local position never published
+	bool _spooled_up{false}; ///< used to make sure the vehicle cannot take off during the spoolup time
+	bool _landed{true};
 	bool _vehicle_type_rotary_wing{true};
 	bool _vtol{false};
 	bool _vtol_tailsitter{false};
@@ -164,12 +178,16 @@ private:
 		(ParamFloat<px4::params::MC_YAWRATE_MAX>)   _param_mc_yawrate_max,
 
 		/* Stabilized mode params */
-		(ParamFloat<px4::params::MPC_MAN_TILT_MAX>) _param_mpc_man_tilt_max,    /**< maximum tilt allowed for manual flight */
-		(ParamFloat<px4::params::MPC_MAN_Y_MAX>)    _param_mpc_man_y_max,       /**< scaling factor from stick to yaw rate */
-		(ParamFloat<px4::params::MPC_MANTHR_MIN>)   _param_mpc_manthr_min,      /**< minimum throttle for stabilized */
-		(ParamFloat<px4::params::MPC_THR_MAX>)      _param_mpc_thr_max,         /**< maximum throttle for stabilized */
-		(ParamFloat<px4::params::MPC_THR_HOVER>)    _param_mpc_thr_hover,       /**< throttle at stationary hover */
-		(ParamInt<px4::params::MPC_THR_CURVE>)      _param_mpc_thr_curve,       /**< throttle curve behavior */
+		(ParamFloat<px4::params::MPC_HOLD_DZ>) _param_mpc_hold_dz,
+		(ParamFloat<px4::params::MPC_MAN_TILT_MAX>) _param_mpc_man_tilt_max,
+		(ParamFloat<px4::params::MPC_MANTHR_MIN>) _param_mpc_manthr_min,
+		(ParamFloat<px4::params::MPC_THR_MAX>) _param_mpc_thr_max,
+		(ParamFloat<px4::params::MPC_THR_HOVER>) _param_mpc_thr_hover,
+		(ParamInt<px4::params::MPC_THR_CURVE>) _param_mpc_thr_curve,
+		(ParamFloat<px4::params::MPC_YAW_EXPO>) _param_mpc_yaw_expo,
+
+		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
+
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
 		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
 		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_h_t_R,		/**< horizontal thrust Roll channel */
@@ -179,4 +197,3 @@ private:
 
 	)
 };
-

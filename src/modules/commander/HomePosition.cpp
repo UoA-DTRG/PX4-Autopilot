@@ -34,6 +34,8 @@
 
 #include "HomePosition.hpp"
 
+#include <math.h>
+
 #include <lib/geo/geo.h>
 #include "commander_helper.h"
 
@@ -83,7 +85,8 @@ bool HomePosition::hasMovedFromCurrentHomeLocation()
 		}
 	}
 
-	return (home_dist_xy > eph * 2.f) || (home_dist_z > epv * 2.f);
+	return (home_dist_xy > fmaxf(eph * 2.f, kMinHomePositionChangeEPH))
+	       || (home_dist_z > fmaxf(epv * 2.f, kMinHomePositionChangeEPV));
 }
 
 bool HomePosition::setHomePosition(bool force)
@@ -129,6 +132,7 @@ bool HomePosition::setHomePosition(bool force)
 	if (updated) {
 		home.timestamp = hrt_absolute_time();
 		home.manual_home = false;
+		home.update_count = _home_position_pub.get().update_count + 1U;
 		updated = _home_position_pub.update(home);
 	}
 
@@ -152,10 +156,10 @@ void HomePosition::fillLocalHomePos(home_position_s &home, float x, float y, flo
 
 void HomePosition::fillGlobalHomePos(home_position_s &home, const vehicle_global_position_s &gpos)
 {
-	fillGlobalHomePos(home, gpos.lat, gpos.lon, gpos.alt);
+	fillGlobalHomePos(home, gpos.lat, gpos.lon, (double)gpos.alt);
 }
 
-void HomePosition::fillGlobalHomePos(home_position_s &home, double lat, double lon, float alt)
+void HomePosition::fillGlobalHomePos(home_position_s &home, double lat, double lon, double alt)
 {
 	home.lat = lat;
 	home.lon = lon;
@@ -166,7 +170,7 @@ void HomePosition::fillGlobalHomePos(home_position_s &home, double lat, double l
 
 void HomePosition::setInAirHomePosition()
 {
-	auto &home = _home_position_pub.get();
+	home_position_s &home = _home_position_pub.get();
 
 	if (home.manual_home || (home.valid_lpos && home.valid_hpos && home.valid_alt)) {
 		return;
@@ -189,10 +193,11 @@ void HomePosition::setInAirHomePosition()
 			ref_pos.reproject(home.x - lpos.x, home.y - lpos.y, home_lat, home_lon);
 
 			const float home_alt = gpos.alt + home.z;
-			fillGlobalHomePos(home, home_lat, home_lon, home_alt);
+			fillGlobalHomePos(home, home_lat, home_lon, (double)home_alt);
 
 			setHomePosValid();
 			home.timestamp = hrt_absolute_time();
+			home.update_count++;
 			_home_position_pub.update();
 
 		} else if (!_failsafe_flags.local_position_invalid && _gps_position_for_home_valid) {
@@ -206,11 +211,12 @@ void HomePosition::setInAirHomePosition()
 			double home_lon;
 			ref_pos.reproject(home.x - lpos.x, home.y - lpos.y, home_lat, home_lon);
 
-			const float home_alt = _gps_alt + home.z;
-			fillGlobalHomePos(home, home_lat, home_lon, home_alt);
+			const double home_alt = _gps_alt + (double)home.z;
+			fillGlobalHomePos(home, home_lat, home_lon, (double)home_alt);
 
 			setHomePosValid();
 			home.timestamp = hrt_absolute_time();
+			home.update_count++;
 			_home_position_pub.update();
 		}
 
@@ -230,6 +236,7 @@ void HomePosition::setInAirHomePosition()
 			fillLocalHomePos(home, home_x, home_y, home_z, NAN);
 
 			home.timestamp = hrt_absolute_time();
+			home.update_count++;
 			_home_position_pub.update();
 		}
 
@@ -244,13 +251,13 @@ void HomePosition::setInAirHomePosition()
 
 bool HomePosition::setManually(double lat, double lon, float alt, float yaw)
 {
-	const auto &vehicle_local_position = _local_position_sub.get();
+	const vehicle_local_position_s &vehicle_local_position = _local_position_sub.get();
 
 	if (!vehicle_local_position.xy_global || !vehicle_local_position.z_global) {
 		return false;
 	}
 
-	auto &home = _home_position_pub.get();
+	home_position_s &home = _home_position_pub.get();
 	home.manual_home = true;
 
 	home.lat = lat;
@@ -268,6 +275,7 @@ bool HomePosition::setManually(double lat, double lon, float alt, float yaw)
 	home.yaw = yaw;
 
 	home.timestamp = hrt_absolute_time();
+	home.update_count++;
 	_home_position_pub.update();
 	setHomePosValid();
 	return true;
@@ -304,9 +312,9 @@ void HomePosition::update(bool set_automatically, bool check_if_changed)
 		sensor_gps_s vehicle_gps_position;
 		_vehicle_gps_position_sub.copy(&vehicle_gps_position);
 
-		_gps_lat = static_cast<double>(vehicle_gps_position.lat) * 1e-7;
-		_gps_lon = static_cast<double>(vehicle_gps_position.lon) * 1e-7;
-		_gps_alt = static_cast<float>(vehicle_gps_position.alt) * 1e-3f;
+		_gps_lat = vehicle_gps_position.latitude_deg;
+		_gps_lon = vehicle_gps_position.longitude_deg;
+		_gps_alt = vehicle_gps_position.altitude_msl_m;
 		_gps_eph = vehicle_gps_position.eph;
 		_gps_epv = vehicle_gps_position.epv;
 
@@ -320,7 +328,7 @@ void HomePosition::update(bool set_automatically, bool check_if_changed)
 	}
 
 	const vehicle_local_position_s &lpos = _local_position_sub.get();
-	const auto &home = _home_position_pub.get();
+	const home_position_s &home = _home_position_pub.get();
 
 	if (lpos.heading_reset_counter != _heading_reset_counter) {
 		if (_valid && set_automatically) {
