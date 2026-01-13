@@ -1,11 +1,12 @@
 __max_num_mc_motors: &max_num_mc_motors 12
+__max_num_var_mixer: &max_num_var_mixer 11
 __max_num_servos: &max_num_servos 8
 __max_num_tilts: &max_num_tilts 4
 
 module_name: Control Allocation
 
 parameters:
-    - group: Geometry
+    - group: DTRG
       definitions:
         DTRG_CSV_MIXER:
             description:
@@ -28,6 +29,58 @@ parameters:
                 0: Disabled
                 1: Enabled
             default: 0
+    - group: Variable Mixer
+      definitions:
+        MIX_EDIT_EN:
+            description:
+                short: Enable Changing scaling of rotor
+                long: |
+                  Setting constant Sun Motor Map Scaling.
+                  0 (false) represents the motor map will be unchanged.
+                  1 (true) represents the motor map will be changed by
+                  the value in MIXER_SUN_SCALE for the last two rotors
+                  representing Planetary Hex
+            type: enum
+            values:
+                0: Disabled
+                1: Enabled
+            default: 0
+        MIX_EDIT_VAL:
+            description:
+                short: Rotor Scaling of group ${i}
+                long: |
+                  Setting the Rotor Scaling of group ${i}.
+                  Setting this variable to 1 represents equal vertical thrust usage in terms of
+                  throttle. Increasing it more than one means sun rotors are used more,
+                  while decreasing increases planet rotor usage
+            type: float
+            decimal: 2
+            increment: 0.01
+            min: 0.5
+            max: 2
+            default: 1.0
+        MIX_EDIT_MOTORS:
+            description:
+                short: Rotors with scaling group ${i}
+                long: |
+                  Choose the rotors with a scale of MIXER_SCALE_${i}.
+            type: bitmask
+            bit:
+                0: Motor 1
+                1: Motor 2
+                2: Motor 3
+                3: Motor 4
+                4: Motor 5
+                5: Motor 6
+                6: Motor 7
+                7: Motor 8
+                8: Motor 9
+                9: Motor 10
+                10: Motor 11
+                11: Motor 12
+            default: 0
+    - group: Geometry
+      definitions:
         CA_AIRFRAME:
             description:
                 short: Airframe selection

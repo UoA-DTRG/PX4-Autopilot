@@ -90,6 +90,30 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 			normalizeControlAllocationMatrix();
 		}
 
+
+
+
+		if (_param_mixer_edit_en.get()){
+
+			int motorUsed;
+
+			for  (int i = 0; i < 12; i++) {
+				if (~(_param_mixer_edit_motors.get() & (1u << i))) {
+					motorUsed=i;
+					break;
+				}
+			}
+
+			float newScaling = _param_mixer_edit_val.get();
+			for (int i = 0; i < 12; i++) {
+				if (_param_mixer_edit_motors.get() & (1u << i)) {
+					_mix(i,5)=newScaling*_mix(motorUsed,5);
+				}
+			}
+		}
+
+		normalizeControlAllocationMatrix();
+
 		_mix_update_needed = false;
 
 	}

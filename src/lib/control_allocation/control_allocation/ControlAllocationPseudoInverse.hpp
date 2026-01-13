@@ -89,6 +89,9 @@ private:
 	DEFINE_PARAMETERS_CUSTOM_PARENT(
 		ModuleParams,
 		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer,
-		(ParamInt<px4::params::DTRG_MIXER_NORM>) _mixer_normalization
+		(ParamInt<px4::params::DTRG_MIXER_NORM>) _mixer_normalization,
+		(ParamFloat<px4::params::MIX_EDIT_VAL>) _param_mixer_edit_val,
+		(ParamInt<px4::params::MIX_EDIT_MOTORS>) _param_mixer_edit_motors,
+		(ParamBool<px4::params::MIX_EDIT_EN>) _param_mixer_edit_en
 	);
 };
