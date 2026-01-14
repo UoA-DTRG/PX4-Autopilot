@@ -30,6 +30,7 @@ This DTRG fork is designed with the following airframes in mind:
 * PlanarOcto (flat octocopter)
 * Planatary Hex (modified flat hexacopter)
 * P#1
+* Fantail (quadcopter with additonal rear forward-facing propellor)
 
 Precompiled binaries for relevant flight controllers and information about the firmware can be found in the releases tab of this reporitory
 
