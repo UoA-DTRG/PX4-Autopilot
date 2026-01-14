@@ -167,7 +167,7 @@ private:
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPOY>) _param_mc_acro_supexpoy,		/**< superexpo stick curve shape (yaw) */
 
 		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
-		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer,
+		(ParamInt<px4::params::DTRG_MIXER_CSV>) _csv_mixer,
 		(ParamInt<px4::params::DTRG_WINDUP_EN>) _param_antiwindup_en
 
 	)
