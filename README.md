@@ -36,7 +36,10 @@ Precompiled binaries for relevant flight controllers and information about the f
 
 Documentation for features implemented in v1.14 can be found in the DTRG teams drive documentation folder. It is highly recommended to read the documentation before attempting to use the firmware as some features may pose a safety risk if not used correctly.
 
-
+## Developer Notes
+ When modifying please use your own branch following the following convention:
+ yourname/feature-or-specific-branch-name
+ If you are developing a feature please ensure that the feature is fully parameterised and tested before creating a Pull Request. On acceptance of the merge request a release with commonly used binaries should be made. Binaries should be built with the git version tag v{major_version}-{dtrg-version} i.e. v1.16.0-1.2.3
 
 ## Project Governance
 
