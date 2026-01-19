@@ -55,7 +55,6 @@
 #include <uORB/topics/effectiveness_estimate.h>
 #include <uORB/topics/mixer_estimate.h>
 #include <uORB/topics/parameter_update.h>
-#include <uORB/topics/vehicle_angular_acceleration.h>
 #include <uORB/topics/vehicle_angular_velocity.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_status.h>
@@ -107,10 +106,12 @@ private:
 
 	// Vehicle state
 	matrix::Vector3f _angular_velocity;
+	matrix::Vector3f _angular_velocity_prev;
 	matrix::Vector3f _angular_acceleration;
 	matrix::Quatf _attitude;
 	float _actuator_outputs[MAX_ROTORS] {};
 	uint8_t _num_rotors{4};
+	hrt_abstime _angular_velocity_timestamp_prev{0};
 
 	bool _armed{false};
 	bool _estimation_valid{false};
@@ -118,7 +119,6 @@ private:
 	// Subscriptions
 	uORB::Subscription _actuator_outputs_sub{ORB_ID(actuator_outputs)};
 	uORB::Subscription _vehicle_angular_velocity_sub{ORB_ID(vehicle_angular_velocity)};
-	uORB::Subscription _vehicle_angular_acceleration_sub{ORB_ID(vehicle_angular_acceleration)};
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _parameter_update_sub{ORB_ID(parameter_update)};

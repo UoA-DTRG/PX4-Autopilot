@@ -150,14 +150,20 @@ void EffectivenessEstimator::Run()
 	if (_vehicle_angular_velocity_sub.updated()) {
 		vehicle_angular_velocity_s angular_velocity;
 		_vehicle_angular_velocity_sub.copy(&angular_velocity);
+		
+		// Store previous values for differentiation
+		_angular_velocity_prev = _angular_velocity;
 		_angular_velocity = Vector3f(angular_velocity.xyz);
-		data_updated = true;
-	}
-
-	if (_vehicle_angular_acceleration_sub.updated()) {
-		vehicle_angular_acceleration_s angular_acceleration;
-		_vehicle_angular_acceleration_sub.copy(&angular_acceleration);
-		_angular_acceleration = Vector3f(angular_acceleration.xyz);
+		
+		// Compute angular acceleration via finite difference
+		if (_angular_velocity_timestamp_prev > 0) {
+			const float dt = (angular_velocity.timestamp - _angular_velocity_timestamp_prev) * 1e-6f;
+			if (dt > 0.0f && dt < 1.0f) { // Sanity check
+				_angular_acceleration = (_angular_velocity - _angular_velocity_prev) / dt;
+			}
+		}
+		_angular_velocity_timestamp_prev = angular_velocity.timestamp;
+		
 		data_updated = true;
 	}
 
