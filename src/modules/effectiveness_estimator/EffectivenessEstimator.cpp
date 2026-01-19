@@ -290,8 +290,9 @@ void EffectivenessEstimator::updateEstimation()
 	
 	_sample_count++;
 	
-	// Update effectiveness matrix from theta
-	for (size_t i = 0; i < DOF; i++) {
+	// Update effectiveness matrix from theta (only moment rows to avoid stale data)
+	// Force rows (0-2) remain zero as we only estimate moments
+	for (size_t i = 3; i < DOF; i++) { // Only update moment axes
 		for (size_t j = 0; j < _num_rotors && j < MAX_ROTORS; j++) {
 			size_t param_idx = i * MAX_ROTORS + j;
 			_effectiveness(i, j) = _theta(param_idx);
@@ -336,6 +337,7 @@ bool EffectivenessEstimator::computeMixer()
 	// For a quadcopter: 3 moment axes x N rotors
 	static constexpr size_t MOMENT_AXES = 3;
 	matrix::Matrix<float, MOMENT_AXES, MAX_ROTORS> B_moments;
+	B_moments.setZero(); // Initialize to zero to avoid uninitialized memory
 	
 	for (size_t i = 0; i < MOMENT_AXES; i++) {
 		for (size_t j = 0; j < _num_rotors && j < MAX_ROTORS; j++) {

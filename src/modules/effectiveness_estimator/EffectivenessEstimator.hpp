@@ -44,7 +44,6 @@
 #include <drivers/drv_hrt.h>
 #include <lib/perf/perf_counter.h>
 #include <lib/matrix/matrix/math.hpp>
-#include <lib/matrix/matrix/PseudoInverse.hpp>
 #include <px4_platform_common/defines.h>
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
