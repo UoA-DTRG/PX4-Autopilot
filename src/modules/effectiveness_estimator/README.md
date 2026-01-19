@@ -41,6 +41,11 @@ This module is designed for:
 ### Update Rate
 - `EFF_EST_UPDATE_RATE` (FLOAT): Estimator update frequency in Hz (10.0 - 500.0, default: 50.0)
 
+### Convergence Parameters
+- `EFF_EST_CONV_VAR` (FLOAT): Maximum average variance for convergence (0.01 - 10.0, default: 1.0)
+- `EFF_EST_CONV_INNOV` (FLOAT): Maximum RMS innovation for convergence in N·m (0.1 - 100.0, default: 10.0)
+- `EFF_EST_MIN_EXCITE` (FLOAT): Minimum actuator excitation threshold (0.001 - 0.5, default: 0.01)
+
 ## Published Topics
 
 ### effectiveness_estimate
@@ -76,6 +81,13 @@ param set EFF_EST_IYY 0.029     # Inertia about Y axis
 param set EFF_EST_IZZ 0.055     # Inertia about Z axis
 ```
 
+### Configure Convergence Thresholds (Optional)
+```
+param set EFF_EST_CONV_VAR 1.0      # Maximum variance for convergence
+param set EFF_EST_CONV_INNOV 10.0   # Maximum RMS innovation (N*m)
+param set EFF_EST_MIN_EXCITE 0.01   # Minimum actuator excitation
+```
+
 ### Start the Module
 The module will start automatically when armed if `EFF_EST_ENABLE` is set to 1.
 
@@ -108,20 +120,37 @@ mixer_estimate
 ### Current State
 - ✅ Module structure and framework
 - ✅ Message definitions
-- ✅ Parameter configuration
+- ✅ Parameter configuration (12 parameters)
 - ✅ Angular acceleration computation
-- ⚠️ RLS estimation algorithm (placeholder/incomplete)
-- ⚠️ Mixer computation (placeholder)
+- ✅ **Complete RLS estimation algorithm**
+- ✅ **Convergence detection with configurable thresholds**
+- ✅ **Mixer pseudo-inverse computation**
+- ✅ Logger integration
+- ✅ Board configuration (SITL default)
 
-### Future Work
-1. Complete RLS estimation implementation
-   - Construct regressor matrix from actuator outputs
-   - Form measurement vector from IMU data
-   - Implement RLS update equations
-2. Add convergence detection
-3. Implement mixer pseudo-inverse computation
-4. Add data quality checks
-5. Optional: Integration with control allocator (research feature)
+### RLS Algorithm Details
+
+The implemented RLS algorithm:
+1. **Regressor Construction**: Forms regressor vector from actuator outputs
+2. **Measurement Vector**: Computes measured moments = angular_acceleration × inertia
+3. **Kalman Gain**: K = P*phi / (lambda + phi'*P*phi)
+4. **Innovation**: innovation = measurement - phi'*theta
+5. **Parameter Update**: theta = theta + K*innovation
+6. **Covariance Update**: P = (P - K*phi'*P) / lambda
+7. **Per-Axis Tracking**: Separate innovation tracking for Mx, My, Mz
+
+### Convergence Criteria
+
+Estimation is marked valid when:
+- Sample count ≥ 100
+- Average parameter variance < EFF_EST_CONV_VAR (default: 1.0)
+- RMS innovation < EFF_EST_CONV_INNOV (default: 10.0 N·m)
+
+### Future Enhancements (Optional)
+1. Force axis estimation (Fx, Fy, Fz) in addition to moments
+2. Online inertia estimation
+3. Adaptive forgetting factor
+4. Integration with control allocator (research feature)
 
 ## Technical Details
 
