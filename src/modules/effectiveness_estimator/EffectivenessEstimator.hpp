@@ -99,9 +99,10 @@ private:
 	matrix::Matrix<float, MAX_ROTORS * DOF, MAX_ROTORS * DOF> _P; // Covariance matrix
 	matrix::Vector<float, MAX_ROTORS * DOF> _theta;                // Parameter vector (effectiveness)
 	float _lambda{0.99f};                                           // Forgetting factor
-	float _innovation{0.0f};                                        // Innovation (prediction error)
+	matrix::Vector3f _innovations;                                  // Innovation per moment axis (Mx, My, Mz)
 	uint32_t _sample_count{0};                                      // Number of samples processed
 	static constexpr uint32_t MIN_SAMPLES_FOR_CONVERGENCE = 100;   // Minimum samples before considering convergence
+	static constexpr float RLS_NUMERICAL_EPSILON = 1e-6f;          // Numerical stability threshold
 
 	// Effectiveness and mixer matrices
 	matrix::Matrix<float, DOF, MAX_ROTORS> _effectiveness;
@@ -144,6 +145,9 @@ private:
 		(ParamFloat<px4::params::EFF_EST_IXX>) _param_eff_est_ixx,
 		(ParamFloat<px4::params::EFF_EST_IYY>) _param_eff_est_iyy,
 		(ParamFloat<px4::params::EFF_EST_IZZ>) _param_eff_est_izz,
-		(ParamFloat<px4::params::EFF_EST_UPDATE_RATE>) _param_eff_est_update_rate
+		(ParamFloat<px4::params::EFF_EST_UPDATE_RATE>) _param_eff_est_update_rate,
+		(ParamFloat<px4::params::EFF_EST_CONV_VAR>) _param_eff_est_conv_var,
+		(ParamFloat<px4::params::EFF_EST_CONV_INNOV>) _param_eff_est_conv_innov,
+		(ParamFloat<px4::params::EFF_EST_MIN_EXCITE>) _param_eff_est_min_excite
 	)
 };

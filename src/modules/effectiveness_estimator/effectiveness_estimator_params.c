@@ -152,3 +152,43 @@ PARAM_DEFINE_FLOAT(EFF_EST_IZZ, 0.055);
  * @group Effectiveness Estimator
  */
 PARAM_DEFINE_FLOAT(EFF_EST_UPDATE_RATE, 50.0);
+
+/**
+ * Convergence variance threshold
+ *
+ * Maximum average parameter variance for convergence detection.
+ * Lower values require tighter convergence.
+ *
+ * @decimal 2
+ * @min 0.01
+ * @max 10.0
+ * @group Effectiveness Estimator
+ */
+PARAM_DEFINE_FLOAT(EFF_EST_CONV_VAR, 1.0);
+
+/**
+ * Convergence innovation threshold
+ *
+ * Maximum RMS innovation for convergence detection.
+ * Lower values require better fit to measurements.
+ *
+ * @decimal 1
+ * @min 0.1
+ * @max 100.0
+ * @unit N*m
+ * @group Effectiveness Estimator
+ */
+PARAM_DEFINE_FLOAT(EFF_EST_CONV_INNOV, 10.0);
+
+/**
+ * Minimum excitation threshold
+ *
+ * Minimum actuator output norm required for RLS update.
+ * Prevents updates with insufficient excitation.
+ *
+ * @decimal 3
+ * @min 0.001
+ * @max 0.5
+ * @group Effectiveness Estimator
+ */
+PARAM_DEFINE_FLOAT(EFF_EST_MIN_EXCITE, 0.01);

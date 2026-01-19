@@ -217,7 +217,8 @@ void EffectivenessEstimator::updateEstimation()
 	
 	// Check if we have enough excitation (actuators not at zero)
 	float actuator_norm = phi.norm();
-	if (actuator_norm < 0.01f) {
+	const float min_excitation = _param_eff_est_min_excite.get();
+	if (actuator_norm < min_excitation) {
 		// Not enough excitation, skip this sample
 		return;
 	}
@@ -254,7 +255,7 @@ void EffectivenessEstimator::updateEstimation()
 		const float phi_P_phi = (phi.transpose() * P_phi)(0, 0);
 		const float denominator = _lambda + phi_P_phi;
 		
-		if (fabsf(denominator) < 1e-6f) {
+		if (fabsf(denominator) < RLS_NUMERICAL_EPSILON) {
 			continue; // Avoid division by zero
 		}
 		
@@ -262,10 +263,11 @@ void EffectivenessEstimator::updateEstimation()
 		
 		// Innovation: y - phi' * theta
 		const float prediction = (phi.transpose() * theta_axis)(0, 0);
-		_innovation = measured_moments(axis_idx) - prediction;
+		const float innovation = measured_moments(axis_idx) - prediction;
+		_innovations(axis_idx) = innovation; // Store innovation per axis
 		
 		// Update parameters
-		theta_axis = theta_axis + K * _innovation;
+		theta_axis = theta_axis + K * innovation;
 		
 		// Update covariance
 		P_axis = (P_axis - K * phi.transpose() * P_axis) / _lambda;
@@ -313,9 +315,14 @@ void EffectivenessEstimator::updateEstimation()
 		if (param_count > 0) {
 			avg_variance /= param_count;
 			
-			// Consider converged if average variance is low enough
-			// and innovation is reasonable
-			_estimation_valid = (avg_variance < 1.0f) && (fabsf(_innovation) < 10.0f);
+			// Compute RMS innovation across all moment axes
+			float rms_innovation = _innovations.norm() / sqrtf(3.0f);
+			
+			// Consider converged if average variance and innovation are low enough
+			const float variance_threshold = _param_eff_est_conv_var.get();
+			const float innovation_threshold = _param_eff_est_conv_innov.get();
+			
+			_estimation_valid = (avg_variance < variance_threshold) && (rms_innovation < innovation_threshold);
 		}
 	}
 }
@@ -373,7 +380,7 @@ void EffectivenessEstimator::publishEstimates(const hrt_abstime &timestamp)
 	}
 
 	eff_est.estimation_variance = 0.0f; // Compute average variance from P
-	eff_est.innovation = _innovation;
+	eff_est.innovation = _innovations.norm() / sqrtf(3.0f); // RMS innovation
 	eff_est.estimation_valid = _estimation_valid;
 	
 	// Compute average variance from covariance matrix diagonal
