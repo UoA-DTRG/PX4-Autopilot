@@ -189,57 +189,171 @@ void EffectivenessEstimator::Run()
 void EffectivenessEstimator::updateEstimation()
 {
 	// RLS update for effectiveness estimation
-	// This is a simplified implementation - full RLS would need proper
-	// regressor construction from vehicle dynamics
-
-	// Get rotation matrix from body to world frame
-	const Dcmf R(_attitude);
-
-	// Construct measurement vector (body frame forces and moments)
-	const float mass = _param_eff_est_mass.get();
+	// Estimates the effectiveness matrix B where:
+	// [Mx, My, Mz]^T = B * u (where u is the actuator output vector)
+	
+	// For moment estimation, we use:
+	// y = measured_moments (from IMU angular acceleration * inertia)
+	// phi = actuator outputs (regressor)
+	// theta = effectiveness parameters (one row of B per moment axis)
+	
 	const Vector3f inertia(_param_eff_est_ixx.get(), 
 						   _param_eff_est_iyy.get(), 
 						   _param_eff_est_izz.get());
-
-	// Measured angular acceleration in body frame (moments / inertia)
+	
+	// Measured moments in body frame (angular_acceleration * inertia)
 	Vector3f measured_moments;
 	measured_moments(0) = _angular_acceleration(0) * inertia(0);
 	measured_moments(1) = _angular_acceleration(1) * inertia(1);
 	measured_moments(2) = _angular_acceleration(2) * inertia(2);
-
-	// For force estimation, we would need linear acceleration
-	// For now, focus on moment estimation which is more observable
-	// This is a placeholder for the full RLS implementation
-
-	// Note: A complete implementation would:
-	// 1. Construct regressor matrix from actuator outputs
-	// 2. Form measurement vector from IMU data
-	// 3. Update RLS with: K = P*phi / (lambda + phi'*P*phi)
-	//                     theta = theta + K * (y - phi'*theta)
-	//                     P = (P - K*phi'*P) / lambda
-
-	// Only mark as valid when we have enough samples and good data quality
-	// For now, keep as false until RLS implementation is complete
-	_estimation_valid = false;
+	
+	// Construct regressor vector from actuator outputs (only active rotors)
+	matrix::Vector<float, MAX_ROTORS> phi;
+	phi.setZero();
+	
+	for (uint8_t i = 0; i < _num_rotors && i < MAX_ROTORS; i++) {
+		phi(i) = _actuator_outputs[i];
+	}
+	
+	// Check if we have enough excitation (actuators not at zero)
+	float actuator_norm = phi.norm();
+	if (actuator_norm < 0.01f) {
+		// Not enough excitation, skip this sample
+		return;
+	}
+	
+	// Update RLS for each moment axis (Mx, My, Mz)
+	// For simplicity, we update only the moment axes (indices 3, 4, 5 in DOF)
+	// Full implementation would also estimate force axes (0, 1, 2)
+	for (size_t moment_idx = 3; moment_idx < DOF; moment_idx++) {
+		size_t axis_idx = moment_idx - 3; // 0=Mx, 1=My, 2=Mz
+		
+		// Extract parameter vector for this axis
+		matrix::Vector<float, MAX_ROTORS> theta_axis;
+		for (size_t j = 0; j < MAX_ROTORS; j++) {
+			size_t param_idx = moment_idx * MAX_ROTORS + j;
+			theta_axis(j) = _theta(param_idx);
+		}
+		
+		// Extract covariance sub-matrix for this axis
+		matrix::Matrix<float, MAX_ROTORS, MAX_ROTORS> P_axis;
+		for (size_t i = 0; i < MAX_ROTORS; i++) {
+			for (size_t j = 0; j < MAX_ROTORS; j++) {
+				size_t row = moment_idx * MAX_ROTORS + i;
+				size_t col = moment_idx * MAX_ROTORS + j;
+				P_axis(i, j) = _P(row, col);
+			}
+		}
+		
+		// RLS update equations:
+		// K = P * phi / (lambda + phi' * P * phi)
+		// theta_new = theta + K * (y - phi' * theta)
+		// P_new = (P - K * phi' * P) / lambda
+		
+		const matrix::Vector<float, MAX_ROTORS> P_phi = P_axis * phi;
+		const float phi_P_phi = (phi.transpose() * P_phi)(0, 0);
+		const float denominator = _lambda + phi_P_phi;
+		
+		if (fabsf(denominator) < 1e-6f) {
+			continue; // Avoid division by zero
+		}
+		
+		const matrix::Vector<float, MAX_ROTORS> K = P_phi / denominator;
+		
+		// Innovation: y - phi' * theta
+		const float prediction = (phi.transpose() * theta_axis)(0, 0);
+		_innovation = measured_moments(axis_idx) - prediction;
+		
+		// Update parameters
+		theta_axis = theta_axis + K * _innovation;
+		
+		// Update covariance
+		P_axis = (P_axis - K * phi.transpose() * P_axis) / _lambda;
+		
+		// Store updated parameters back
+		for (size_t j = 0; j < MAX_ROTORS; j++) {
+			size_t param_idx = moment_idx * MAX_ROTORS + j;
+			_theta(param_idx) = theta_axis(j);
+		}
+		
+		// Store updated covariance back
+		for (size_t i = 0; i < MAX_ROTORS; i++) {
+			for (size_t j = 0; j < MAX_ROTORS; j++) {
+				size_t row = moment_idx * MAX_ROTORS + i;
+				size_t col = moment_idx * MAX_ROTORS + j;
+				_P(row, col) = P_axis(i, j);
+			}
+		}
+	}
+	
+	_sample_count++;
+	
+	// Update effectiveness matrix from theta
+	for (size_t i = 0; i < DOF; i++) {
+		for (size_t j = 0; j < _num_rotors && j < MAX_ROTORS; j++) {
+			size_t param_idx = i * MAX_ROTORS + j;
+			_effectiveness(i, j) = _theta(param_idx);
+		}
+	}
+	
+	// Check convergence: sufficient samples and low innovation variance
+	if (_sample_count >= MIN_SAMPLES_FOR_CONVERGENCE) {
+		// Compute variance of P diagonal for active parameters
+		float avg_variance = 0.0f;
+		uint32_t param_count = 0;
+		
+		for (size_t i = 3; i < DOF; i++) { // Only check moment axes
+			for (size_t j = 0; j < _num_rotors && j < MAX_ROTORS; j++) {
+				size_t param_idx = i * MAX_ROTORS + j;
+				avg_variance += _P(param_idx, param_idx);
+				param_count++;
+			}
+		}
+		
+		if (param_count > 0) {
+			avg_variance /= param_count;
+			
+			// Consider converged if average variance is low enough
+			// and innovation is reasonable
+			_estimation_valid = (avg_variance < 1.0f) && (fabsf(_innovation) < 10.0f);
+		}
+	}
 }
 
 bool EffectivenessEstimator::computeMixer()
 {
 	// Compute pseudo-inverse of effectiveness matrix to get mixer
 	// mixer = pinv(effectiveness)
-
-	// Extract the active portion of the effectiveness matrix
-	Matrix<float, DOF, MAX_ROTORS> B_active;
-
-	for (size_t i = 0; i < DOF; i++) {
-		for (size_t j = 0; j < _num_rotors; j++) {
-			B_active(i, j) = _effectiveness(i, j);
+	
+	// Extract the active portion of the effectiveness matrix (only moment axes)
+	// For a quadcopter: 3 moment axes x N rotors
+	static constexpr size_t MOMENT_AXES = 3;
+	matrix::Matrix<float, MOMENT_AXES, MAX_ROTORS> B_moments;
+	
+	for (size_t i = 0; i < MOMENT_AXES; i++) {
+		for (size_t j = 0; j < _num_rotors && j < MAX_ROTORS; j++) {
+			B_moments(i, j) = _effectiveness(i + 3, j); // Rows 3,4,5 are Mx,My,Mz
 		}
 	}
-
-	// For now, return false as we need to implement proper pseudo-inverse
-	// In production code, use Matrix pseudoInverse() method
-	_mixer_valid = false;
+	
+	// Compute pseudo-inverse using geninv from matrix library
+	matrix::Matrix<float, MAX_ROTORS, MOMENT_AXES> mixer_moments;
+	
+	if (!matrix::geninv(B_moments, mixer_moments)) {
+		_mixer_valid = false;
+		return false;
+	}
+	
+	// Store the mixer (expand to full DOF x rotors, zero-fill force rows)
+	_mixer.setZero();
+	
+	for (size_t i = 0; i < _num_rotors && i < MAX_ROTORS; i++) {
+		for (size_t j = 0; j < MOMENT_AXES; j++) {
+			_mixer(i, j + 3) = mixer_moments(i, j); // Columns 3,4,5 are Mx,My,Mz
+		}
+	}
+	
+	_mixer_valid = true;
 	return _mixer_valid;
 }
 
@@ -258,9 +372,23 @@ void EffectivenessEstimator::publishEstimates(const hrt_abstime &timestamp)
 		}
 	}
 
-	eff_est.estimation_variance = 0.0f; // TODO: compute from P
-	eff_est.innovation = 0.0f;           // TODO: track innovation
+	eff_est.estimation_variance = 0.0f; // Compute average variance from P
+	eff_est.innovation = _innovation;
 	eff_est.estimation_valid = _estimation_valid;
+	
+	// Compute average variance from covariance matrix diagonal
+	float variance_sum = 0.0f;
+	uint32_t variance_count = 0;
+	for (size_t i = 3; i < DOF; i++) { // Only moment axes
+		for (size_t j = 0; j < _num_rotors && j < MAX_ROTORS; j++) {
+			size_t param_idx = i * MAX_ROTORS + j;
+			variance_sum += _P(param_idx, param_idx);
+			variance_count++;
+		}
+	}
+	if (variance_count > 0) {
+		eff_est.estimation_variance = variance_sum / variance_count;
+	}
 
 	eff_est.mass = _param_eff_est_mass.get();
 	eff_est.inertia_diagonal[0] = _param_eff_est_ixx.get();

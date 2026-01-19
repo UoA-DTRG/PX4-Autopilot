@@ -44,6 +44,7 @@
 #include <drivers/drv_hrt.h>
 #include <lib/perf/perf_counter.h>
 #include <lib/matrix/matrix/math.hpp>
+#include <lib/matrix/matrix/PseudoInverse.hpp>
 #include <px4_platform_common/defines.h>
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
@@ -98,6 +99,9 @@ private:
 	matrix::Matrix<float, MAX_ROTORS * DOF, MAX_ROTORS * DOF> _P; // Covariance matrix
 	matrix::Vector<float, MAX_ROTORS * DOF> _theta;                // Parameter vector (effectiveness)
 	float _lambda{0.99f};                                           // Forgetting factor
+	float _innovation{0.0f};                                        // Innovation (prediction error)
+	uint32_t _sample_count{0};                                      // Number of samples processed
+	static constexpr uint32_t MIN_SAMPLES_FOR_CONVERGENCE = 100;   // Minimum samples before considering convergence
 
 	// Effectiveness and mixer matrices
 	matrix::Matrix<float, DOF, MAX_ROTORS> _effectiveness;
