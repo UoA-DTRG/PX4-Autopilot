@@ -96,9 +96,7 @@ void EffectivenessEstimator::updateParams()
 	ModuleParams::updateParams();
 
 	_lambda = _param_eff_est_lambda.get();
-	_num_rotors = math::constrain(static_cast<uint8_t>(_param_eff_est_num_rotors.get()), 
-								  static_cast<uint8_t>(1), 
-								  MAX_ROTORS);
+	_num_rotors = math::constrain(static_cast<uint8_t>(_param_eff_est_num_rotors.get()), 1, MAX_ROTORS);
 
 	// Update rate is in Hz, need to convert to interval in microseconds
 	const uint32_t interval_us = static_cast<uint32_t>(1000000.0f / _param_eff_est_update_rate.get());
@@ -277,8 +275,9 @@ void EffectivenessEstimator::publishEstimates(const hrt_abstime &timestamp)
 		mixer_est.timestamp = timestamp;
 		mixer_est.num_rotors = _num_rotors;
 
-		// Copy mixer matrix (num_rotors x 6, row-major storage)
-		// Storage order: [fx_to_rotor0, fy_to_rotor0, ..., mz_to_rotor0, fx_to_rotor1, ...]
+		// Copy mixer matrix (num_rotors x 6, row-major format)
+		// Row i represents how rotor i responds to [Fx, Fy, Fz, Mx, My, Mz]
+		// Storage: [fx_to_rotor0, fy_to_rotor0, ..., mz_to_rotor0, fx_to_rotor1, ...]
 		for (size_t i = 0; i < _num_rotors && i < MAX_ROTORS; i++) {
 			for (size_t j = 0; j < DOF; j++) {
 				mixer_est.mixer_matrix[i * DOF + j] = _mixer(i, j);
