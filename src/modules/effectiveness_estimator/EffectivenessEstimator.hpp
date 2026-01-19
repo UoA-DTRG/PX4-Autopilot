@@ -129,7 +129,7 @@ private:
 
 	hrt_abstime _timestamp_last{0};
 
-	perf_counter_t _cycle_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle time")};
+	perf_counter_t _cycle_perf{perf_alloc(PC_ELAPSED, "effectiveness_estimator: cycle time")};
 
 	DEFINE_PARAMETERS(
 		(ParamBool<px4::params::EFF_EST_ENABLE>) _param_eff_est_enable,

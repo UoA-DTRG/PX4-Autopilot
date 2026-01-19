@@ -46,7 +46,7 @@ using namespace matrix;
 
 EffectivenessEstimator::EffectivenessEstimator() :
 	ModuleParams(nullptr),
-	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
+	ScheduledWorkItem("effectiveness_estimator", px4::wq_configurations::nav_and_controllers)
 {
 	updateParams();
 	reset();
@@ -64,7 +64,9 @@ bool EffectivenessEstimator::init()
 		return false;
 	}
 
-	ScheduleOnInterval(_param_eff_est_update_rate.get() * 1000); // Convert Hz to us
+	// Schedule at the configured update rate (convert Hz to microseconds interval)
+	const uint32_t interval_us = static_cast<uint32_t>(1000000.0f / _param_eff_est_update_rate.get());
+	ScheduleOnInterval(interval_us);
 	return true;
 }
 
@@ -98,7 +100,9 @@ void EffectivenessEstimator::updateParams()
 								  static_cast<uint8_t>(1), 
 								  MAX_ROTORS);
 
-	if (ScheduleOnInterval(_param_eff_est_update_rate.get() * 1000) != PX4_OK) {
+	// Update rate is in Hz, need to convert to interval in microseconds
+	const uint32_t interval_us = static_cast<uint32_t>(1000000.0f / _param_eff_est_update_rate.get());
+	if (ScheduleOnInterval(interval_us) != PX4_OK) {
 		PX4_ERR("Failed to update scheduling interval");
 	}
 }
@@ -216,7 +220,9 @@ void EffectivenessEstimator::updateEstimation()
 	//                     theta = theta + K * (y - phi'*theta)
 	//                     P = (P - K*phi'*P) / lambda
 
-	_estimation_valid = true; // Set to true once we have enough data
+	// Only mark as valid when we have enough samples and good data quality
+	// For now, keep as false until RLS implementation is complete
+	_estimation_valid = false;
 }
 
 bool EffectivenessEstimator::computeMixer()
@@ -246,7 +252,8 @@ void EffectivenessEstimator::publishEstimates(const hrt_abstime &timestamp)
 	eff_est.timestamp = timestamp;
 	eff_est.num_rotors = _num_rotors;
 
-	// Copy effectiveness matrix (row-major order)
+	// Copy effectiveness matrix (6 x num_rotors, row-major storage)
+	// Storage order: [rotor0_fx, rotor1_fx, ..., rotor15_fx, rotor0_fy, ...]
 	for (size_t i = 0; i < DOF; i++) {
 		for (size_t j = 0; j < _num_rotors && j < MAX_ROTORS; j++) {
 			eff_est.effectiveness_matrix[i * MAX_ROTORS + j] = _effectiveness(i, j);
@@ -270,10 +277,11 @@ void EffectivenessEstimator::publishEstimates(const hrt_abstime &timestamp)
 		mixer_est.timestamp = timestamp;
 		mixer_est.num_rotors = _num_rotors;
 
-		// Copy mixer matrix (row-major order)
+		// Copy mixer matrix (num_rotors x 6, row-major storage)
+		// Storage order: [fx_to_rotor0, fy_to_rotor0, ..., mz_to_rotor0, fx_to_rotor1, ...]
 		for (size_t i = 0; i < _num_rotors && i < MAX_ROTORS; i++) {
 			for (size_t j = 0; j < DOF; j++) {
-				mixer_est.mixer_matrix[j * MAX_ROTORS + i] = _mixer(i, j);
+				mixer_est.mixer_matrix[i * DOF + j] = _mixer(i, j);
 			}
 		}
 
