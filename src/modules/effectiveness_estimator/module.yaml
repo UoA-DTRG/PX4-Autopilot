@@ -1,0 +1,142 @@
+module_name: effectiveness_estimator
+
+parameters:
+    - group: Effectiveness Estimator
+      definitions:
+        EFF_EST_ACT:
+            description:
+                short: Enable effectiveness estimator
+                long: |
+                    Enable the RLS-based effectiveness matrix estimator.
+                    The estimator runs in the background and logs estimates
+                    without affecting the control allocation.
+            type: boolean
+            default: 0
+
+        EFF_EST_LAMBDA:
+            description:
+                short: RLS forgetting factor
+                long: |
+                    Forgetting factor for the RLS algorithm.
+                    Higher values (closer to 1.0) give more weight to past data.
+                    Lower values allow faster adaptation to changes.
+            type: float
+            decimal: 4
+            min: 0.9
+            max: 0.9999
+            default: 0.99
+
+        EFF_EST_P_INIT:
+            description:
+                short: Initial covariance value
+                long: |
+                    Initial diagonal value for the RLS covariance matrix.
+                    Higher values indicate higher initial uncertainty.
+            type: float
+            decimal: 1
+            min: 1.0
+            max: 10000.0
+            default: 1000.0
+
+        EFF_EST_N_ROTORS:
+            description:
+                short: Number of rotors
+                long: Number of rotors/motors on the vehicle.
+            type: int32
+            min: 1
+            max: 16
+            default: 4
+
+        EFF_EST_MASS:
+            description:
+                short: Vehicle mass
+                long: |
+                    Total mass of the vehicle in kilograms.
+                    Used for force effectiveness estimation.
+            type: float
+            decimal: 2
+            min: 0.1
+            max: 100.0
+            unit: kg
+            default: 1.5
+
+        EFF_EST_IXX:
+            description:
+                short: Moment of inertia about X axis
+                long: Vehicle moment of inertia about the X (roll) axis.
+            type: float
+            decimal: 4
+            min: 0.0001
+            max: 10.0
+            unit: kg m^2
+            default: 0.029
+
+        EFF_EST_IYY:
+            description:
+                short: Moment of inertia about Y axis
+                long: Vehicle moment of inertia about the Y (pitch) axis.
+            type: float
+            decimal: 4
+            min: 0.0001
+            max: 10.0
+            unit: kg m^2
+            default: 0.029
+
+        EFF_EST_IZZ:
+            description:
+                short: Moment of inertia about Z axis
+                long: Vehicle moment of inertia about the Z (yaw) axis.
+            type: float
+            decimal: 4
+            min: 0.0001
+            max: 10.0
+            unit: kg m^2
+            default: 0.055
+
+        EFF_EST_UPD_RATE:
+            description:
+                short: Estimator update rate
+                long: Rate at which the effectiveness estimator runs.
+            type: float
+            decimal: 1
+            min: 10.0
+            max: 500.0
+            unit: Hz
+            default: 50.0
+
+        EFF_EST_CONV_VAR:
+            description:
+                short: Convergence variance threshold
+                long: |
+                    Maximum average parameter variance for convergence detection.
+                    Lower values require tighter convergence.
+            type: float
+            decimal: 2
+            min: 0.01
+            max: 10.0
+            default: 1.0
+
+        EFF_EST_C_INNOV:
+            description:
+                short: Convergence innovation threshold
+                long: |
+                    Maximum RMS innovation for convergence detection.
+                    Lower values require better fit to measurements.
+            type: float
+            decimal: 1
+            min: 0.1
+            max: 100.0
+            unit: Nm
+            default: 10.0
+
+        EFF_EST_MIN_EXC:
+            description:
+                short: Minimum excitation threshold
+                long: |
+                    Minimum actuator output norm required for RLS update.
+                    Prevents updates with insufficient excitation.
+            type: float
+            decimal: 3
+            min: 0.001
+            max: 0.5
+            default: 0.01

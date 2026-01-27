@@ -81,6 +81,11 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("heater_status");
 	add_topic("home_position");
 	add_topic("hover_thrust_estimate", 100);
+	
+	// Effectiveness estimator topics (conditional on module being enabled)
+	add_optional_topic("effectiveness_estimate", 100);
+	add_optional_topic("mixer_estimate", 100);
+	
 	add_topic("input_rc", 500);
 	add_optional_topic("internal_combustion_engine_control", 10);
 	add_optional_topic("internal_combustion_engine_status", 10);

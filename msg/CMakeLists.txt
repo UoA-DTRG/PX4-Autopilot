@@ -68,6 +68,7 @@ set(msg_files
 	DistanceSensor.msg
 	DistanceSensorModeChangeRequest.msg
 	Ekf2Timestamps.msg
+	EffectivenessEstimate.msg
 	EscReport.msg
 	EscStatus.msg
 	EstimatorAidSource1d.msg
@@ -135,6 +136,7 @@ set(msg_files
 	MessageFormatResponse.msg
 	Mission.msg
 	MissionResult.msg
+	MixerEstimate.msg
 	MountOrientation.msg
 	MultisineExcitationStatus.msg
 	NavigatorMissionItem.msg
