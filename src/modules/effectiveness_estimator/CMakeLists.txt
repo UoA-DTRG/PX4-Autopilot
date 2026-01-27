@@ -39,9 +39,9 @@ px4_add_module(
 	SRCS
 		EffectivenessEstimator.cpp
 		EffectivenessEstimator.hpp
-		effectiveness_estimator_params.c
+	MODULE_CONFIG
+		module.yaml
 	DEPENDS
 		mathlib
-		matrix
 		px4_work_queue
 )

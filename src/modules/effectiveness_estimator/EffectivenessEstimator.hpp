@@ -103,6 +103,12 @@ private:
 	static constexpr uint32_t MIN_SAMPLES_FOR_CONVERGENCE = 100;   // Minimum samples before considering convergence
 	static constexpr float RLS_NUMERICAL_EPSILON = 1e-6f;          // Numerical stability threshold
 
+	// Temporary matrices/vectors for RLS update (avoids stack overflow)
+	// These are reused across iterations to minimize stack usage
+	matrix::Vector<float, MAX_ROTORS> _phi_temp;
+	matrix::Vector3f _measured_moments_temp;
+	matrix::Vector3f _inertia_temp;
+
 	// Effectiveness and mixer matrices
 	matrix::Matrix<float, DOF, MAX_ROTORS> _effectiveness;
 	matrix::Matrix<float, MAX_ROTORS, DOF> _mixer;
@@ -136,17 +142,17 @@ private:
 	perf_counter_t _cycle_perf{perf_alloc(PC_ELAPSED, "effectiveness_estimator: cycle time")};
 
 	DEFINE_PARAMETERS(
-		(ParamBool<px4::params::EFF_EST_ENABLE>) _param_eff_est_enable,
+		(ParamBool<px4::params::EFF_EST_ACT>) _param_eff_est_enable,
 		(ParamFloat<px4::params::EFF_EST_LAMBDA>) _param_eff_est_lambda,
 		(ParamFloat<px4::params::EFF_EST_P_INIT>) _param_eff_est_p_init,
-		(ParamInt<px4::params::EFF_EST_NUM_ROTORS>) _param_eff_est_num_rotors,
+		(ParamInt<px4::params::EFF_EST_N_ROTORS>) _param_eff_est_num_rotors,
 		(ParamFloat<px4::params::EFF_EST_MASS>) _param_eff_est_mass,
 		(ParamFloat<px4::params::EFF_EST_IXX>) _param_eff_est_ixx,
 		(ParamFloat<px4::params::EFF_EST_IYY>) _param_eff_est_iyy,
 		(ParamFloat<px4::params::EFF_EST_IZZ>) _param_eff_est_izz,
-		(ParamFloat<px4::params::EFF_EST_UPDATE_RATE>) _param_eff_est_update_rate,
+		(ParamFloat<px4::params::EFF_EST_UPD_RATE>) _param_eff_est_update_rate,
 		(ParamFloat<px4::params::EFF_EST_CONV_VAR>) _param_eff_est_conv_var,
-		(ParamFloat<px4::params::EFF_EST_CONV_INNOV>) _param_eff_est_conv_innov,
-		(ParamFloat<px4::params::EFF_EST_MIN_EXCITE>) _param_eff_est_min_excite
+		(ParamFloat<px4::params::EFF_EST_C_INNOV>) _param_eff_est_conv_innov,
+		(ParamFloat<px4::params::EFF_EST_MIN_EXC>) _param_eff_est_min_excite
 	)
 };

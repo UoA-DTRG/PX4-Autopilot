@@ -25,26 +25,26 @@ This module is designed for:
 ## Configuration Parameters
 
 ### Enable/Disable
-- `EFF_EST_ENABLE` (INT32): Enable/disable the estimator (default: 0/disabled)
+- `EFF_EST_ACT` (INT32): Enable/disable the estimator (default: 0/disabled)
 
 ### RLS Parameters
 - `EFF_EST_LAMBDA` (FLOAT): Forgetting factor (0.9 - 0.9999, default: 0.99)
 - `EFF_EST_P_INIT` (FLOAT): Initial covariance diagonal value (1.0 - 10000.0, default: 1000.0)
 
 ### Vehicle Parameters
-- `EFF_EST_NUM_ROTORS` (INT32): Number of rotors/motors (1 - 16, default: 4)
+- `EFF_EST_N_ROTORS` (INT32): Number of rotors/motors (1 - 16, default: 4)
 - `EFF_EST_MASS` (FLOAT): Vehicle mass in kg (0.1 - 100.0, default: 1.5)
 - `EFF_EST_IXX` (FLOAT): Moment of inertia about X axis in kg*m² (default: 0.029)
 - `EFF_EST_IYY` (FLOAT): Moment of inertia about Y axis in kg*m² (default: 0.029)
 - `EFF_EST_IZZ` (FLOAT): Moment of inertia about Z axis in kg*m² (default: 0.055)
 
 ### Update Rate
-- `EFF_EST_UPDATE_RATE` (FLOAT): Estimator update frequency in Hz (10.0 - 500.0, default: 50.0)
+- `EFF_EST_UPD_RATE` (FLOAT): Estimator update frequency in Hz (10.0 - 500.0, default: 50.0)
 
 ### Convergence Parameters
 - `EFF_EST_CONV_VAR` (FLOAT): Maximum average variance for convergence (0.01 - 10.0, default: 1.0)
-- `EFF_EST_CONV_INNOV` (FLOAT): Maximum RMS innovation for convergence in N·m (0.1 - 100.0, default: 10.0)
-- `EFF_EST_MIN_EXCITE` (FLOAT): Minimum actuator excitation threshold (0.001 - 0.5, default: 0.01)
+- `EFF_EST_C_INNOV` (FLOAT): Maximum RMS innovation for convergence in N·m (0.1 - 100.0, default: 10.0)
+- `EFF_EST_MIN_EXC` (FLOAT): Minimum actuator excitation threshold (0.001 - 0.5, default: 0.01)
 
 ## Published Topics
 
@@ -69,8 +69,8 @@ Contains the computed mixer matrix:
 
 ### Enable the Module
 ```
-param set EFF_EST_ENABLE 1
-param set EFF_EST_NUM_ROTORS 4  # Set to your vehicle's rotor count
+param set EFF_EST_ACT 1
+param set EFF_EST_N_ROTORS 4  # Set to your vehicle's rotor count
 ```
 
 ### Configure Vehicle Parameters
@@ -84,12 +84,12 @@ param set EFF_EST_IZZ 0.055     # Inertia about Z axis
 ### Configure Convergence Thresholds (Optional)
 ```
 param set EFF_EST_CONV_VAR 1.0      # Maximum variance for convergence
-param set EFF_EST_CONV_INNOV 10.0   # Maximum RMS innovation (N*m)
-param set EFF_EST_MIN_EXCITE 0.01   # Minimum actuator excitation
+param set EFF_EST_C_INNOV 10.0      # Maximum RMS innovation (N*m)
+param set EFF_EST_MIN_EXC 0.01      # Minimum actuator excitation
 ```
 
 ### Start the Module
-The module will start automatically when armed if `EFF_EST_ENABLE` is set to 1.
+The module will start automatically when armed if `EFF_EST_ACT` is set to 1.
 
 Alternatively, start manually:
 ```
@@ -144,7 +144,7 @@ The implemented RLS algorithm:
 Estimation is marked valid when:
 - Sample count ≥ 100
 - Average parameter variance < EFF_EST_CONV_VAR (default: 1.0)
-- RMS innovation < EFF_EST_CONV_INNOV (default: 10.0 N·m)
+- RMS innovation < EFF_EST_C_INNOV (default: 10.0 N·m)
 
 ### Future Enhancements (Optional)
 1. Force axis estimation (Fx, Fy, Fz) in addition to moments
