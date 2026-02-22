@@ -1,0 +1,7 @@
+menuconfig MODULES_BENCH_TEST
+	bool "bench_test"
+	default n
+	---help---
+		Enable support for the motor bench testing module.
+		Provides pre-arm motor excitation tests (step, impulse,
+		chirp/tweet, current-sweep) with radio kill-switch safety.
