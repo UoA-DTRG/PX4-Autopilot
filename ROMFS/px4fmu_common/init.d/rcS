@@ -560,6 +560,9 @@ else
 		multisine_excitation start
 	fi
 
+	# Start bench test module (always, so parameters are visible in GCS)
+	bench_test start
+
 	# Check for px4flow sensor
 	if param compare -s SENS_EN_PX4FLOW 1
 	then

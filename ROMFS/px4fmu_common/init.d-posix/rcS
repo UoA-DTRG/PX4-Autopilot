@@ -343,6 +343,9 @@ then
 	multisine_excitation start
 fi
 
+# Start bench test module (always, so parameters are visible in GCS)
+bench_test start
+
 payload_deliverer start
 
 if param compare -s ICE_EN 1
