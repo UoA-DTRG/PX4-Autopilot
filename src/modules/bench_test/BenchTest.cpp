@@ -1557,48 +1557,43 @@ int BenchTest::custom_command(int argc, char *argv[])
 		return 0;
 	}
 
-	if (!strcmp(subcmd, "log_start")) {
-		/* Tell the logger to start recording now, regardless of arm state.
-		 * Equivalent to running: logger on
-		 * The logger must already be running (it is started at boot in rcS).
-		 * Topics logged: battery_status, esc_status, actuator_motors,
-		 * actuator_outputs, rpm, system_power, vehicle_angular_velocity,
-		 * sensor_combined, vehicle_imu, and all default dtrg topics.
-		 * Log rate is controlled by SDLOG_RATE / SDLOG_PROFILE params.
+	if (!strcmp(subcmd, "log_start") || !strcmp(subcmd, "log_stop")) {
+		/* Calling logger_main() directly would deadlock: BenchTest::main() already
+		 * holds px4_modules_mutex (global across all ModuleBase<T>), and
+		 * Logger::main() tries to acquire the same mutex for custom_command().
+		 * Solution: spawn a tiny short-lived task that runs outside the lock.
+		 * Equivalent to typing "logger on" / "logger off" in the nsh console.
 		 */
-		static char logger_str[] = "logger";
-		static char on_str[]     = "on";
-		char *logger_on_argv[]   = { logger_str, on_str };
-		int ret = logger_main(2, logger_on_argv);
+		const bool starting = !strcmp(subcmd, "log_start");
 
-		if (ret == 0) {
-			PX4_INFO("Logger started (bench-test log active)");
+		struct LoggerCmdArgs {
+			char logger[8];
+			char subcmd[4];
+		};
 
-		} else {
-			PX4_ERR("Failed to start logger (ret=%d) – is 'logger' running?", ret);
+		static LoggerCmdArgs cmd_args;
+		strncpy(cmd_args.logger, "logger", sizeof(cmd_args.logger));
+		strncpy(cmd_args.subcmd, starting ? "on" : "off", sizeof(cmd_args.subcmd));
+
+		static char *spawn_argv[3] = { cmd_args.logger, cmd_args.subcmd, nullptr };
+
+		int tid = px4_task_spawn_cmd(
+				"bench_logger_cmd",
+				SCHED_DEFAULT,
+				SCHED_PRIORITY_DEFAULT,
+				1024,
+				[](int, char *av[]) -> int {
+					return logger_main(2, av);
+				},
+				spawn_argv);
+
+		if (tid < 0) {
+			PX4_ERR("Failed to spawn logger command task (err=%d)", tid);
+			return -1;
 		}
 
-		return ret;
-	}
-
-	if (!strcmp(subcmd, "log_stop")) {
-		/* Release the arm override – logger will stop when vehicle disarms
-		 * (or immediately if the log mode is 'always').
-		 * Equivalent to running: logger off
-		 */
-		static char logger_str2[] = "logger";
-		static char off_str[]     = "off";
-		char *logger_off_argv[]   = { logger_str2, off_str };
-		int ret = logger_main(2, logger_off_argv);
-
-		if (ret == 0) {
-			PX4_INFO("Logger arm-override released (bench-test log stopped)");
-
-		} else {
-			PX4_ERR("Failed to stop logger (ret=%d)", ret);
-		}
-
-		return ret;
+		PX4_INFO("Logger %s requested", starting ? "start" : "stop");
+		return 0;
 	}
 
 	return print_usage("unknown command");
