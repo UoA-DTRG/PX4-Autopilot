@@ -396,8 +396,9 @@ PARAM_DEFINE_INT32(BT_FLT_BLPD, 300);
 /**
  * Flight test blip interval
  *
- * Time in milliseconds between successive thrust blips.
- * During this interval the motors hold the hover throttle level.
+ * Time in milliseconds between successive thrust blips (up or down).
+ * During this interval the motors hold the hover throttle level to
+ * allow the vehicle to stabilise before the next impulse.
  *
  * @unit ms
  * @min 200
@@ -405,3 +406,60 @@ PARAM_DEFINE_INT32(BT_FLT_BLPD, 300);
  * @group Bench Test
  */
 PARAM_DEFINE_INT32(BT_FLT_BLPI, 2000);
+
+/**
+ * Flight test high throttle level (step-up target)
+ *
+ * Normalized throttle for the slow step-up phase of the flight test.
+ * All motors ramp to this level, hold for BT_FLT_STPH ms, then ramp
+ * back to hover throttle.
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.05
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_FLT_HIHI, 0.60f);
+
+/**
+ * Flight test low throttle level (step-down target)
+ *
+ * Normalized throttle for the slow step-down phase of the flight test.
+ * All motors ramp to this level, hold for BT_FLT_STPH ms, then ramp
+ * back to hover throttle.
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.05
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_FLT_LOLO, 0.15f);
+
+/**
+ * Flight test step hold time
+ *
+ * Duration in milliseconds to hold the high or low throttle level
+ * during the slow step phases of the flight test.
+ *
+ * @unit ms
+ * @min 1000
+ * @max 60000
+ * @group Bench Test
+ */
+PARAM_DEFINE_INT32(BT_FLT_STPH, 10000);
+
+/**
+ * Flight test step ramp time
+ *
+ * Time in milliseconds to ramp from hover to the step level (and back).
+ * Intentionally slower than BT_RAMP_TIME to simulate a realistic
+ * steady-state operating-point change.
+ *
+ * @unit ms
+ * @min 200
+ * @max 10000
+ * @group Bench Test
+ */
+PARAM_DEFINE_INT32(BT_FLT_STPR, 1000);

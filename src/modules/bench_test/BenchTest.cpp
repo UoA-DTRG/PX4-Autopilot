@@ -1012,69 +1012,104 @@ void BenchTest::runFlightTest()
 		return;
 	}
 
+	/* ── Read all parameters ─────────────────────────────────────── */
 	const float hover_lvl  = _param_bt_flt_hovr.get();
 	const int   hover_ms   = _param_bt_flt_hovt.get();
-	const int   blip_count = _param_bt_flt_blpn.get();
-	const float blip_amp   = _param_bt_flt_blpa.get();
-	const int   blip_dur   = _param_bt_flt_blpd.get();
-	const int   blip_int   = _param_bt_flt_blpi.get();
+	const float hi_lvl     = _param_bt_flt_hihi.get();
+	const float lo_lvl     = _param_bt_flt_lolo.get();
+	const int   step_hold  = _param_bt_flt_stph.get();
+	const int   step_ramp  = _param_bt_flt_stpr.get();
+	const int   imp_count  = _param_bt_flt_blpn.get();
+	const float imp_amp    = _param_bt_flt_blpa.get();
+	const int   imp_dur    = _param_bt_flt_blpd.get();
+	const int   imp_stab   = _param_bt_flt_blpi.get();
 	const int   ramp_ms    = _param_bt_ramp_time.get();
 	const int   n          = _param_bt_num_motors.get();
 
-	PX4_INFO("Flight test: hover %.2f, settle %d ms, %d blips (amp %.2f, dur %d ms, interval %d ms)",
-		 (double)hover_lvl, hover_ms, blip_count, (double)blip_amp, blip_dur, blip_int);
+	PX4_INFO("Flight test: hover %.2f, settle %d ms", (double)hover_lvl, hover_ms);
+	PX4_INFO("  Step: hi %.2f, lo %.2f, hold %d ms, ramp %d ms",
+		 (double)hi_lvl, (double)lo_lvl, step_hold, step_ramp);
+	PX4_INFO("  Impulses: %d pairs, amp %.2f, dur %d ms, stabilise %d ms",
+		 imp_count, (double)imp_amp, imp_dur, imp_stab);
 
 	_state = TestState::RUNNING;
 	_active_test = TestType::FLIGHT;
 	_test_start_time = hrt_absolute_time();
 
-	/* ── Phase 1: Ramp up all motors to hover throttle ──────────── */
-	PX4_INFO("  Phase 1: Ramp to hover throttle (%.2f)", (double)hover_lvl);
+	/* Helper: hold all n motors at `level` until `end_time`, 50 Hz refresh */
+	auto hold_hover = [&](float level, hrt_abstime end_time, const char *phase) -> bool {
+		while (hrt_absolute_time() < end_time && _state == TestState::RUNNING) {
+			if (isKillSwitchEngaged()) { abortTest(phase); return false; }
 
-	if (ramp_ms > 0) {
-		const int ramp_steps = ramp_ms / 10;
+			uint32_t remaining_ms = (uint32_t)((end_time - hrt_absolute_time()) / 1000 + 500);
 
-		for (int i = 0; i <= ramp_steps && _state == TestState::RUNNING; i++) {
-			if (isKillSwitchEngaged()) { abortTest("Kill switch during flight ramp-up"); return; }
-
-			float frac = (float)i / (float)ramp_steps;
-
-			for (int m = 0; m < n; m++) {
-				commandMotor(m, hover_lvl * frac, ramp_ms + hover_ms + 2000);
-			}
-
-			px4_usleep(10000);
-		}
-	}
-
-	/* ── Phase 2: Hold hover for settle time ────────────────────── */
-	PX4_INFO("  Phase 2: Hover settle for %d ms", hover_ms);
-	{
-		const hrt_abstime hover_end = hrt_absolute_time() + (uint64_t)hover_ms * 1000ULL;
-
-		while (hrt_absolute_time() < hover_end && _state == TestState::RUNNING) {
-			if (isKillSwitchEngaged()) { abortTest("Kill switch during hover settle"); return; }
-
-			for (int m = 0; m < n; m++) {
-				commandMotor(m, hover_lvl, (uint32_t)((hover_end - hrt_absolute_time()) / 1000 + 2000));
-			}
+			for (int m = 0; m < n; m++) { commandMotor(m, level, remaining_ms); }
 
 			px4_usleep(50000);
 		}
+
+		return _state == TestState::RUNNING;
+	};
+
+	/* Helper: slow ramp all n motors from `from` to `to` in `ms` milliseconds */
+	auto slow_ramp = [&](float from, float to, int ms, const char *phase) -> bool {
+		if (ms <= 0) {
+			for (int m = 0; m < n; m++) { commandMotor(m, to, 500); }
+
+			return _state == TestState::RUNNING;
+		}
+
+		const int steps = ms / 10;
+
+		for (int i = 0; i <= steps && _state == TestState::RUNNING; i++) {
+			if (isKillSwitchEngaged()) { abortTest(phase); return false; }
+
+			float frac = (float)i / (float)steps;
+			float val  = from + (to - from) * frac;
+
+			if (val < 0.0f) { val = 0.0f; }
+
+			if (val > 1.0f) { val = 1.0f; }
+
+			uint32_t remaining_ms = (uint32_t)((steps - i) * 10 + 500);
+
+			for (int m = 0; m < n; m++) { commandMotor(m, val, remaining_ms); }
+
+			px4_usleep(10000);
+		}
+
+		return _state == TestState::RUNNING;
+	};
+
+	/* ══════════════════════════════════════════════════════════════
+	 * Phase 1 — Ramp up to hover throttle
+	 * ════════════════════════════════════════════════════════════ */
+	PX4_INFO("  Phase 1: Ramp to hover %.2f over %d ms", (double)hover_lvl, ramp_ms);
+
+	if (!slow_ramp(0.0f, hover_lvl, ramp_ms, "Kill switch during takeoff ramp")) { return; }
+
+	/* ══════════════════════════════════════════════════════════════
+	 * Phase 2 — Settle at hover throttle
+	 * ════════════════════════════════════════════════════════════ */
+	PX4_INFO("  Phase 2: Hover settle for %d ms", hover_ms);
+	{
+		hrt_abstime end = hrt_absolute_time() + (uint64_t)hover_ms * 1000ULL;
+
+		if (!hold_hover(hover_lvl, end, "Kill switch during hover settle")) { return; }
 	}
 
-	if (_state != TestState::RUNNING) { return; }
-
-	/* ── Phase 3: Orthogonal multisine excitation ───────────────── */
-	PX4_INFO("  Phase 3: Multisine excitation (reading DTRG_MSINE_* params)");
+	/* ══════════════════════════════════════════════════════════════
+	 * Phase 3 — Orthogonal multisine excitation
+	 * ════════════════════════════════════════════════════════════ */
+	PX4_INFO("  Phase 3: Multisine orthogonal excitation");
 	{
-		/* Read multisine parameters from the multisine_excitation module */
-		int32_t msine_nmot = n;
-		float   msine_amp  = 0.05f;
-		float   msine_t    = 15.0f;
-		float   msine_fmin = 0.1f;
-		float   msine_fmax = 1.0f;
-		int32_t msine_seq  = 1;
+		/* Defaults match DTRG_MSINE_* parameter defaults from module.yaml */
+		int32_t msine_nmot = n;      /* DTRG_MSINE_NMOT default: 8 (clamped to n) */
+		float   msine_amp  = 0.1f;   /* DTRG_MSINE_AMP  default: 0.1 */
+		float   msine_t    = 30.0f;  /* DTRG_MSINE_T    default: 30.0 s */
+		float   msine_fmin = 0.1f;   /* DTRG_MSINE_FMIN default: 0.1 Hz */
+		float   msine_fmax = 1.0f;   /* DTRG_MSINE_FMAX default: 1.0 Hz */
+		int32_t msine_seq  = 0;      /* DTRG_MSINE_SEQ  default: 0 (simultaneous) */
 
 		param_t h;
 		h = param_find("DTRG_MSINE_NMOT"); if (h != PARAM_INVALID) { param_get(h, &msine_nmot); }
@@ -1083,35 +1118,35 @@ void BenchTest::runFlightTest()
 		h = param_find("DTRG_MSINE_FMIN"); if (h != PARAM_INVALID) { param_get(h, &msine_fmin); }
 		h = param_find("DTRG_MSINE_FMAX"); if (h != PARAM_INVALID) { param_get(h, &msine_fmax); }
 		h = param_find("DTRG_MSINE_SEQ");  if (h != PARAM_INVALID) { param_get(h, &msine_seq); }
+		/* Note: DTRG_MSINE_BTHR is intentionally not used here — the flight
+		 * test baseline throttle is BT_FLT_HOVR (hover_lvl), not BTHR. */
 
-		/* Limit motor count to our configured number */
 		if (msine_nmot > n) { msine_nmot = n; }
 
-		/* Configure and run the multisine generator on the heap */
 		multisine::MultisineExcitation *gen = new multisine::MultisineExcitation();
 
 		if (!gen) {
-			PX4_ERR("  Failed to allocate multisine generator");
+			PX4_ERR("  Failed to allocate multisine generator – skipping");
 
 		} else {
 			float period_per_motor = msine_seq ? (msine_t / (float)msine_nmot) : msine_t;
 
 			if (!gen->configure((uint8_t)msine_nmot, period_per_motor, msine_fmin, msine_fmax, msine_amp)) {
-				PX4_ERR("  Failed to configure multisine generator");
+				PX4_ERR("  Failed to configure multisine – skipping");
 
 			} else {
 				gen->setSequentialMode(msine_seq != 0);
 				float total_dur = gen->getTotalDuration();
 
-				PX4_INFO("  Multisine: %d motors, %.1fs total, %.2f-%.2f Hz, amp %.3f, %s",
+				PX4_INFO("  Multisine: %d motors, %.1fs, %.2f-%.2f Hz, amp %.3f, %s",
 					 (int)msine_nmot, (double)total_dur,
 					 (double)msine_fmin, (double)msine_fmax, (double)msine_amp,
 					 msine_seq ? "sequential" : "simultaneous");
 
 				gen->start();
 
-				const uint32_t update_interval_us = 4000; /* 250 Hz like the multisine module */
-				const float dt_s = (float)update_interval_us / 1e6f;
+				const uint32_t update_us = 4000; /* 250 Hz */
+				const float dt_s = (float)update_us / 1e6f;
 				hrt_abstime last_print = hrt_absolute_time();
 
 				while (gen->isActive() && _state == TestState::RUNNING) {
@@ -1125,35 +1160,29 @@ void BenchTest::runFlightTest()
 					float excitation[multisine::MAX_MOTORS] = {};
 					gen->update(dt_s, excitation);
 
-					/* Apply hover + excitation to each motor */
 					for (int m = 0; m < n; m++) {
-						float val = hover_lvl;
-
-						if (m < msine_nmot) {
-							val += excitation[m];
-						}
+						float val = hover_lvl + (m < msine_nmot ? excitation[m] : 0.0f);
 
 						if (val < 0.0f) { val = 0.0f; }
+
 						if (val > 1.0f) { val = 1.0f; }
 
 						commandMotor(m, val, 200);
 					}
 
-					/* Print progress every 2 seconds */
 					hrt_abstime now = hrt_absolute_time();
 
-					if ((now - last_print) > 2000000) {
-						float elapsed = gen->getElapsedTime();
+					if ((now - last_print) > 2000000ULL) {
 						PX4_INFO("    Multisine: %.1f/%.1fs  motor %d",
-							 (double)elapsed, (double)total_dur,
+							 (double)gen->getElapsedTime(), (double)total_dur,
 							 (int)gen->getCurrentMotor());
 						last_print = now;
 					}
 
-					px4_usleep(update_interval_us);
+					px4_usleep(update_us);
 				}
 
-				PX4_INFO("  Multisine excitation complete");
+				PX4_INFO("  Multisine complete");
 			}
 
 			delete gen;
@@ -1162,84 +1191,131 @@ void BenchTest::runFlightTest()
 
 	if (_state != TestState::RUNNING) { return; }
 
-	/* Brief settle at hover before blips */
+	/* Brief settle at hover (0.5 s) */
 	{
-		const hrt_abstime settle_end = hrt_absolute_time() + 500000ULL; /* 0.5 s */
+		hrt_abstime end = hrt_absolute_time() + 500000ULL;
 
-		while (hrt_absolute_time() < settle_end && _state == TestState::RUNNING) {
-			if (isKillSwitchEngaged()) { abortTest("Kill switch during post-multisine settle"); return; }
+		if (!hold_hover(hover_lvl, end, "Kill switch during post-multisine settle")) { return; }
+	}
 
-			for (int m = 0; m < n; m++) {
-				commandMotor(m, hover_lvl, 1000);
+	/* ══════════════════════════════════════════════════════════════
+	 * Phase 4 — Slow step UP to high throttle, hold, return to hover
+	 * ════════════════════════════════════════════════════════════ */
+	PX4_INFO("  Phase 4: Step UP hover %.2f -> hi %.2f (ramp %d ms, hold %d ms)",
+		 (double)hover_lvl, (double)hi_lvl, step_ramp, step_hold);
+
+	if (!slow_ramp(hover_lvl, hi_lvl, step_ramp, "Kill switch during step-up ramp")) { return; }
+
+	{
+		hrt_abstime end = hrt_absolute_time() + (uint64_t)step_hold * 1000ULL;
+
+		if (!hold_hover(hi_lvl, end, "Kill switch during step-up hold")) { return; }
+	}
+
+	if (!slow_ramp(hi_lvl, hover_lvl, step_ramp, "Kill switch during step-up return")) { return; }
+
+	/* 2 s hover stabilise */
+	{
+		hrt_abstime end = hrt_absolute_time() + 2000000ULL;
+
+		if (!hold_hover(hover_lvl, end, "Kill switch during post-step-up settle")) { return; }
+	}
+
+	/* ══════════════════════════════════════════════════════════════
+	 * Phase 5 — Slow step DOWN to low throttle, hold, return to hover
+	 * ════════════════════════════════════════════════════════════ */
+	PX4_INFO("  Phase 5: Step DOWN hover %.2f -> lo %.2f (ramp %d ms, hold %d ms)",
+		 (double)hover_lvl, (double)lo_lvl, step_ramp, step_hold);
+
+	if (!slow_ramp(hover_lvl, lo_lvl, step_ramp, "Kill switch during step-down ramp")) { return; }
+
+	{
+		hrt_abstime end = hrt_absolute_time() + (uint64_t)step_hold * 1000ULL;
+
+		if (!hold_hover(lo_lvl, end, "Kill switch during step-down hold")) { return; }
+	}
+
+	if (!slow_ramp(lo_lvl, hover_lvl, step_ramp, "Kill switch during step-down return")) { return; }
+
+	/* 2 s hover stabilise */
+	{
+		hrt_abstime end = hrt_absolute_time() + 2000000ULL;
+
+		if (!hold_hover(hover_lvl, end, "Kill switch during post-step-down settle")) { return; }
+	}
+
+	/* ══════════════════════════════════════════════════════════════
+	 * Phase 6 — Simultaneous impulse pairs (all motors)
+	 *   Each cycle: UP burst → stabilise → DOWN burst → stabilise
+	 * ════════════════════════════════════════════════════════════ */
+	PX4_INFO("  Phase 6: %d simultaneous impulse pairs (amp %.2f, dur %d ms, stabilise %d ms)",
+		 imp_count, (double)imp_amp, imp_dur, imp_stab);
+
+	float imp_hi = hover_lvl + imp_amp;
+	float imp_lo = hover_lvl - imp_amp;
+
+	if (imp_hi > 1.0f) { imp_hi = 1.0f; }
+
+	if (imp_lo < 0.0f) { imp_lo = 0.0f; }
+
+	for (int k = 0; k < imp_count && _state == TestState::RUNNING; k++) {
+
+		PX4_INFO("    Impulse pair %d/%d  (up %.2f, down %.2f)",
+			 k + 1, imp_count, (double)imp_hi, (double)imp_lo);
+
+		/* ── UP burst ────────────────────────────────────────── */
+		{
+			hrt_abstime end = hrt_absolute_time() + (uint64_t)imp_dur * 1000ULL;
+
+			for (int m = 0; m < n; m++) { commandMotor(m, imp_hi, imp_dur + 500); }
+
+			while (hrt_absolute_time() < end && _state == TestState::RUNNING) {
+				if (isKillSwitchEngaged()) { abortTest("Kill switch during impulse up"); return; }
+
+				px4_usleep(10000);
 			}
+		}
 
-			px4_usleep(50000);
+		if (_state != TestState::RUNNING) { break; }
+
+		/* ── Stabilise at hover after UP ─────────────────────── */
+		{
+			hrt_abstime end = hrt_absolute_time() + (uint64_t)imp_stab * 1000ULL;
+
+			if (!hold_hover(hover_lvl, end, "Kill switch during impulse up stabilise")) { return; }
+		}
+
+		/* ── DOWN burst ──────────────────────────────────────── */
+		{
+			hrt_abstime end = hrt_absolute_time() + (uint64_t)imp_dur * 1000ULL;
+
+			for (int m = 0; m < n; m++) { commandMotor(m, imp_lo, imp_dur + 500); }
+
+			while (hrt_absolute_time() < end && _state == TestState::RUNNING) {
+				if (isKillSwitchEngaged()) { abortTest("Kill switch during impulse down"); return; }
+
+				px4_usleep(10000);
+			}
+		}
+
+		if (_state != TestState::RUNNING) { break; }
+
+		/* ── Stabilise at hover after DOWN ───────────────────── */
+		{
+			hrt_abstime end = hrt_absolute_time() + (uint64_t)imp_stab * 1000ULL;
+
+			if (!hold_hover(hover_lvl, end, "Kill switch during impulse down stabilise")) { return; }
 		}
 	}
 
 	if (_state != TestState::RUNNING) { return; }
 
-	/* ── Phase 4: Periodic thrust blips ─────────────────────────── */
-	PX4_INFO("  Phase 4: %d thrust blips (amp %.2f, dur %d ms, interval %d ms)",
-		 blip_count, (double)blip_amp, blip_dur, blip_int);
+	/* ══════════════════════════════════════════════════════════════
+	 * Phase 7 — Ramp down to zero
+	 * ════════════════════════════════════════════════════════════ */
+	PX4_INFO("  Phase 7: Ramp down to zero");
 
-	for (int blip = 0; blip < blip_count && _state == TestState::RUNNING; blip++) {
-
-		PX4_INFO("    Blip %d/%d", blip + 1, blip_count);
-
-		/* Blip: apply hover + blip_amp to all motors */
-		float blip_level = hover_lvl + blip_amp;
-
-		if (blip_level > 1.0f) { blip_level = 1.0f; }
-
-		{
-			const hrt_abstime blip_end = hrt_absolute_time() + (uint64_t)blip_dur * 1000ULL;
-
-			while (hrt_absolute_time() < blip_end && _state == TestState::RUNNING) {
-				if (isKillSwitchEngaged()) { abortTest("Kill switch during blip"); return; }
-
-				for (int m = 0; m < n; m++) {
-					commandMotor(m, blip_level, blip_dur + 500);
-				}
-
-				px4_usleep(20000); /* 50 Hz refresh */
-			}
-		}
-
-		/* Return to hover for the inter-blip interval */
-		if (blip < blip_count - 1 && _state == TestState::RUNNING) {
-			const hrt_abstime interval_end = hrt_absolute_time() + (uint64_t)blip_int * 1000ULL;
-
-			while (hrt_absolute_time() < interval_end && _state == TestState::RUNNING) {
-				if (isKillSwitchEngaged()) { abortTest("Kill switch during blip interval"); return; }
-
-				for (int m = 0; m < n; m++) {
-					commandMotor(m, hover_lvl, (uint32_t)((interval_end - hrt_absolute_time()) / 1000 + 500));
-				}
-
-				px4_usleep(50000);
-			}
-		}
-	}
-
-	/* ── Phase 5: Ramp down ─────────────────────────────────────── */
-	PX4_INFO("  Phase 5: Ramp down");
-
-	if (ramp_ms > 0 && _state == TestState::RUNNING) {
-		const int ramp_steps = ramp_ms / 10;
-
-		for (int i = ramp_steps; i >= 0 && _state == TestState::RUNNING; i--) {
-			if (isKillSwitchEngaged()) { abortTest("Kill switch during flight ramp-down"); return; }
-
-			float frac = (float)i / (float)ramp_steps;
-
-			for (int m = 0; m < n; m++) {
-				commandMotor(m, hover_lvl * frac, ramp_ms + 500);
-			}
-
-			px4_usleep(10000);
-		}
-	}
+	if (!slow_ramp(hover_lvl, 0.0f, ramp_ms, "Kill switch during landing ramp")) { return; }
 
 	releaseAllMotors();
 	_state = TestState::IDLE;
