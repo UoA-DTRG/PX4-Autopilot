@@ -124,7 +124,7 @@ void LoggedTopics::add_default_topics()
 	add_topic("sensor_selection");
 	add_topic("sensors_status_imu", 200);
 	add_optional_topic("spoilers_setpoint", 1000);
-	add_topic("system_power", 500);
+	add_topic("system_power", 50);
 	add_optional_topic("takeoff_status", 1000);
 	add_optional_topic("tecs_status", 200);
 	add_optional_topic("tiltrotor_extra_controls", 100);
@@ -155,12 +155,12 @@ void LoggedTopics::add_default_topics()
 	add_topic("horizontal_thrust_limit");
 
 	// multi topics
-	add_optional_topic_multi("actuator_outputs", 100, 3);
+	add_optional_topic_multi("actuator_outputs", 10, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);
 	add_optional_topic_multi("control_allocator_status", 200, 2);
 	add_optional_topic_multi("rate_ctrl_status", 200, 2);
 	add_optional_topic_multi("sensor_hygrometer", 500, 4);
-	add_optional_topic_multi("rpm", 200);
+	add_optional_topic_multi("rpm", 20);
 	add_topic_multi("timesync_status", 1000, 3);
 	add_optional_topic_multi("telemetry_status", 1000, 4);
 
@@ -192,7 +192,7 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("multisine_excitation_status", 20);
 
 	// log all raw sensors at minimal rate (at least 1 Hz)
-	add_topic_multi("battery_status", 200, 2);
+	add_topic_multi("battery_status", 20, 2);
 	add_topic_multi("differential_pressure", 1000, 2);
 	add_topic_multi("distance_sensor", 1000, 2);
 	add_optional_topic_multi("sensor_accel", 1000, 4);
@@ -212,7 +212,7 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("pps_capture");
 
 	// additional control allocation logging
-	add_topic("actuator_motors", 100);
+	add_topic("actuator_motors", 10);
 	add_topic("actuator_servos", 100);
 	add_topic_multi("vehicle_thrust_setpoint", 20, 2);
 	add_topic_multi("vehicle_torque_setpoint", 20, 2);

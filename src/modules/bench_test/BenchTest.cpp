@@ -59,6 +59,9 @@
 #include <px4_platform_common/getopt.h>
 #include <px4_platform_common/log.h>
 
+/* Forward-declare the logger entry point (it is __EXPORT in logger.h). */
+extern "C" int logger_main(int argc, char *argv[]);
+
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
 #endif
@@ -1478,6 +1481,50 @@ int BenchTest::custom_command(int argc, char *argv[])
 		return 0;
 	}
 
+	if (!strcmp(subcmd, "log_start")) {
+		/* Tell the logger to start recording now, regardless of arm state.
+		 * Equivalent to running: logger on
+		 * The logger must already be running (it is started at boot in rcS).
+		 * Topics logged: battery_status, esc_status, actuator_motors,
+		 * actuator_outputs, rpm, system_power, vehicle_angular_velocity,
+		 * sensor_combined, vehicle_imu, and all default dtrg topics.
+		 * Log rate is controlled by SDLOG_RATE / SDLOG_PROFILE params.
+		 */
+		static char logger_str[] = "logger";
+		static char on_str[]     = "on";
+		char *logger_on_argv[]   = { logger_str, on_str };
+		int ret = logger_main(2, logger_on_argv);
+
+		if (ret == 0) {
+			PX4_INFO("Logger started (bench-test log active)");
+
+		} else {
+			PX4_ERR("Failed to start logger (ret=%d) – is 'logger' running?", ret);
+		}
+
+		return ret;
+	}
+
+	if (!strcmp(subcmd, "log_stop")) {
+		/* Release the arm override – logger will stop when vehicle disarms
+		 * (or immediately if the log mode is 'always').
+		 * Equivalent to running: logger off
+		 */
+		static char logger_str2[] = "logger";
+		static char off_str[]     = "off";
+		char *logger_off_argv[]   = { logger_str2, off_str };
+		int ret = logger_main(2, logger_off_argv);
+
+		if (ret == 0) {
+			PX4_INFO("Logger arm-override released (bench-test log stopped)");
+
+		} else {
+			PX4_ERR("Failed to stop logger (ret=%d)", ret);
+		}
+
+		return ret;
+	}
+
 	return print_usage("unknown command");
 }
 
@@ -1537,6 +1584,12 @@ $ bench_test flight
 Abort a running test:
 $ bench_test abort
 
+Start high-rate logging (disarmed):
+$ bench_test log_start
+
+Stop logging when done:
+$ bench_test log_stop
+
 Check status and ESC telemetry:
 $ bench_test status
 )DESCR_STR");
@@ -1544,12 +1597,15 @@ $ bench_test status
 	PRINT_MODULE_USAGE_NAME("bench_test", "module");
 	PRINT_MODULE_USAGE_COMMAND("start");
 
+	PRINT_MODULE_USAGE_COMMAND_DESCR("log_start", "Start SD-card logging now (arm override, logger must be running)");
+	PRINT_MODULE_USAGE_COMMAND_DESCR("log_stop",  "Stop SD-card logging (release arm override)");
+
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step", "Single motor step test (ramp-up, hold, ramp-down)");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_all", "Step test on all motors sequentially");
 
-	PRINT_MODULE_USAGE_COMMAND_DESCR("step_idle", "Step one motor while holding all others at BT_IDLE_LVL");
+	PRINT_MODULE_USAGE_COMMAND_DESCR("step_idle", "Step one motor while holding all others at BT_BG_LVL");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_sim", "Step all motors simultaneously to BT_STEP_LVL");
