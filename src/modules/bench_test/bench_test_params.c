@@ -49,7 +49,55 @@
  * @max 8
  * @group Bench Test
  */
-PARAM_DEFINE_INT32(BT_NUM_MOTORS, 4);
+PARAM_DEFINE_INT32(BT_NUM_MOTORS, 8);
+
+/**
+ * Background motor throttle level (step_idle test)
+ *
+ * Normalized throttle applied to all non-target motors during
+ * the step_idle test. Can be set to any operating point, e.g.
+ * 0.0 for stopped, 0.10 for idle, or 0.35 for high-throttle
+ * cruise to test under realistic loaded conditions.
+ * 0.0 = stopped, 1.0 = full throttle.
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_BG_LVL, 0.10f);
+
+/**
+ * Background motor settle time (step_idle test)
+ *
+ * Time in milliseconds to hold all background motors at BT_BG_LVL
+ * before triggering the step on the target motor. Allows ESCs and
+ * airflow to stabilise before the excitation.
+ *
+ * @unit ms
+ * @min 500
+ * @max 30000
+ * @group Bench Test
+ */
+PARAM_DEFINE_INT32(BT_BG_SETL, 5000);
+
+/**
+ * Baseline throttle for step and impulse tests
+ *
+ * Normalized throttle at which all motors are held before and
+ * between step/impulse excitations. Set to 0.0 for tests from
+ * standstill, or to e.g. 0.10 to test from a running idle speed.
+ * The step/impulse level is applied on top of this baseline.
+ * 0.0 = stopped, 1.0 = full throttle.
+ *
+ * @min 0.0
+ * @max 0.8
+ * @decimal 2
+ * @increment 0.01
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_BASE_LVL, 0.00f);
 
 /**
  * Step test throttle level

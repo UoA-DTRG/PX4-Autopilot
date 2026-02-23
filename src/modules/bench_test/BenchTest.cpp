@@ -193,13 +193,14 @@ void BenchTest::runStepTest(int motor)
 		return;
 	}
 
-	const float level = _param_bt_step_lvl.get();
-	const int hold_ms = _param_bt_step_dur.get();
-	const int ramp_ms = _param_bt_ramp_time.get();
-	const int total_ms = hold_ms + 2 * ramp_ms;
+	const float level    = _param_bt_step_lvl.get();
+	const float base     = _param_bt_base_lvl.get();
+	const int   hold_ms  = _param_bt_step_dur.get();
+	const int   ramp_ms  = _param_bt_ramp_time.get();
+	const int   total_ms = hold_ms + 2 * ramp_ms;
 
-	PX4_INFO("Step test: motor %d, level %.2f, hold %d ms, ramp %d ms",
-		 motor + 1, (double)level, hold_ms, ramp_ms);
+	PX4_INFO("Step test: motor %d, base %.2f -> step %.2f, hold %d ms, ramp %d ms",
+		 motor + 1, (double)base, (double)level, hold_ms, ramp_ms);
 
 	_state = TestState::RUNNING;
 	_active_test = TestType::STEP_SINGLE;
@@ -208,7 +209,7 @@ void BenchTest::runStepTest(int motor)
 
 	const hrt_abstime start = _test_start_time;
 
-	// Ramp up
+	// Ramp from zero to base level (if base > 0), then ramp to step level
 	if (ramp_ms > 0) {
 		const int ramp_steps = ramp_ms / 10;
 
@@ -216,22 +217,22 @@ void BenchTest::runStepTest(int motor)
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during ramp-up"); return; }
 
 			float frac = (float)i / (float)ramp_steps;
-			commandMotor(motor, level * frac, total_ms);
+			commandMotor(motor, base + (level - base) * frac, total_ms);
 			px4_usleep(10000);
 		}
 	}
 
-	// Hold
+	// Hold at step level
 	const hrt_abstime hold_end = start + (uint64_t)(ramp_ms + hold_ms) * 1000ULL;
 
 	while (hrt_absolute_time() < hold_end && _state == TestState::RUNNING) {
 		if (isKillSwitchEngaged()) { abortTest("Kill switch during hold"); return; }
 
 		commandMotor(motor, level, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
-		px4_usleep(50000); // refresh command every 50 ms
+		px4_usleep(50000);
 	}
 
-	// Ramp down
+	// Ramp down from step level back to base, then to zero
 	if (ramp_ms > 0) {
 		const int ramp_steps = ramp_ms / 10;
 
@@ -239,7 +240,7 @@ void BenchTest::runStepTest(int motor)
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during ramp-down"); return; }
 
 			float frac = (float)i / (float)ramp_steps;
-			commandMotor(motor, level * frac, ramp_ms + 500);
+			commandMotor(motor, base + (level - base) * frac, ramp_ms + 500);
 			px4_usleep(10000);
 		}
 	}
@@ -262,25 +263,73 @@ void BenchTest::runImpulseTest(int motor)
 		return;
 	}
 
-	const float level = _param_bt_imp_lvl.get();
-	const int pulse_ms = _param_bt_imp_dur.get();
+	const float level    = _param_bt_imp_lvl.get();
+	const float base     = _param_bt_base_lvl.get();
+	const int   pulse_ms = _param_bt_imp_dur.get();
+	const int   ramp_ms  = _param_bt_ramp_time.get();
+	const int   n        = _param_bt_num_motors.get();
 
-	PX4_INFO("Impulse test: motor %d, level %.2f, pulse %d ms", motor + 1, (double)level, pulse_ms);
+	PX4_INFO("Impulse test: motor %d, base %.2f, impulse %.2f, pulse %d ms",
+		 motor + 1, (double)base, (double)(base + level), pulse_ms);
 
 	_state = TestState::RUNNING;
 	_active_test = TestType::IMPULSE_SINGLE;
 	_target_motor = motor;
 	_test_start_time = hrt_absolute_time();
 
-	// Fire impulse
-	commandMotor(motor, level, pulse_ms + 500);
+	// Ramp all motors to base level first (if base > 0)
+	if (base > 0.0f && ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = 0; i <= ramp_steps && _state == TestState::RUNNING; i++) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during impulse pre-ramp"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, base * frac, ramp_ms + pulse_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	// Fire impulse on target motor (base + impulse level), all others stay at base
+	float impulse_lvl = base + level;
+	if (impulse_lvl > 1.0f) { impulse_lvl = 1.0f; }
+
+	commandMotor(motor, impulse_lvl, pulse_ms + 500);
 
 	const hrt_abstime end = hrt_absolute_time() + (uint64_t)pulse_ms * 1000ULL;
 
 	while (hrt_absolute_time() < end && _state == TestState::RUNNING) {
 		if (isKillSwitchEngaged()) { abortTest("Kill switch during impulse"); return; }
 
+		// Keep base running on all other motors during the pulse
+		for (int m = 0; m < n; m++) {
+			if (m != motor && base > 0.0f) {
+				commandMotor(m, base, (uint32_t)((end - hrt_absolute_time()) / 1000 + 500));
+			}
+		}
+
 		px4_usleep(10000);
+	}
+
+	// Ramp all motors back down to zero
+	if (base > 0.0f && ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = ramp_steps; i >= 0 && _state == TestState::RUNNING; i--) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during impulse ramp-down"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, base * frac, ramp_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
 	}
 
 	releaseAllMotors();
@@ -502,6 +551,314 @@ void BenchTest::runCurrentSweep(int motor)
 	_state = TestState::IDLE;
 	_active_test = TestType::NONE;
 	PX4_INFO("Current sweep complete");
+}
+
+/* ── Step with background throttle ───────────────────────────────────── */
+
+void BenchTest::runStepWithIdleTest(int motor)
+{
+	if (!isDisarmed()) {
+		PX4_ERR("Vehicle is armed – refusing to run bench test");
+		return;
+	}
+
+	if (isKillSwitchEngaged()) {
+		PX4_ERR("Kill switch engaged – refusing to start test");
+		return;
+	}
+
+	const float step_lvl  = _param_bt_step_lvl.get();
+	const float bg        = _param_bt_bg_lvl.get();
+	const int   hold_ms   = _param_bt_step_dur.get();
+	const int   ramp_ms   = _param_bt_ramp_time.get();
+	const int   settle_ms = _param_bt_bg_setl.get();
+	const int   n         = _param_bt_num_motors.get();
+	const int   total_ms  = settle_ms + hold_ms + 2 * ramp_ms + 1000;
+
+	PX4_INFO("Step+bg test: motor %d step %.2f, bg %.2f, settle %d ms, hold %d ms, ramp %d ms",
+		 motor + 1, (double)step_lvl, (double)bg, settle_ms, hold_ms, ramp_ms);
+
+	_state = TestState::RUNNING;
+	_active_test = TestType::STEP_IDLE_BG;
+	_target_motor = motor;
+	_test_start_time = hrt_absolute_time();
+
+	// Phase 1: Ramp ALL motors (including target) up to BT_BG_LVL together
+	PX4_INFO("  Phase 1: Ramp all motors to background level %.2f", (double)bg);
+
+	if (ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = 0; i <= ramp_steps && _state == TestState::RUNNING; i++) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during bg ramp-up"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, bg * frac, total_ms);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	// Phase 2: Hold ALL motors at BT_BG_LVL for settle time
+	PX4_INFO("  Phase 2: Settle all motors at bg level for %d ms", settle_ms);
+	{
+		const hrt_abstime settle_end = hrt_absolute_time() + (uint64_t)settle_ms * 1000ULL;
+
+		while (hrt_absolute_time() < settle_end && _state == TestState::RUNNING) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during bg settle"); return; }
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, bg, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+			}
+
+			px4_usleep(50000);
+		}
+	}
+
+	if (_state != TestState::RUNNING) { return; }
+
+	// Phase 3: Ramp target motor from BT_BG_LVL up to BT_STEP_LVL; all others stay at BT_BG_LVL
+	PX4_INFO("  Phase 3: Step motor %d from %.2f to %.2f", motor + 1, (double)bg, (double)step_lvl);
+
+	if (ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = 0; i <= ramp_steps && _state == TestState::RUNNING; i++) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during step ramp-up"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				float val = (m == motor) ? (bg + (step_lvl - bg) * frac) : bg;
+				commandMotor(m, val, hold_ms + ramp_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	// Phase 4: Hold target at step level, all others at BT_BG_LVL
+	const hrt_abstime hold_end = hrt_absolute_time() + (uint64_t)hold_ms * 1000ULL;
+
+	while (hrt_absolute_time() < hold_end && _state == TestState::RUNNING) {
+		if (isKillSwitchEngaged()) { abortTest("Kill switch during step hold"); return; }
+
+		for (int m = 0; m < n; m++) {
+			float val = (m == motor) ? step_lvl : bg;
+			commandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
+		}
+
+		px4_usleep(50000);
+	}
+
+	// Phase 5: Ramp target motor back down to BT_BG_LVL
+	if (ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = ramp_steps; i >= 0 && _state == TestState::RUNNING; i--) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during step ramp-down"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				float val = (m == motor) ? (bg + (step_lvl - bg) * frac) : bg;
+				commandMotor(m, val, ramp_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	// Phase 6: Ramp all motors down to zero
+	PX4_INFO("  Phase 6: Ramp all motors down to zero");
+
+	if (ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = ramp_steps; i >= 0 && _state == TestState::RUNNING; i--) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during final ramp-down"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, bg * frac, ramp_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	releaseAllMotors();
+	_state = TestState::IDLE;
+	_active_test = TestType::NONE;
+	PX4_INFO("Step+bg test complete");
+}
+
+/* ── Simultaneous step ────────────────────────────────────────────────── */
+
+void BenchTest::runStepSimultaneous()
+{
+	if (!isDisarmed()) {
+		PX4_ERR("Vehicle is armed – refusing to run bench test");
+		return;
+	}
+
+	if (isKillSwitchEngaged()) {
+		PX4_ERR("Kill switch engaged – refusing to start test");
+		return;
+	}
+
+	const float level    = _param_bt_step_lvl.get();
+	const float base     = _param_bt_base_lvl.get();
+	const int   hold_ms  = _param_bt_step_dur.get();
+	const int   ramp_ms  = _param_bt_ramp_time.get();
+	const int   n        = _param_bt_num_motors.get();
+	const int   total_ms = hold_ms + 2 * ramp_ms;
+
+	PX4_INFO("Simultaneous step: %d motors, base %.2f -> step %.2f, hold %d ms, ramp %d ms",
+		 n, (double)base, (double)level, hold_ms, ramp_ms);
+
+	_state = TestState::RUNNING;
+	_active_test = TestType::STEP_SIMULTANEOUS;
+	_test_start_time = hrt_absolute_time();
+
+	// Ramp all from zero to base level, then base to step level
+	if (ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = 0; i <= ramp_steps && _state == TestState::RUNNING; i++) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous step ramp-up"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, base + (level - base) * frac, total_ms);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	// Hold all at step level
+	const hrt_abstime hold_end = hrt_absolute_time() + (uint64_t)hold_ms * 1000ULL;
+
+	while (hrt_absolute_time() < hold_end && _state == TestState::RUNNING) {
+		if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous step hold"); return; }
+
+		for (int m = 0; m < n; m++) {
+			commandMotor(m, level, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
+		}
+
+		px4_usleep(50000);
+	}
+
+	// Ramp all back down from step level to base, then to zero
+	if (ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = ramp_steps; i >= 0 && _state == TestState::RUNNING; i--) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous step ramp-down"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, base + (level - base) * frac, ramp_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	releaseAllMotors();
+	_state = TestState::IDLE;
+	_active_test = TestType::NONE;
+	PX4_INFO("Simultaneous step complete");
+}
+
+/* ── Simultaneous impulse ─────────────────────────────────────────────── */
+
+void BenchTest::runImpulseSimultaneous()
+{
+	if (!isDisarmed()) {
+		PX4_ERR("Vehicle is armed – refusing to run bench test");
+		return;
+	}
+
+	if (isKillSwitchEngaged()) {
+		PX4_ERR("Kill switch engaged – refusing to start test");
+		return;
+	}
+
+	const float level    = _param_bt_imp_lvl.get();
+	const float base     = _param_bt_base_lvl.get();
+	const int   pulse_ms = _param_bt_imp_dur.get();
+	const int   ramp_ms  = _param_bt_ramp_time.get();
+	const int   n        = _param_bt_num_motors.get();
+
+	float impulse_lvl = base + level;
+	if (impulse_lvl > 1.0f) { impulse_lvl = 1.0f; }
+
+	PX4_INFO("Simultaneous impulse: %d motors, base %.2f, impulse %.2f, pulse %d ms",
+		 n, (double)base, (double)impulse_lvl, pulse_ms);
+
+	_state = TestState::RUNNING;
+	_active_test = TestType::IMPULSE_SIMULTANEOUS;
+	_test_start_time = hrt_absolute_time();
+
+	// Ramp all to base level first (if base > 0)
+	if (base > 0.0f && ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = 0; i <= ramp_steps && _state == TestState::RUNNING; i++) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous impulse pre-ramp"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, base * frac, ramp_ms + pulse_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	// Fire all motors simultaneously at base + impulse level
+	const hrt_abstime end = hrt_absolute_time() + (uint64_t)pulse_ms * 1000ULL;
+
+	for (int m = 0; m < n; m++) {
+		commandMotor(m, impulse_lvl, pulse_ms + 500);
+	}
+
+	while (hrt_absolute_time() < end && _state == TestState::RUNNING) {
+		if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous impulse"); return; }
+
+		px4_usleep(10000);
+	}
+
+	// Ramp all back to zero
+	if (base > 0.0f && ramp_ms > 0) {
+		const int ramp_steps = ramp_ms / 10;
+
+		for (int i = ramp_steps; i >= 0 && _state == TestState::RUNNING; i--) {
+			if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous impulse ramp-down"); return; }
+
+			float frac = (float)i / (float)ramp_steps;
+
+			for (int m = 0; m < n; m++) {
+				commandMotor(m, base * frac, ramp_ms + 500);
+			}
+
+			px4_usleep(10000);
+		}
+	}
+
+	releaseAllMotors();
+	_state = TestState::IDLE;
+	_active_test = TestType::NONE;
+	PX4_INFO("Simultaneous impulse complete");
 }
 
 /* ── Flight test ──────────────────────────────────────────────────────── */
@@ -901,6 +1258,21 @@ int BenchTest::custom_command(int argc, char *argv[])
 		return 0;
 	}
 
+	if (!strcmp(subcmd, "step_idle")) {
+		if (motor < 0) {
+			PX4_ERR("Specify motor with -m <1..N>");
+			return 1;
+		}
+
+		obj->runStepWithIdleTest(motor);
+		return 0;
+	}
+
+	if (!strcmp(subcmd, "step_sim")) {
+		obj->runStepSimultaneous();
+		return 0;
+	}
+
 	if (!strcmp(subcmd, "impulse")) {
 		if (motor < 0) {
 			PX4_ERR("Specify motor with -m <1..N>");
@@ -915,6 +1287,11 @@ int BenchTest::custom_command(int argc, char *argv[])
 		obj->_state = TestState::RUNNING;
 		obj->_active_test = TestType::IMPULSE_ALL;
 		obj->runAllMotorsSequential(&BenchTest::runImpulseTest);
+		return 0;
+	}
+
+	if (!strcmp(subcmd, "impulse_sim")) {
+		obj->runImpulseSimultaneous();
 		return 0;
 	}
 
@@ -999,8 +1376,17 @@ $ bench_test start
 Run a step test on motor 2:
 $ bench_test step -m 2
 
+Step motor 2 while all others spin at idle:
+$ bench_test step_idle -m 2
+
+Step all 8 motors at once:
+$ bench_test step_sim
+
 Run impulse test on all motors sequentially:
 $ bench_test impulse_all
+
+Impulse all motors at once:
+$ bench_test impulse_sim
 
 Run chirp/tweet sweep on motor 1:
 $ bench_test tweet -m 1
@@ -1029,10 +1415,17 @@ $ bench_test status
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_all", "Step test on all motors sequentially");
 
+	PRINT_MODULE_USAGE_COMMAND_DESCR("step_idle", "Step one motor while holding all others at BT_IDLE_LVL");
+	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
+
+	PRINT_MODULE_USAGE_COMMAND_DESCR("step_sim", "Step all motors simultaneously to BT_STEP_LVL");
+
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse", "Single motor short impulse burst");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse_all", "Impulse test on all motors sequentially");
+
+	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse_sim", "Impulse all motors simultaneously");
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("tweet", "Single motor chirp/tweet frequency sweep");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);

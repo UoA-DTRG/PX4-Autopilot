@@ -118,6 +118,15 @@ private:
 	/** All motors simultaneously at a set level. */
 	void runMultiTest();
 
+	/** Single-motor step test with all other motors held at idle. */
+	void runStepWithIdleTest(int motor);
+
+	/** All motors step to the same level simultaneously. */
+	void runStepSimultaneous();
+
+	/** All motors impulse simultaneously. */
+	void runImpulseSimultaneous();
+
 	/** Single-motor current-draw sweep (staircase throttle). */
 	void runCurrentSweep(int motor);
 
@@ -139,8 +148,11 @@ private:
 		NONE = 0,
 		STEP_SINGLE,
 		STEP_ALL,
+		STEP_IDLE_BG,        /**< step one motor, all others at idle */
+		STEP_SIMULTANEOUS,   /**< all motors step together */
 		IMPULSE_SINGLE,
 		IMPULSE_ALL,
+		IMPULSE_SIMULTANEOUS,/**< all motors impulse together */
 		TWEET_SINGLE,
 		TWEET_ALL,
 		MULTI,
@@ -172,8 +184,11 @@ private:
 
 	/* ── Parameters ─────────────────────────────────────────────── */
 	DEFINE_PARAMETERS(
-		(ParamInt<px4::params::BT_NUM_MOTORS>)  _param_bt_num_motors,
-		(ParamFloat<px4::params::BT_STEP_LVL>)  _param_bt_step_lvl,
+		(ParamInt<px4::params::BT_NUM_MOTORS>)   _param_bt_num_motors,
+		(ParamFloat<px4::params::BT_BG_LVL>)     _param_bt_bg_lvl,
+		(ParamInt<px4::params::BT_BG_SETL>)      _param_bt_bg_setl,
+		(ParamFloat<px4::params::BT_BASE_LVL>)   _param_bt_base_lvl,
+		(ParamFloat<px4::params::BT_STEP_LVL>)   _param_bt_step_lvl,
 		(ParamInt<px4::params::BT_STEP_DUR>)    _param_bt_step_dur,
 		(ParamFloat<px4::params::BT_IMP_LVL>)   _param_bt_imp_lvl,
 		(ParamInt<px4::params::BT_IMP_DUR>)     _param_bt_imp_dur,
