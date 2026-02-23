@@ -463,3 +463,18 @@ PARAM_DEFINE_INT32(BT_FLT_STPH, 10000);
  * @group Bench Test
  */
 PARAM_DEFINE_INT32(BT_FLT_STPR, 1000);
+
+/**
+ * Flight test minimum pack voltage cutoff
+ *
+ * If the battery pack voltage drops below this value during a flight test
+ * the test is immediately aborted and all motors are ramped to zero.
+ * Set to 0.0 to disable the check.
+ *
+ * @unit V
+ * @min 0.0
+ * @max 60.0
+ * @decimal 1
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_FLT_VMIN, 0.0f);

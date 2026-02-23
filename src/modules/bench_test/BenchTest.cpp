@@ -1025,6 +1025,7 @@ void BenchTest::runFlightTest()
 	const int   imp_stab   = _param_bt_flt_blpi.get();
 	const int   ramp_ms    = _param_bt_ramp_time.get();
 	const int   n          = _param_bt_num_motors.get();
+	const float v_min      = _param_bt_flt_vmin.get();  /* 0 = disabled */
 
 	PX4_INFO("Flight test: hover %.2f, settle %d ms", (double)hover_lvl, hover_ms);
 	PX4_INFO("  Step: hi %.2f, lo %.2f, hold %d ms, ramp %d ms",
@@ -1032,9 +1033,55 @@ void BenchTest::runFlightTest()
 	PX4_INFO("  Impulses: %d pairs, amp %.2f, dur %d ms, stabilise %d ms",
 		 imp_count, (double)imp_amp, imp_dur, imp_stab);
 
+	if (v_min > 0.0f) {
+		PX4_INFO("  Voltage cutoff: %.1f V (BT_FLT_VMIN)", (double)v_min);
+	}
+
 	_state = TestState::RUNNING;
 	_active_test = TestType::FLIGHT;
 	_test_start_time = hrt_absolute_time();
+
+	/* Battery status subscription (best-effort, non-blocking) */
+	uORB::Subscription batt_sub{ORB_ID(battery_status)};
+
+	/* Helper: read battery, print a one-line summary, and return false if
+	 * the pack voltage has dropped below BT_FLT_VMIN (0 = disabled). */
+	auto print_batt = [&]() -> bool {
+		battery_status_s batt{};
+
+		if (!batt_sub.update(&batt) && batt.timestamp == 0) {
+			/* Try a fresh copy even if no new data */
+			batt_sub.copy(&batt);
+		}
+
+		if (batt.timestamp == 0) {
+			PX4_INFO("    Batt: no data");
+			return true; /* no data — don't abort */
+		}
+
+		/* State-of-charge as percentage */
+		int soc_pct = (batt.remaining >= 0.0f) ? (int)(batt.remaining * 100.0f + 0.5f) : -1;
+
+		/* Cell voltage string */
+		char cell_str[64] = {};
+		int pos = 0;
+
+		for (uint8_t c = 0; c < batt.cell_count && c < 14 && pos < (int)sizeof(cell_str) - 8; c++) {
+			pos += snprintf(cell_str + pos, sizeof(cell_str) - pos, "%.3fV ", (double)batt.voltage_cell_v[c]);
+		}
+
+		PX4_INFO("    Batt: %d%% | pack %.2fV | %.1fA | cells: %s",
+			 soc_pct, (double)batt.voltage_v, (double)batt.current_a, cell_str);
+
+		/* Voltage cutoff check */
+		if (v_min > 0.0f && batt.voltage_v > 0.0f && batt.voltage_v < v_min) {
+			PX4_ERR("    VOLTAGE CUTOFF: %.2fV < %.2fV (BT_FLT_VMIN) — aborting!",
+				(double)batt.voltage_v, (double)v_min);
+			return false;
+		}
+
+		return true;
+	};
 
 	/* Helper: hold all n motors at `level` until `end_time`, 50 Hz refresh */
 	auto hold_hover = [&](float level, hrt_abstime end_time, const char *phase) -> bool {
@@ -1085,6 +1132,7 @@ void BenchTest::runFlightTest()
 	 * Phase 1 — Ramp up to hover throttle
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 1: Ramp to hover %.2f over %d ms", (double)hover_lvl, ramp_ms);
+	if (!print_batt()) { abortTest("Voltage cutoff at Phase 1"); return; }
 
 	if (!slow_ramp(0.0f, hover_lvl, ramp_ms, "Kill switch during takeoff ramp")) { return; }
 
@@ -1092,6 +1140,7 @@ void BenchTest::runFlightTest()
 	 * Phase 2 — Settle at hover throttle
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 2: Hover settle for %d ms", hover_ms);
+	if (!print_batt()) { abortTest("Voltage cutoff at Phase 2"); return; }
 	{
 		hrt_abstime end = hrt_absolute_time() + (uint64_t)hover_ms * 1000ULL;
 
@@ -1102,6 +1151,7 @@ void BenchTest::runFlightTest()
 	 * Phase 3 — Orthogonal multisine excitation
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 3: Multisine orthogonal excitation");
+	if (!print_batt()) { abortTest("Voltage cutoff at Phase 3"); return; }
 	{
 		/* Defaults match DTRG_MSINE_* parameter defaults from module.yaml */
 		int32_t msine_nmot = n;      /* DTRG_MSINE_NMOT default: 8 (clamped to n) */
@@ -1176,6 +1226,7 @@ void BenchTest::runFlightTest()
 						PX4_INFO("    Multisine: %.1f/%.1fs  motor %d",
 							 (double)gen->getElapsedTime(), (double)total_dur,
 							 (int)gen->getCurrentMotor());
+						if (!print_batt()) { gen->stop(); delete gen; abortTest("Voltage cutoff during multisine"); return; }
 						last_print = now;
 					}
 
@@ -1203,6 +1254,7 @@ void BenchTest::runFlightTest()
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 4: Step UP hover %.2f -> hi %.2f (ramp %d ms, hold %d ms)",
 		 (double)hover_lvl, (double)hi_lvl, step_ramp, step_hold);
+	if (!print_batt()) { abortTest("Voltage cutoff at Phase 4"); return; }
 
 	if (!slow_ramp(hover_lvl, hi_lvl, step_ramp, "Kill switch during step-up ramp")) { return; }
 
@@ -1226,6 +1278,7 @@ void BenchTest::runFlightTest()
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 5: Step DOWN hover %.2f -> lo %.2f (ramp %d ms, hold %d ms)",
 		 (double)hover_lvl, (double)lo_lvl, step_ramp, step_hold);
+	if (!print_batt()) { abortTest("Voltage cutoff at Phase 5"); return; }
 
 	if (!slow_ramp(hover_lvl, lo_lvl, step_ramp, "Kill switch during step-down ramp")) { return; }
 
@@ -1250,6 +1303,7 @@ void BenchTest::runFlightTest()
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 6: %d simultaneous impulse pairs (amp %.2f, dur %d ms, stabilise %d ms)",
 		 imp_count, (double)imp_amp, imp_dur, imp_stab);
+	if (!print_batt()) { abortTest("Voltage cutoff at Phase 6"); return; }
 
 	float imp_hi = hover_lvl + imp_amp;
 	float imp_lo = hover_lvl - imp_amp;
@@ -1262,6 +1316,7 @@ void BenchTest::runFlightTest()
 
 		PX4_INFO("    Impulse pair %d/%d  (up %.2f, down %.2f)",
 			 k + 1, imp_count, (double)imp_hi, (double)imp_lo);
+		if (!print_batt()) { abortTest("Voltage cutoff during impulse"); return; }
 
 		/* ── UP burst ────────────────────────────────────────── */
 		{
@@ -1314,6 +1369,7 @@ void BenchTest::runFlightTest()
 	 * Phase 7 — Ramp down to zero
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 7: Ramp down to zero");
+	if (!print_batt()) { abortTest("Voltage cutoff at Phase 7"); return; }
 
 	if (!slow_ramp(hover_lvl, 0.0f, ramp_ms, "Kill switch during landing ramp")) { return; }
 
@@ -1321,6 +1377,7 @@ void BenchTest::runFlightTest()
 	_state = TestState::IDLE;
 	_active_test = TestType::NONE;
 	PX4_INFO("Flight test complete");
+	print_batt();
 }
 
 void BenchTest::runAllMotorsSequential(void (BenchTest::*singleTestFn)(int))

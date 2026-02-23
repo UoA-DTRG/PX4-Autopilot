@@ -56,6 +56,7 @@
 #include <uORB/SubscriptionInterval.hpp>
 #include <uORB/topics/actuator_test.h>
 #include <uORB/topics/actuator_armed.h>
+#include <uORB/topics/battery_status.h>
 #include <uORB/topics/esc_status.h>
 #include <uORB/topics/manual_control_switches.h>
 #include <uORB/topics/parameter_update.h>
@@ -214,6 +215,7 @@ private:
 		(ParamFloat<px4::params::BT_FLT_HIHI>)  _param_bt_flt_hihi,
 		(ParamFloat<px4::params::BT_FLT_LOLO>)  _param_bt_flt_lolo,
 		(ParamInt<px4::params::BT_FLT_STPH>)    _param_bt_flt_stph,
-		(ParamInt<px4::params::BT_FLT_STPR>)    _param_bt_flt_stpr
+		(ParamInt<px4::params::BT_FLT_STPR>)    _param_bt_flt_stpr,
+		(ParamFloat<px4::params::BT_FLT_VMIN>)  _param_bt_flt_vmin
 	)
 };
