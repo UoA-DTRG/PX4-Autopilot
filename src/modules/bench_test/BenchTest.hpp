@@ -212,7 +212,7 @@ private:
 		(ParamFloat<px4::params::BT_FLT_BLPA>)  _param_bt_flt_blpa,
 		(ParamInt<px4::params::BT_FLT_BLPD>)    _param_bt_flt_blpd,
 		(ParamInt<px4::params::BT_FLT_BLPI>)    _param_bt_flt_blpi,
-		(ParamFloat<px4::params::BT_FLT_BLPV>)  _param_bt_flt_blpv,
+		(ParamFloat<px4::params::BT_FLT_BLPS>)  _param_bt_flt_blps,
 		(ParamFloat<px4::params::BT_FLT_HIHI>)  _param_bt_flt_hihi,
 		(ParamFloat<px4::params::BT_FLT_LOLO>)  _param_bt_flt_lolo,
 		(ParamInt<px4::params::BT_FLT_STPH>)    _param_bt_flt_stph,
