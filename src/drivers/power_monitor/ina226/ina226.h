@@ -117,7 +117,10 @@ using namespace time_literals;
 #define INA226_AVERAGES_512                   (6 << INA226_AVERAGES_SHIFTS)
 #define INA226_AVERAGES_1024                  (7 << INA226_AVERAGES_SHIFTS)
 
-#define INA226_CONFIG (INA226_MODE_SHUNT_BUS_CONT | INA226_VSHCT_588US | INA226_VBUSCT_588US | INA226_AVERAGES_64)
+/* At 50 Hz poll rate (20ms period): 4 averages × (588+588)µs = 4.7ms per conversion — fits comfortably.
+ * Original 64 averages × 1176µs = 75ms, which is slower than the old 10 Hz poll, so data was stale.
+ * 4 averages still gives meaningful noise reduction while delivering genuinely new data at 50 Hz. */
+#define INA226_CONFIG (INA226_MODE_SHUNT_BUS_CONT | INA226_VSHCT_588US | INA226_VBUSCT_588US | INA226_AVERAGES_4)
 
 #define INA226_RST                            (1 << 15)
 
@@ -136,7 +139,7 @@ using namespace time_literals;
 #define INA226_SUL                           (1 << 14)
 #define INA226_SOL                           (1 << 15)
 
-#define INA226_SAMPLE_FREQUENCY_HZ            10
+#define INA226_SAMPLE_FREQUENCY_HZ            50
 #define INA226_SAMPLE_INTERVAL_US             (1_s / INA226_SAMPLE_FREQUENCY_HZ)
 #define INA226_CONVERSION_INTERVAL            (INA226_SAMPLE_INTERVAL_US - 7)
 #define MAX_CURRENT                           164.0f    /* 164 Amps */
