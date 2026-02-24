@@ -408,6 +408,23 @@ PARAM_DEFINE_INT32(BT_FLT_BLPD, 300);
 PARAM_DEFINE_INT32(BT_FLT_BLPI, 2000);
 
 /**
+ * Flight test impulse stop voltage
+ *
+ * When set > 0, Phase 6 (impulse pairs) continues repeating until the
+ * battery pack voltage drops to or below this value, ignoring BT_FLT_BLPN
+ * as a maximum repeat count. When set to 0 (default), only BT_FLT_BLPN
+ * pairs are executed.
+ * Typical value for a 6S pack stopped at 3.7 V/cell: 22.2 V.
+ *
+ * @unit V
+ * @min 0.0
+ * @max 60.0
+ * @decimal 1
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_FLT_BLPV, 0.0f);
+
+/**
  * Flight test high throttle level (step-up target)
  *
  * Normalized throttle for the slow step-up phase of the flight test.

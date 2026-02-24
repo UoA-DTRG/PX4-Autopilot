@@ -1023,6 +1023,7 @@ void BenchTest::runFlightTest()
 	const float imp_amp    = _param_bt_flt_blpa.get();
 	const int   imp_dur    = _param_bt_flt_blpd.get();
 	const int   imp_stab   = _param_bt_flt_blpi.get();
+	const float imp_stop_v = _param_bt_flt_blpv.get(); /* 0 = disabled, use imp_count */
 	const int   ramp_ms    = _param_bt_ramp_time.get();
 	const int   n          = _param_bt_num_motors.get();
 	const float v_min      = _param_bt_flt_vmin.get();  /* 0 = disabled */
@@ -1300,9 +1301,18 @@ void BenchTest::runFlightTest()
 	/* ══════════════════════════════════════════════════════════════
 	 * Phase 6 — Simultaneous impulse pairs (all motors)
 	 *   Each cycle: UP burst → stabilise → DOWN burst → stabilise
+	 *   Runs for imp_count pairs, or until pack voltage ≤ imp_stop_v
+	 *   (whichever comes first; imp_stop_v = 0 means count-only mode).
 	 * ════════════════════════════════════════════════════════════ */
-	PX4_INFO("  Phase 6: %d simultaneous impulse pairs (amp %.2f, dur %d ms, stabilise %d ms)",
-		 imp_count, (double)imp_amp, imp_dur, imp_stab);
+	if (imp_stop_v > 0.0f) {
+		PX4_INFO("  Phase 6: impulse pairs until pack voltage ≤ %.1fV (max %d, amp %.2f, dur %d ms, stabilise %d ms)",
+			 (double)imp_stop_v, imp_count, (double)imp_amp, imp_dur, imp_stab);
+
+	} else {
+		PX4_INFO("  Phase 6: %d simultaneous impulse pairs (amp %.2f, dur %d ms, stabilise %d ms)",
+			 imp_count, (double)imp_amp, imp_dur, imp_stab);
+	}
+
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 6"); return; }
 
 	float imp_hi = hover_lvl + imp_amp;
@@ -1312,10 +1322,31 @@ void BenchTest::runFlightTest()
 
 	if (imp_lo < 0.0f) { imp_lo = 0.0f; }
 
-	for (int k = 0; k < imp_count && _state == TestState::RUNNING; k++) {
+	for (int k = 0; _state == TestState::RUNNING; k++) {
 
-		PX4_INFO("    Impulse pair %d/%d  (up %.2f, down %.2f)",
-			 k + 1, imp_count, (double)imp_hi, (double)imp_lo);
+		/* ── Stop condition: count limit always applies ───────── */
+		if (k >= imp_count) {
+			PX4_INFO("    Impulse count limit (%d) reached", imp_count);
+			break;
+		}
+
+		/* ── Stop condition: voltage threshold (if enabled) ──── */
+		if (imp_stop_v > 0.0f) {
+			battery_status_s batt_chk{};
+			batt_sub.copy(&batt_chk);
+
+			if (batt_chk.timestamp > 0 && batt_chk.voltage_v > 0.0f
+			    && batt_chk.voltage_v <= imp_stop_v) {
+				PX4_INFO("    Impulse stop: pack %.2fV ≤ %.1fV target after %d pairs",
+					 (double)batt_chk.voltage_v, (double)imp_stop_v, k);
+				break;
+			}
+		}
+
+		PX4_INFO("    Impulse pair %d%s  (up %.2f, down %.2f)",
+			 k + 1,
+			 imp_stop_v > 0.0f ? " (voltage mode)" : "",
+			 (double)imp_hi, (double)imp_lo);
 		if (!print_batt()) { abortTest("Voltage cutoff during impulse"); return; }
 
 		/* ── UP burst ────────────────────────────────────────── */
