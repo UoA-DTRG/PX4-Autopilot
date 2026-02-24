@@ -1042,18 +1042,35 @@ void BenchTest::runFlightTest()
 	_active_test = TestType::FLIGHT;
 	_test_start_time = hrt_absolute_time();
 
-	/* Battery status subscription (best-effort, non-blocking) */
-	uORB::Subscription batt_sub{ORB_ID(battery_status)};
+	/* Battery status subscriptions — probe all instances, pick the freshest.
+	 * The INA226 may publish on instance 1 (or whichever the board assigns),
+	 * so we must not hard-code instance 0. */
+	uORB::Subscription batt_subs[4] {
+		{ORB_ID(battery_status), 0},
+		{ORB_ID(battery_status), 1},
+		{ORB_ID(battery_status), 2},
+		{ORB_ID(battery_status), 3},
+	};
 
-	/* Helper: read battery, print a one-line summary, and return false if
-	 * the pack voltage has dropped below BT_FLT_VMIN (0 = disabled). */
+	/* Helper: read battery (all instances, pick freshest), print a one-line
+	 * summary, and return false if the pack voltage has dropped below
+	 * BT_FLT_VMIN (0 = disabled). */
+	auto read_batt = [&](battery_status_s &out) {
+		out = {};
+
+		for (auto &sub : batt_subs) {
+			battery_status_s tmp{};
+			sub.copy(&tmp);
+
+			if (tmp.timestamp > out.timestamp) {
+				out = tmp;
+			}
+		}
+	};
+
 	auto print_batt = [&]() -> bool {
 		battery_status_s batt{};
-
-		if (!batt_sub.update(&batt) && batt.timestamp == 0) {
-			/* Try a fresh copy even if no new data */
-			batt_sub.copy(&batt);
-		}
+		read_batt(batt);
 
 		if (batt.timestamp == 0) {
 			PX4_INFO("    Batt: no data");
@@ -1063,15 +1080,24 @@ void BenchTest::runFlightTest()
 		/* State-of-charge as percentage */
 		int soc_pct = (batt.remaining >= 0.0f) ? (int)(batt.remaining * 100.0f + 0.5f) : -1;
 
-		/* Cell voltage string */
-		char cell_str[64] = {};
+		/* Cell voltage string — only if the monitor actually reports cell data */
+		char cell_str[80] = {};
 		int pos = 0;
+		bool has_cells = false;
 
-		for (uint8_t c = 0; c < batt.cell_count && c < 14 && pos < (int)sizeof(cell_str) - 8; c++) {
-			pos += snprintf(cell_str + pos, sizeof(cell_str) - pos, "%.3fV ", (double)batt.voltage_cell_v[c]);
+		for (uint8_t c = 0; c < batt.cell_count && c < 14; c++) {
+			if (batt.voltage_cell_v[c] > 0.01f) { has_cells = true; break; }
 		}
 
-		PX4_INFO("    Batt: %d%% | pack %.2fV | %.1fA | cells: %s",
+		if (has_cells) {
+			for (uint8_t c = 0; c < batt.cell_count && c < 14 && pos < (int)sizeof(cell_str) - 8; c++) {
+				pos += snprintf(cell_str + pos, sizeof(cell_str) - pos, "%.3fV ", (double)batt.voltage_cell_v[c]);
+			}
+		} else {
+			snprintf(cell_str, sizeof(cell_str), "%d cells (no per-cell data)", (int)batt.cell_count);
+		}
+
+		PX4_INFO("    Batt: %d%% | pack %.2fV | %.1fA | %s",
 			 soc_pct, (double)batt.voltage_v, (double)batt.current_a, cell_str);
 
 		/* Voltage cutoff check */
@@ -1333,7 +1359,7 @@ void BenchTest::runFlightTest()
 		/* ── Stop condition: SoC threshold (if enabled) ──────── */
 		if (imp_stop_soc > 0.0f) {
 			battery_status_s batt_chk{};
-			batt_sub.copy(&batt_chk);
+			read_batt(batt_chk);
 
 			if (batt_chk.timestamp > 0 && batt_chk.remaining >= 0.0f
 			    && batt_chk.remaining * 100.0f <= imp_stop_soc) {
