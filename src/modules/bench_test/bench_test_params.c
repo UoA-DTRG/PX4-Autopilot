@@ -495,3 +495,263 @@ PARAM_DEFINE_INT32(BT_FLT_STPR, 1000);
  * @group Bench Test
  */
 PARAM_DEFINE_FLOAT(BT_FLT_VMIN, 0.0f);
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  Voltage compensator parameters
+ *
+ *  The compensator adjusts the motor command to counteract battery
+ *  voltage sag.  It predicts the terminal voltage using a first-order
+ *  RC battery model whose parameters are polynomials in SoC, then
+ *  scales δ by Vb_op / Vb_predicted.
+ *
+ *  Speed estimator (per rotor, shared coefficients):
+ *    ω_k = (θ_ω1·Vδ + θ_ω2·√Vδ + θ_ω3 − θ_ω4·ω_{k-1}) / (1 + θ_ω4)
+ *
+ *  Current estimator (total, shared):
+ *    I = Σ (θ_I1·ω_i + θ_I2·ω_i² + θ_I3)
+ *
+ *  Battery model:
+ *    V0(s)  = c0 + c1·s + c2·s² + c3·s³       (OCV polynomial in SoC s)
+ *    R0(s)  = c0 + c1·s + c2·s² + c3·s³       (series resistance)
+ *    R1(s)  = c0 + c1·s + c2·s² + c3·s³       (RC branch resistance)
+ *    τ1(s)  = c0 + c1·s + c2·s² + c3·s³       (RC time constant)
+ *    V_RC_k = V_RC_{k-1} + Ts·(R1/τ1·I − 1/τ1·V_RC_{k-1})
+ *    Vb     = V0 − I·R0 − V_RC
+ *    C_δ    = Vb_op / Vb
+ *    δ'     = C_δ · δ
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Voltage compensator nominal battery voltage
+ *
+ * The assumed "operating point" battery voltage Vb_op.
+ * The compensator scales the command so that the effective voltage
+ * δ·Vb equals δ'·Vb_actual, keeping rotor speed independent of
+ * battery state.  Typically the mid-SoC pack voltage.
+ * Set to 0.0 to leave the compensator unconfigured.
+ *
+ * @unit V
+ * @min 0.0
+ * @max 60.0
+ * @decimal 2
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_VBOP, 0.0f);
+
+/**
+ * Speed estimator coefficient θ_ω1
+ *
+ * Linear voltage term in the rotor speed estimator.
+ * ω_k = (θ1·Vδ + θ2·√Vδ + θ3 − θ4·ω_{k-1}) / (1 + θ4)
+ *
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_TW1, 0.0f);
+
+/**
+ * Speed estimator coefficient θ_ω2
+ *
+ * Square-root voltage term in the rotor speed estimator.
+ *
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_TW2, 0.0f);
+
+/**
+ * Speed estimator coefficient θ_ω3
+ *
+ * Constant term in the rotor speed estimator.
+ *
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_TW3, 0.0f);
+
+/**
+ * Speed estimator coefficient θ_ω4
+ *
+ * Backward-Euler dynamics coefficient (relates to rotor time constant).
+ * ω_k = (… − θ4·ω_{k-1}) / (1 + θ4)
+ *
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_TW4, 0.0f);
+
+/**
+ * Current estimator coefficient θ_I1
+ *
+ * Linear speed term in per-rotor current model.
+ * I_rotor = θ1·ω + θ2·ω² + θ3
+ *
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_TI1, 0.0f);
+
+/**
+ * Current estimator coefficient θ_I2
+ *
+ * Quadratic speed term in per-rotor current model.
+ *
+ * @decimal 8
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_TI2, 0.0f);
+
+/**
+ * Current estimator coefficient θ_I3
+ *
+ * Constant term in per-rotor current model.
+ *
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_TI3, 0.0f);
+
+/* ── Battery model: V0(SoC) = c0 + c1·s + c2·s² + c3·s³ ──────────── */
+
+/**
+ * Battery OCV polynomial c0 (constant)
+ *
+ * Open-circuit voltage polynomial coefficient, constant term.
+ * SoC is in [0, 1].
+ *
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_V0C0, 0.0f);
+
+/**
+ * Battery OCV polynomial c1 (linear)
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_V0C1, 0.0f);
+
+/**
+ * Battery OCV polynomial c2 (quadratic)
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_V0C2, 0.0f);
+
+/**
+ * Battery OCV polynomial c3 (cubic)
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_V0C3, 0.0f);
+
+/* ── Battery model: R0(SoC) = c0 + c1·s + c2·s² + c3·s³ ──────────── */
+
+/**
+ * Battery R0 polynomial c0 (constant)
+ *
+ * Series resistance polynomial coefficient, constant term.
+ *
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R0C0, 0.0f);
+
+/**
+ * Battery R0 polynomial c1 (linear)
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R0C1, 0.0f);
+
+/**
+ * Battery R0 polynomial c2 (quadratic)
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R0C2, 0.0f);
+
+/**
+ * Battery R0 polynomial c3 (cubic)
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R0C3, 0.0f);
+
+/* ── Battery model: R1(SoC) = c0 + c1·s + c2·s² + c3·s³ ──────────── */
+
+/**
+ * Battery R1 polynomial c0 (constant)
+ *
+ * RC-branch resistance polynomial coefficient, constant term.
+ *
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R1C0, 0.0f);
+
+/**
+ * Battery R1 polynomial c1 (linear)
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R1C1, 0.0f);
+
+/**
+ * Battery R1 polynomial c2 (quadratic)
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R1C2, 0.0f);
+
+/**
+ * Battery R1 polynomial c3 (cubic)
+ * @unit Ohm
+ * @decimal 6
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_R1C3, 0.0f);
+
+/* ── Battery model: τ1(SoC) = c0 + c1·s + c2·s² + c3·s³ ──────────── */
+
+/**
+ * Battery τ1 polynomial c0 (constant)
+ *
+ * RC-branch time constant polynomial coefficient, constant term.
+ *
+ * @unit s
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_T1C0, 0.0f);
+
+/**
+ * Battery τ1 polynomial c1 (linear)
+ * @unit s
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_T1C1, 0.0f);
+
+/**
+ * Battery τ1 polynomial c2 (quadratic)
+ * @unit s
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_T1C2, 0.0f);
+
+/**
+ * Battery τ1 polynomial c3 (cubic)
+ * @unit s
+ * @decimal 4
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_T1C3, 0.0f);

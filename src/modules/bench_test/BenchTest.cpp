@@ -184,6 +184,98 @@ void BenchTest::abortTest(const char *reason)
 	_active_test = TestType::NONE;
 }
 
+/* ── Voltage compensator helpers ──────────────────────────────────────── */
+
+void BenchTest::loadCompensatorParams()
+{
+	_voltage_compensator.Vb_op = _param_bt_vc_vbop.get();
+
+	_voltage_compensator.tw1 = _param_bt_vc_tw1.get();
+	_voltage_compensator.tw2 = _param_bt_vc_tw2.get();
+	_voltage_compensator.tw3 = _param_bt_vc_tw3.get();
+	_voltage_compensator.tw4 = _param_bt_vc_tw4.get();
+
+	_voltage_compensator.ti1 = _param_bt_vc_ti1.get();
+	_voltage_compensator.ti2 = _param_bt_vc_ti2.get();
+	_voltage_compensator.ti3 = _param_bt_vc_ti3.get();
+
+	_voltage_compensator.v0c[0] = _param_bt_vc_v0c0.get();
+	_voltage_compensator.v0c[1] = _param_bt_vc_v0c1.get();
+	_voltage_compensator.v0c[2] = _param_bt_vc_v0c2.get();
+	_voltage_compensator.v0c[3] = _param_bt_vc_v0c3.get();
+
+	_voltage_compensator.r0c[0] = _param_bt_vc_r0c0.get();
+	_voltage_compensator.r0c[1] = _param_bt_vc_r0c1.get();
+	_voltage_compensator.r0c[2] = _param_bt_vc_r0c2.get();
+	_voltage_compensator.r0c[3] = _param_bt_vc_r0c3.get();
+
+	_voltage_compensator.r1c[0] = _param_bt_vc_r1c0.get();
+	_voltage_compensator.r1c[1] = _param_bt_vc_r1c1.get();
+	_voltage_compensator.r1c[2] = _param_bt_vc_r1c2.get();
+	_voltage_compensator.r1c[3] = _param_bt_vc_r1c3.get();
+
+	_voltage_compensator.t1c[0] = _param_bt_vc_t1c0.get();
+	_voltage_compensator.t1c[1] = _param_bt_vc_t1c1.get();
+	_voltage_compensator.t1c[2] = _param_bt_vc_t1c2.get();
+	_voltage_compensator.t1c[3] = _param_bt_vc_t1c3.get();
+}
+
+float BenchTest::readBatterySoC()
+{
+	for (int i = 0; i < 4; i++) {
+		battery_status_s batt;
+
+		if (_vc_batt_subs[i].copy(&batt) && batt.connected) {
+			float soc = batt.remaining;
+
+			if (soc >= 0.0f && soc <= 1.0f) {
+				return soc;
+			}
+		}
+	}
+
+	return -1.0f; // no valid battery data
+}
+
+void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t timeout_ms)
+{
+	if (_compensator_enabled && _voltage_compensator.isConfigured()) {
+		const hrt_abstime now = hrt_absolute_time();
+		float dt = (_vc_last_update > 0) ? (float)(now - _vc_last_update) / 1e6f : 0.01f;
+		_vc_last_update = now;
+
+		/* Clamp dt to avoid crazy jumps after pauses */
+		if (dt > 0.5f) { dt = 0.01f; }
+
+		const float soc = readBatterySoC();
+		const float delta_raw = value;
+		float Vb_pred = 0.0f;
+		float I_total = 0.0f;
+		float delta_comp = value;
+
+		if (soc >= 0.0f) {
+			delta_comp = _voltage_compensator.update(value, soc, dt, Vb_pred, I_total);
+		}
+
+		/* ── Publish bench_test_vc_status ─────────────────────── */
+		bench_test_vc_status_s status{};
+		status.timestamp  = now;
+		status.motor_index = (uint8_t)motor_index;
+		status.delta_raw  = delta_raw;
+		status.delta_comp = delta_comp;
+		status.C_delta    = (delta_raw > 1e-4f) ? (delta_comp / delta_raw) : 1.0f;
+		status.soc        = (soc >= 0.0f) ? soc : -1.0f;
+		status.V_b_pred   = Vb_pred;
+		status.I_total    = I_total;
+		_vc_status_pub.publish(status);
+
+		commandMotor(motor_index, delta_comp, timeout_ms);
+		return;
+	}
+
+	commandMotor(motor_index, value, timeout_ms);
+}
+
 /* ── Test implementations ─────────────────────────────────────────────── */
 
 void BenchTest::runStepTest(int motor)
@@ -224,7 +316,7 @@ void BenchTest::runStepTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base * frac, total_ms);
+				compensatedCommandMotor(m, base * frac, total_ms);
 			}
 
 			px4_usleep(10000);
@@ -240,7 +332,7 @@ void BenchTest::runStepTest(int motor)
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during settle"); return; }
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
 			}
 
 			px4_usleep(50000);
@@ -260,7 +352,7 @@ void BenchTest::runStepTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (base + (level - base) * frac) : base;
-				commandMotor(m, val, hold_ms + ramp_ms + 500);
+				compensatedCommandMotor(m, val, hold_ms + ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -275,7 +367,7 @@ void BenchTest::runStepTest(int motor)
 
 		for (int m = 0; m < n; m++) {
 			float val = (m == motor) ? level : base;
-			commandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
+			compensatedCommandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
 		}
 
 		px4_usleep(50000);
@@ -292,7 +384,7 @@ void BenchTest::runStepTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (base + (level - base) * frac) : base;
-				commandMotor(m, val, ramp_ms + 500);
+				compensatedCommandMotor(m, val, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -305,7 +397,7 @@ void BenchTest::runStepTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base * frac, ramp_ms + 500);
+				compensatedCommandMotor(m, base * frac, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -358,7 +450,7 @@ void BenchTest::runImpulseTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base * frac, ramp_ms + settle_ms + pulse_ms + 500);
+				compensatedCommandMotor(m, base * frac, ramp_ms + settle_ms + pulse_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -374,7 +466,7 @@ void BenchTest::runImpulseTest(int motor)
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during impulse settle"); return; }
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
 			}
 
 			px4_usleep(50000);
@@ -384,7 +476,7 @@ void BenchTest::runImpulseTest(int motor)
 	if (_state != TestState::RUNNING) { return; }
 
 	// Phase 3: Fire impulse on target motor; all others stay at base
-	commandMotor(motor, impulse_lvl, pulse_ms + 500);
+	compensatedCommandMotor(motor, impulse_lvl, pulse_ms + 500);
 
 	const hrt_abstime end = hrt_absolute_time() + (uint64_t)pulse_ms * 1000ULL;
 
@@ -393,7 +485,7 @@ void BenchTest::runImpulseTest(int motor)
 
 		for (int m = 0; m < n; m++) {
 			if (m != motor && base > 0.0f) {
-				commandMotor(m, base, (uint32_t)((end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, base, (uint32_t)((end - hrt_absolute_time()) / 1000 + 500));
 			}
 		}
 
@@ -410,7 +502,7 @@ void BenchTest::runImpulseTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base * frac, ramp_ms + 500);
+				compensatedCommandMotor(m, base * frac, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -680,7 +772,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, bg * frac, total_ms);
+				compensatedCommandMotor(m, bg * frac, total_ms);
 			}
 
 			px4_usleep(10000);
@@ -696,7 +788,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during bg settle"); return; }
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, bg, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, bg, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
 			}
 
 			px4_usleep(50000);
@@ -718,7 +810,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (bg + (step_lvl - bg) * frac) : bg;
-				commandMotor(m, val, hold_ms + ramp_ms + 500);
+				compensatedCommandMotor(m, val, hold_ms + ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -733,7 +825,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 		for (int m = 0; m < n; m++) {
 			float val = (m == motor) ? step_lvl : bg;
-			commandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
+			compensatedCommandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
 		}
 
 		px4_usleep(50000);
@@ -750,7 +842,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (bg + (step_lvl - bg) * frac) : bg;
-				commandMotor(m, val, ramp_ms + 500);
+				compensatedCommandMotor(m, val, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -769,7 +861,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, bg * frac, ramp_ms + 500);
+				compensatedCommandMotor(m, bg * frac, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -820,7 +912,7 @@ void BenchTest::runStepSimultaneous()
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base * frac, ramp_ms + settle_ms + hold_ms + 500);
+				compensatedCommandMotor(m, base * frac, ramp_ms + settle_ms + hold_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -836,7 +928,7 @@ void BenchTest::runStepSimultaneous()
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous step settle"); return; }
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
 			}
 
 			px4_usleep(50000);
@@ -855,7 +947,7 @@ void BenchTest::runStepSimultaneous()
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base + (level - base) * frac, ramp_ms + hold_ms + 500);
+				compensatedCommandMotor(m, base + (level - base) * frac, ramp_ms + hold_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -869,7 +961,7 @@ void BenchTest::runStepSimultaneous()
 		if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous step hold"); return; }
 
 		for (int m = 0; m < n; m++) {
-			commandMotor(m, level, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
+			compensatedCommandMotor(m, level, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
 		}
 
 		px4_usleep(50000);
@@ -885,7 +977,7 @@ void BenchTest::runStepSimultaneous()
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base + (level - base) * frac, ramp_ms + 500);
+				compensatedCommandMotor(m, base + (level - base) * frac, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -939,7 +1031,7 @@ void BenchTest::runImpulseSimultaneous()
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base * frac, ramp_ms + settle_ms + pulse_ms + 500);
+				compensatedCommandMotor(m, base * frac, ramp_ms + settle_ms + pulse_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -955,7 +1047,7 @@ void BenchTest::runImpulseSimultaneous()
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during simultaneous impulse settle"); return; }
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
 			}
 
 			px4_usleep(50000);
@@ -968,7 +1060,7 @@ void BenchTest::runImpulseSimultaneous()
 	const hrt_abstime end = hrt_absolute_time() + (uint64_t)pulse_ms * 1000ULL;
 
 	for (int m = 0; m < n; m++) {
-		commandMotor(m, impulse_lvl, pulse_ms + 500);
+		compensatedCommandMotor(m, impulse_lvl, pulse_ms + 500);
 	}
 
 	while (hrt_absolute_time() < end && _state == TestState::RUNNING) {
@@ -987,7 +1079,7 @@ void BenchTest::runImpulseSimultaneous()
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				commandMotor(m, base * frac, ramp_ms + 500);
+				compensatedCommandMotor(m, base * frac, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
@@ -1555,8 +1647,9 @@ int BenchTest::custom_command(int argc, char *argv[])
 		return 1;
 	}
 
-	/* ── Parse optional -m <motor> argument ─────────────────────── */
+	/* ── Parse optional -m <motor> and -c (compensator) arguments ── */
 	int motor = -1; // -1 means not specified
+	bool compensate_flag = false;
 	int myoptind = 0;
 	int ch;
 	const char *myoptarg = nullptr;
@@ -1569,7 +1662,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 	char **opt_argv = argv + 1;
 	myoptind = 0;
 
-	while ((ch = px4_getopt(opt_argc, opt_argv, "m:", &myoptind, &myoptarg)) != EOF) {
+	while ((ch = px4_getopt(opt_argc, opt_argv, "m:c", &myoptind, &myoptarg)) != EOF) {
 		switch (ch) {
 		case 'm':
 			motor = (int)strtol(myoptarg, nullptr, 10) - 1; // user provides 1-based
@@ -1581,6 +1674,10 @@ int BenchTest::custom_command(int argc, char *argv[])
 
 			break;
 
+		case 'c':
+			compensate_flag = true;
+			break;
+
 		default:
 			return print_usage("unknown option");
 		}
@@ -1588,20 +1685,44 @@ int BenchTest::custom_command(int argc, char *argv[])
 
 	/* ── Dispatch subcommands ───────────────────────────────────── */
 
+	/* Helper: arm the voltage compensator for a test run if -c was given */
+	auto setup_compensator = [&]() {
+		obj->_compensator_enabled = compensate_flag;
+
+		if (compensate_flag) {
+			obj->loadCompensatorParams();
+			obj->_voltage_compensator.reset(obj->_param_bt_num_motors.get());
+			obj->_vc_last_update = 0;
+
+			if (!obj->_voltage_compensator.isConfigured()) {
+				PX4_WARN("-c given but BT_VC_VBOP not set – compensator disabled");
+				obj->_compensator_enabled = false;
+
+			} else {
+				PX4_INFO("Voltage compensator enabled (Vb_op=%.2f V)",
+					 (double)obj->_voltage_compensator.Vb_op);
+			}
+		}
+	};
+
 	if (!strcmp(subcmd, "step")) {
 		if (motor < 0) {
 			PX4_ERR("Specify motor with -m <1..N>");
 			return 1;
 		}
 
+		setup_compensator();
 		obj->runStepTest(motor);
+		obj->_compensator_enabled = false;
 		return 0;
 	}
 
 	if (!strcmp(subcmd, "step_all")) {
+		setup_compensator();
 		obj->_state = TestState::RUNNING;
 		obj->_active_test = TestType::STEP_ALL;
 		obj->runAllMotorsSequential(&BenchTest::runStepTest);
+		obj->_compensator_enabled = false;
 		return 0;
 	}
 
@@ -1611,12 +1732,16 @@ int BenchTest::custom_command(int argc, char *argv[])
 			return 1;
 		}
 
+		setup_compensator();
 		obj->runStepWithIdleTest(motor);
+		obj->_compensator_enabled = false;
 		return 0;
 	}
 
 	if (!strcmp(subcmd, "step_sim")) {
+		setup_compensator();
 		obj->runStepSimultaneous();
+		obj->_compensator_enabled = false;
 		return 0;
 	}
 
@@ -1626,19 +1751,25 @@ int BenchTest::custom_command(int argc, char *argv[])
 			return 1;
 		}
 
+		setup_compensator();
 		obj->runImpulseTest(motor);
+		obj->_compensator_enabled = false;
 		return 0;
 	}
 
 	if (!strcmp(subcmd, "impulse_all")) {
+		setup_compensator();
 		obj->_state = TestState::RUNNING;
 		obj->_active_test = TestType::IMPULSE_ALL;
 		obj->runAllMotorsSequential(&BenchTest::runImpulseTest);
+		obj->_compensator_enabled = false;
 		return 0;
 	}
 
 	if (!strcmp(subcmd, "impulse_sim")) {
+		setup_compensator();
 		obj->runImpulseSimultaneous();
+		obj->_compensator_enabled = false;
 		return 0;
 	}
 
@@ -1768,11 +1899,17 @@ $ bench_test step_idle -m 2
 Step all 8 motors at once:
 $ bench_test step_sim
 
+Run step test with voltage compensator enabled:
+$ bench_test step -m 2 -c
+
 Run impulse test on all motors sequentially:
 $ bench_test impulse_all
 
 Impulse all motors at once:
 $ bench_test impulse_sim
+
+Run impulse with voltage compensator:
+$ bench_test impulse_sim -c
 
 Run chirp/tweet sweep on motor 1:
 $ bench_test tweet -m 1
@@ -1807,20 +1944,27 @@ $ bench_test status
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step", "Single motor step test (ramp-up, hold, ramp-down)");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator (BT_VC_* params)", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_all", "Step test on all motors sequentially");
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_idle", "Step one motor while holding all others at BT_BG_LVL");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_sim", "Step all motors simultaneously to BT_STEP_LVL");
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse", "Single motor short impulse burst");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse_all", "Impulse test on all motors sequentially");
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse_sim", "Impulse all motors simultaneously");
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("tweet", "Single motor chirp/tweet frequency sweep");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);

@@ -190,6 +190,7 @@ void LoggedTopics::add_default_topics()
 	add_topic("debug_vect");
 	add_topic("dtrg_custom");
 	add_optional_topic("multisine_excitation_status", 20);
+	add_optional_topic("bench_test_vc_status");
 
 	// log all raw sensors at minimal rate (at least 1 Hz)
 	add_topic_multi("battery_status", 20, 2);
