@@ -58,6 +58,8 @@
 #include <lib/system_identification/multisine_excitation.hpp>
 #include <px4_platform_common/getopt.h>
 #include <px4_platform_common/log.h>
+#include <uORB/Publication.hpp>
+#include <uORB/topics/log_message.h>
 
 /* Forward-declare the logger entry point (it is __EXPORT in logger.h). */
 extern "C" int logger_main(int argc, char *argv[]);
@@ -1155,10 +1157,22 @@ void BenchTest::runFlightTest()
 		return _state == TestState::RUNNING;
 	};
 
+	/* Helper: write a phase marker into the ULog — visible in Flight Review
+	 * timeline and extractable with pyulog. Severity 6 = INFO. */
+	uORB::Publication<log_message_s> log_msg_pub{ORB_ID(log_message)};
+	auto log_phase = [&](int phase_num, const char *desc) {
+		log_message_s msg{};
+		msg.timestamp = hrt_absolute_time();
+		msg.severity  = 6; /* LOG_INFO */
+		snprintf(msg.text, sizeof(msg.text), "[bench_test] Phase %d: %s", phase_num, desc);
+		log_msg_pub.publish(msg);
+	};
+
 	/* ══════════════════════════════════════════════════════════════
 	 * Phase 1 — Ramp up to hover throttle
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 1: Ramp to hover %.2f over %d ms", (double)hover_lvl, ramp_ms);
+	log_phase(1, "Ramp to hover");
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 1"); return; }
 
 	if (!slow_ramp(0.0f, hover_lvl, ramp_ms, "Kill switch during takeoff ramp")) { return; }
@@ -1167,6 +1181,7 @@ void BenchTest::runFlightTest()
 	 * Phase 2 — Settle at hover throttle
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 2: Hover settle for %d ms", hover_ms);
+	log_phase(2, "Hover settle");
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 2"); return; }
 	{
 		hrt_abstime end = hrt_absolute_time() + (uint64_t)hover_ms * 1000ULL;
@@ -1178,6 +1193,7 @@ void BenchTest::runFlightTest()
 	 * Phase 3 — Orthogonal multisine excitation
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 3: Multisine orthogonal excitation");
+	log_phase(3, "Multisine excitation");
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 3"); return; }
 	{
 		/* Defaults match DTRG_MSINE_* parameter defaults from module.yaml */
@@ -1281,6 +1297,7 @@ void BenchTest::runFlightTest()
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 4: Step UP hover %.2f -> hi %.2f (ramp %d ms, hold %d ms)",
 		 (double)hover_lvl, (double)hi_lvl, step_ramp, step_hold);
+	log_phase(4, "Step up");
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 4"); return; }
 
 	if (!slow_ramp(hover_lvl, hi_lvl, step_ramp, "Kill switch during step-up ramp")) { return; }
@@ -1305,6 +1322,7 @@ void BenchTest::runFlightTest()
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 5: Step DOWN hover %.2f -> lo %.2f (ramp %d ms, hold %d ms)",
 		 (double)hover_lvl, (double)lo_lvl, step_ramp, step_hold);
+	log_phase(5, "Step down");
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 5"); return; }
 
 	if (!slow_ramp(hover_lvl, lo_lvl, step_ramp, "Kill switch during step-down ramp")) { return; }
@@ -1339,6 +1357,7 @@ void BenchTest::runFlightTest()
 			 imp_count, (double)imp_amp, imp_dur, imp_stab);
 	}
 
+	log_phase(6, "Impulse pairs");
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 6"); return; }
 
 	float imp_hi = hover_lvl + imp_amp;
@@ -1426,6 +1445,7 @@ void BenchTest::runFlightTest()
 	 * Phase 7 — Ramp down to zero
 	 * ════════════════════════════════════════════════════════════ */
 	PX4_INFO("  Phase 7: Ramp down to zero");
+	log_phase(7, "Ramp down to zero");
 	if (!print_batt()) { abortTest("Voltage cutoff at Phase 7"); return; }
 
 	if (!slow_ramp(hover_lvl, 0.0f, ramp_ms, "Kill switch during landing ramp")) { return; }
