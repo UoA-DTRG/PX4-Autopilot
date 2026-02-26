@@ -246,52 +246,70 @@ float BenchTest::readBatterySoC()
 	return -1.0f; // no valid battery data
 }
 
-void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t timeout_ms)
+void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t timeout_ms,
+					bool is_target, float delta_bg, int n_bg)
 {
-	if (_compensator_enabled && _voltage_compensator.isConfigured()) {
-		const hrt_abstime now = hrt_absolute_time();
-		float dt = (_vc_last_update > 0) ? (float)(now - _vc_last_update) / 1e6f : 0.01f;
-		_vc_last_update = now;
-
-		/* Clamp dt to avoid crazy jumps after pauses */
-		if (dt > 0.5f) { dt = 0.01f; }
-
-		const float soc = readBatterySoC();
-		const float delta_raw = value;
-		float Vb_pred = 0.0f;
-		float I_total = 0.0f;
-		float delta_comp = value;
-
-		if (soc >= 0.0f) {
-			delta_comp = _voltage_compensator.update(value, soc, dt, Vb_pred, I_total);
+	/* Non-target motors: update their stored delta so the battery model stays
+	 * current, but do not apply any correction or publish a log message. */
+	if (!is_target) {
+		if (_compensator_enabled && _voltage_compensator.isConfigured()
+		    && motor_index >= 0 && motor_index < VoltageCompensator::MAX_ROTORS) {
+			_voltage_compensator.delta_prev[motor_index] = value;
 		}
 
-		/* ── Hard throttle limit ─────────────────────────────────── */
-		const float max_cmd = _param_bt_vc_maxcmd.get();
-
-		if (delta_comp > max_cmd) {
-			PX4_WARN("VC: motor %d comp cmd %.3f clamped to BT_VC_MAXCMD %.3f",
-				 motor_index, (double)delta_comp, (double)max_cmd);
-			delta_comp = max_cmd;
-		}
-
-		/* ── Publish bench_test_vc_status ─────────────────────── */
-		bench_test_vc_status_s status{};
-		status.timestamp  = now;
-		status.motor_index = (uint8_t)motor_index;
-		status.delta_raw  = delta_raw;
-		status.delta_comp = delta_comp;
-		status.c_delta    = (delta_raw > 1e-4f) ? (delta_comp / delta_raw) : 1.0f;
-		status.soc        = (soc >= 0.0f) ? soc : -1.0f;
-		status.v_b_pred   = Vb_pred;
-		status.i_total    = I_total;
-		_vc_status_pub.publish(status);
-
-		commandMotor(motor_index, delta_comp, timeout_ms);
+		commandMotor(motor_index, value, timeout_ms);
 		return;
 	}
 
-	commandMotor(motor_index, value, timeout_ms);
+	if (!_compensator_enabled || !_voltage_compensator.isConfigured()) {
+		commandMotor(motor_index, value, timeout_ms);
+		return;
+	}
+
+	const hrt_abstime now = hrt_absolute_time();
+	float dt = (_vc_last_update > 0) ? (float)(now - _vc_last_update) / 1e6f : 0.01f;
+	_vc_last_update = now;
+
+	if (dt > 0.5f) { dt = 0.01f; }
+
+	const float soc = readBatterySoC();
+	float Vb_pred = 0.0f;
+	float I_total = 0.0f;
+	float delta_comp = value;
+
+	if (soc >= 0.0f) {
+		delta_comp = _voltage_compensator.update(motor_index, value, soc, dt, Vb_pred, I_total);
+	}
+
+	/* ── Hard throttle limit ─────────────────────────────────── */
+	const float max_cmd = _param_bt_vc_maxcmd.get();
+
+	if (delta_comp > max_cmd) {
+		PX4_WARN("VC: motor %d comp cmd %.3f clamped to BT_VC_MAXCMD %.3f",
+			 motor_index, (double)delta_comp, (double)max_cmd);
+		delta_comp = max_cmd;
+	}
+
+	/* ── Vectorised log: one message with all motor slots ────── */
+	bench_test_vc_status_s status{};
+	status.timestamp   = now;
+	status.motor_index = (uint8_t)motor_index;
+	status.n_motors    = (uint8_t)_param_bt_num_motors.get();
+	status.soc         = (soc >= 0.0f) ? soc : -1.0f;
+	status.v_b_pred    = Vb_pred;
+	status.i_total     = I_total;
+
+	for (int m = 0; m < VoltageCompensator::MAX_ROTORS; m++) {
+		const float raw  = _voltage_compensator.delta_prev[m];
+		const float comp = (m == motor_index) ? delta_comp : raw;
+		status.delta_raw[m]  = raw;
+		status.delta_comp[m] = comp;
+		status.c_delta[m]    = (raw > 1e-4f) ? (comp / raw) : 1.0f;
+	}
+
+	_vc_status_pub.publish(status);
+
+	commandMotor(motor_index, delta_comp, timeout_ms);
 }
 
 /* ── Test implementations ─────────────────────────────────────────────── */
@@ -334,7 +352,7 @@ void BenchTest::runStepTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				compensatedCommandMotor(m, base * frac, total_ms);
+				compensatedCommandMotor(m, base * frac, total_ms, m == motor);
 			}
 
 			px4_usleep(10000);
@@ -350,7 +368,7 @@ void BenchTest::runStepTest(int motor)
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during settle"); return; }
 
 			for (int m = 0; m < n; m++) {
-				compensatedCommandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, base, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500), m == motor);
 			}
 
 			px4_usleep(50000);
@@ -370,7 +388,7 @@ void BenchTest::runStepTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (base + (level - base) * frac) : base;
-				compensatedCommandMotor(m, val, hold_ms + ramp_ms + 500);
+				compensatedCommandMotor(m, val, hold_ms + ramp_ms + 500, m == motor);
 			}
 
 			px4_usleep(10000);
@@ -385,7 +403,7 @@ void BenchTest::runStepTest(int motor)
 
 		for (int m = 0; m < n; m++) {
 			float val = (m == motor) ? level : base;
-			compensatedCommandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
+			compensatedCommandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500), m == motor);
 		}
 
 		px4_usleep(50000);
@@ -402,7 +420,7 @@ void BenchTest::runStepTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (base + (level - base) * frac) : base;
-				compensatedCommandMotor(m, val, ramp_ms + 500);
+				compensatedCommandMotor(m, val, ramp_ms + 500, m == motor);
 			}
 
 			px4_usleep(10000);
@@ -415,7 +433,7 @@ void BenchTest::runStepTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				compensatedCommandMotor(m, base * frac, ramp_ms + 500);
+				compensatedCommandMotor(m, base * frac, ramp_ms + 500, m == motor);
 			}
 
 			px4_usleep(10000);
@@ -793,7 +811,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? base : (bg * frac);
-				compensatedCommandMotor(m, val, total_ms);
+				compensatedCommandMotor(m, val, total_ms, m == motor);
 			}
 
 			px4_usleep(10000);
@@ -810,7 +828,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? base : bg;
-				compensatedCommandMotor(m, val, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				compensatedCommandMotor(m, val, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500), m == motor);
 			}
 
 			px4_usleep(50000);
@@ -833,7 +851,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (base + (step_lvl - base) * frac) : bg;
-				compensatedCommandMotor(m, val, hold_ms + ramp_ms + 500);
+				compensatedCommandMotor(m, val, hold_ms + ramp_ms + 500, m == motor);
 			}
 
 			px4_usleep(10000);
@@ -848,7 +866,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 		for (int m = 0; m < n; m++) {
 			float val = (m == motor) ? step_lvl : bg;
-			compensatedCommandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500));
+			compensatedCommandMotor(m, val, (uint32_t)((hold_end - hrt_absolute_time()) / 1000 + 500), m == motor);
 		}
 
 		px4_usleep(50000);
@@ -865,7 +883,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (base + (step_lvl - base) * frac) : bg;
-				compensatedCommandMotor(m, val, ramp_ms + 500);
+				compensatedCommandMotor(m, val, ramp_ms + 500, m == motor);
 			}
 
 			px4_usleep(10000);
@@ -885,7 +903,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 			for (int m = 0; m < n; m++) {
 				float val = (m == motor) ? (base * frac) : (bg * frac);
-				compensatedCommandMotor(m, val, ramp_ms + 500);
+				compensatedCommandMotor(m, val, ramp_ms + 500, m == motor);
 			}
 
 			px4_usleep(10000);

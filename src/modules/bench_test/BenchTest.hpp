@@ -101,6 +101,7 @@ struct VoltageCompensator {
 	/* State */
 	int   n_rotors{0};
 	float omega_prev[MAX_ROTORS]{};          /**< previous rotor speed estimates */
+	float delta_prev[MAX_ROTORS]{};          /**< last commanded delta per motor */
 	float V_RC{0.0f};                        /**< RC-branch voltage state */
 
 	/** Evaluate a 3rd-order polynomial: c0 + c1·x + c2·x² + c3·x³ */
@@ -114,7 +115,10 @@ struct VoltageCompensator {
 	{
 		n_rotors = (num_rotors > MAX_ROTORS) ? MAX_ROTORS : num_rotors;
 
-		for (int i = 0; i < MAX_ROTORS; i++) { omega_prev[i] = 0.0f; }
+		for (int i = 0; i < MAX_ROTORS; i++) {
+			omega_prev[i] = 0.0f;
+			delta_prev[i] = 0.0f;
+		}
 
 		V_RC = 0.0f;
 	}
@@ -123,16 +127,23 @@ struct VoltageCompensator {
 	bool isConfigured() const { return Vb_op > 1.0f; }
 
 	/**
-	 * Compute the compensated command δ'.
+	 * Compute the compensated command δ' for one motor.
 	 *
-	 * @param delta      raw normalised motor command [0, 1]
-	 * @param soc        battery state of charge [0, 1]
-	 * @param dt         time step (s) since last call
-	 * @param out_Vb     (out) predicted terminal battery voltage (V)
-	 * @param out_I      (out) predicted total current draw (A)
-	 * @return           compensated command δ', clamped to [0, 1]
+	 * The compensator stores the last commanded delta for every motor slot
+	 * (delta_prev[]).  On each call it updates the stored value for
+	 * motor_index and then sums the current contribution of *all* motors
+	 * using their latest deltas, giving a physically accurate battery-sag
+	 * estimate regardless of which motor is currently being stepped.
+	 *
+	 * @param motor_index  0-based index of the motor being commanded
+	 * @param delta        raw normalised command for this motor [0, 1]
+	 * @param soc          battery state of charge [0, 1]
+	 * @param dt           time step (s) since last call
+	 * @param out_Vb       (out) predicted terminal battery voltage (V)
+	 * @param out_I        (out) predicted total current draw (A)
+	 * @return             compensated command δ', clamped to [0, 1]
 	 */
-	float update(float delta, float soc, float dt, float &out_Vb, float &out_I)
+	float update(int motor_index, float delta, float soc, float dt, float &out_Vb, float &out_I)
 	{
 		out_Vb = 0.0f;
 		out_I  = 0.0f;
@@ -141,48 +152,48 @@ struct VoltageCompensator {
 			return delta;
 		}
 
-		/* 1. Effective voltage for this command at nominal battery */
-		const float V_delta = delta * Vb_op;
-		const float sqrt_Vd = (V_delta > 0.0f) ? sqrtf(V_delta) : 0.0f;
+		/* Update stored delta for this motor */
+		if (motor_index >= 0 && motor_index < MAX_ROTORS) {
+			delta_prev[motor_index] = delta;
+		}
 
-		/* 2. Speed estimator — all rotors get the same δ in bench tests */
+		/* ── Speed & current for every active motor ──────────── */
 		const float denom = 1.0f + tw4;
 		float I_total = 0.0f;
 
 		for (int i = 0; i < n_rotors; i++) {
-			float omega_k = (tw1 * V_delta + tw2 * sqrt_Vd + tw3
-					 - tw4 * omega_prev[i]) / denom * 10000.0f; /* Random Salim Scaling Factor*/
+			const float d   = delta_prev[i];
+			const float Vd  = d * Vb_op;
+			const float sVd = (Vd > 0.0f) ? sqrtf(Vd) : 0.0f;
 
-			if (omega_k < 0.0f) { omega_k = 0.0f; }
+			float omega = (tw1 * Vd + tw2 * sVd + tw3
+				       - tw4 * omega_prev[i]) / (denom * 10000.0f);
 
-			/* 3. Per-rotor current */
-			I_total += ti1 * (omega_k * omega_k * omega_k) + ti3;
+			if (omega < 0.0f) { omega = 0.0f; }
 
-			omega_prev[i] = omega_k;
+			I_total += ti1 * (omega * omega * omega) + ti3;
+			omega_prev[i] = omega;
 		}
 
 		if (I_total < 0.0f) { I_total = 0.0f; }
 
-		/* 4. Battery model parameters from SoC polynomials */
+		/* ── Battery model ───────────────────────────────────── */
 		const float V0  = poly3(v0c, soc);
 		const float R0  = poly3(r0c, soc);
 		const float R1  = poly3(r1c, soc);
 		const float tau = poly3(t1c, soc);
 
-		/* 5. RC branch update (backward Euler discretisation) */
 		if (tau > 1e-6f) {
 			V_RC = V_RC + dt * (R1 / tau * I_total - V_RC / tau);
 		}
 
-		/* 6. Terminal voltage prediction */
 		float Vb_pred = V0 - I_total * R0 - V_RC;
 
-		if (Vb_pred < 1.0f) { Vb_pred = 1.0f; } /* prevent division by tiny/negative */
+		if (Vb_pred < 1.0f) { Vb_pred = 1.0f; }
 
-		/* 7. Correction factor */
+		/* ── Correction factor for this motor's command ──────── */
 		float C_delta = Vb_op / Vb_pred;
 
-		/* Clamp correction to a sane range (0.8 … 1.5) to avoid runaway */
 		if (C_delta < 0.8f) { C_delta = 0.8f; }
 
 		if (C_delta > 1.5f) { C_delta = 1.5f; }
@@ -409,8 +420,14 @@ private:
 	float readBatterySoC();
 
 	/**
-	 * Command a motor through the voltage compensator.
-	 * Falls back to raw commandMotor() when compensator is off.
+	 * Command a motor, routing it through the voltage compensator when active.
+	 *
+	 * @param motor_index  0-based motor to command
+	 * @param value        raw normalised command [0, 1]
+	 * @param timeout_ms   actuator_test timeout
+	 * @param is_target    true  → apply compensation & publish log message
+	 *                     false → store delta for battery model, pass through raw
 	 */
-	void compensatedCommandMotor(int motor_index, float value, uint32_t timeout_ms);
+	void compensatedCommandMotor(int motor_index, float value, uint32_t timeout_ms,
+				     bool is_target = true, float delta_bg = 0.0f, int n_bg = 0);
 };
