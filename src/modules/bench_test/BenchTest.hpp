@@ -151,12 +151,12 @@ struct VoltageCompensator {
 
 		for (int i = 0; i < n_rotors; i++) {
 			float omega_k = (tw1 * V_delta + tw2 * sqrt_Vd + tw3
-					 - tw4 * omega_prev[i]) / denom;
+					 - tw4 * omega_prev[i]) / denom * 10000.0f; /* Random Salim Scaling Factor*/
 
 			if (omega_k < 0.0f) { omega_k = 0.0f; }
 
 			/* 3. Per-rotor current */
-			I_total += ti1 * omega_k + ti2 * omega_k * omega_k + ti3;
+			I_total += ti1 * (omega_k * omega_k * omega_k) + ti3;
 
 			omega_prev[i] = omega_k;
 		}
