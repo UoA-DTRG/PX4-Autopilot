@@ -745,23 +745,25 @@ void BenchTest::runStepWithIdleTest(int motor)
 	}
 
 	const float step_lvl  = _param_bt_step_lvl.get();
-	const float bg        = _param_bt_bg_lvl.get();
+	const float base      = _param_bt_base_lvl.get();  // target motor rests here (same as plain step test)
+	const float bg        = _param_bt_bg_lvl.get();    // background motors spin here
 	const int   hold_ms   = _param_bt_step_dur.get();
 	const int   ramp_ms   = _param_bt_ramp_time.get();
 	const int   settle_ms = _param_bt_bg_setl.get();
 	const int   n         = _param_bt_num_motors.get();
 	const int   total_ms  = settle_ms + hold_ms + 2 * ramp_ms + 1000;
 
-	PX4_INFO("Step+bg test: motor %d step %.2f, bg %.2f, settle %d ms, hold %d ms, ramp %d ms",
-		 motor + 1, (double)step_lvl, (double)bg, settle_ms, hold_ms, ramp_ms);
+	PX4_INFO("Step+bg test: motor %d step %.2f->%.2f, bg %.2f, settle %d ms, hold %d ms, ramp %d ms",
+		 motor + 1, (double)base, (double)step_lvl, (double)bg, settle_ms, hold_ms, ramp_ms);
 
 	_state = TestState::RUNNING;
 	_active_test = TestType::STEP_IDLE_BG;
 	_target_motor = motor;
 	_test_start_time = hrt_absolute_time();
 
-	// Phase 1: Ramp ALL motors (including target) up to BT_BG_LVL together
-	PX4_INFO("  Phase 1: Ramp all motors to background level %.2f", (double)bg);
+	// Phase 1: Ramp background motors up to BT_BG_LVL; target motor stays at BT_BASE_LVL
+	// This gives the target motor the same starting point as a plain step test.
+	PX4_INFO("  Phase 1: Ramp bg motors to %.2f, target motor stays at %.2f", (double)bg, (double)base);
 
 	if (ramp_ms > 0) {
 		const int ramp_steps = ramp_ms / 10;
@@ -772,15 +774,16 @@ void BenchTest::runStepWithIdleTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				compensatedCommandMotor(m, bg * frac, total_ms);
+				float val = (m == motor) ? base : (bg * frac);
+				compensatedCommandMotor(m, val, total_ms);
 			}
 
 			px4_usleep(10000);
 		}
 	}
 
-	// Phase 2: Hold ALL motors at BT_BG_LVL for settle time
-	PX4_INFO("  Phase 2: Settle all motors at bg level for %d ms", settle_ms);
+	// Phase 2: Hold bg motors at BT_BG_LVL, target at BT_BASE_LVL, for settle time
+	PX4_INFO("  Phase 2: Settle – bg motors at %.2f, target at %.2f for %d ms", (double)bg, (double)base, settle_ms);
 	{
 		const hrt_abstime settle_end = hrt_absolute_time() + (uint64_t)settle_ms * 1000ULL;
 
@@ -788,7 +791,8 @@ void BenchTest::runStepWithIdleTest(int motor)
 			if (isKillSwitchEngaged()) { abortTest("Kill switch during bg settle"); return; }
 
 			for (int m = 0; m < n; m++) {
-				compensatedCommandMotor(m, bg, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
+				float val = (m == motor) ? base : bg;
+				compensatedCommandMotor(m, val, (uint32_t)((settle_end - hrt_absolute_time()) / 1000 + 500));
 			}
 
 			px4_usleep(50000);
@@ -797,8 +801,9 @@ void BenchTest::runStepWithIdleTest(int motor)
 
 	if (_state != TestState::RUNNING) { return; }
 
-	// Phase 3: Ramp target motor from BT_BG_LVL up to BT_STEP_LVL; all others stay at BT_BG_LVL
-	PX4_INFO("  Phase 3: Step motor %d from %.2f to %.2f", motor + 1, (double)bg, (double)step_lvl);
+	// Phase 3: Ramp target motor from BT_BASE_LVL up to BT_STEP_LVL; bg motors stay at BT_BG_LVL
+	// Step size is identical to a plain step test.
+	PX4_INFO("  Phase 3: Step motor %d from %.2f to %.2f", motor + 1, (double)base, (double)step_lvl);
 
 	if (ramp_ms > 0) {
 		const int ramp_steps = ramp_ms / 10;
@@ -809,7 +814,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				float val = (m == motor) ? (bg + (step_lvl - bg) * frac) : bg;
+				float val = (m == motor) ? (base + (step_lvl - base) * frac) : bg;
 				compensatedCommandMotor(m, val, hold_ms + ramp_ms + 500);
 			}
 
@@ -817,7 +822,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 		}
 	}
 
-	// Phase 4: Hold target at step level, all others at BT_BG_LVL
+	// Phase 4: Hold target at step level, bg motors at BT_BG_LVL
 	const hrt_abstime hold_end = hrt_absolute_time() + (uint64_t)hold_ms * 1000ULL;
 
 	while (hrt_absolute_time() < hold_end && _state == TestState::RUNNING) {
@@ -831,7 +836,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 		px4_usleep(50000);
 	}
 
-	// Phase 5: Ramp target motor back down to BT_BG_LVL
+	// Phase 5: Ramp target motor back down to BT_BASE_LVL; bg motors stay at BT_BG_LVL
 	if (ramp_ms > 0) {
 		const int ramp_steps = ramp_ms / 10;
 
@@ -841,7 +846,7 @@ void BenchTest::runStepWithIdleTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				float val = (m == motor) ? (bg + (step_lvl - bg) * frac) : bg;
+				float val = (m == motor) ? (base + (step_lvl - base) * frac) : bg;
 				compensatedCommandMotor(m, val, ramp_ms + 500);
 			}
 
@@ -849,8 +854,8 @@ void BenchTest::runStepWithIdleTest(int motor)
 		}
 	}
 
-	// Phase 6: Ramp all motors down to zero
-	PX4_INFO("  Phase 6: Ramp all motors down to zero");
+	// Phase 6: Ramp bg motors down to zero; target motor is already at BT_BASE_LVL
+	PX4_INFO("  Phase 6: Ramp bg motors down to zero");
 
 	if (ramp_ms > 0) {
 		const int ramp_steps = ramp_ms / 10;
@@ -861,7 +866,8 @@ void BenchTest::runStepWithIdleTest(int motor)
 			float frac = (float)i / (float)ramp_steps;
 
 			for (int m = 0; m < n; m++) {
-				compensatedCommandMotor(m, bg * frac, ramp_ms + 500);
+				float val = (m == motor) ? (base * frac) : (bg * frac);
+				compensatedCommandMotor(m, val, ramp_ms + 500);
 			}
 
 			px4_usleep(10000);
