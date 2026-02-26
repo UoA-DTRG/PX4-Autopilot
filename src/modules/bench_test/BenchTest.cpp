@@ -87,6 +87,15 @@ BenchTest::~BenchTest()
 bool BenchTest::init()
 {
 	ScheduleOnInterval(10_ms); // 100 Hz polling for kill switch & test state machine
+
+	/* Advertise the VC status topic immediately so the logger can subscribe to it
+	 * at startup.  Without this initial publish the topic does not exist in the
+	 * uORB registry when the logger calls orb_exists(), causing it to be silently
+	 * dropped from the log even though it is listed in logged_topics.cpp. */
+	bench_test_vc_status_s status{};
+	status.timestamp = hrt_absolute_time();
+	_vc_status_pub.publish(status);
+
 	return true;
 }
 
