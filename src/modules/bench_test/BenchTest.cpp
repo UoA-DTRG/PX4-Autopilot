@@ -263,10 +263,10 @@ void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t t
 		status.motor_index = (uint8_t)motor_index;
 		status.delta_raw  = delta_raw;
 		status.delta_comp = delta_comp;
-		status.C_delta    = (delta_raw > 1e-4f) ? (delta_comp / delta_raw) : 1.0f;
+		status.c_delta    = (delta_raw > 1e-4f) ? (delta_comp / delta_raw) : 1.0f;
 		status.soc        = (soc >= 0.0f) ? soc : -1.0f;
-		status.V_b_pred   = Vb_pred;
-		status.I_total    = I_total;
+		status.v_b_pred   = Vb_pred;
+		status.i_total    = I_total;
 		_vc_status_pub.publish(status);
 
 		commandMotor(motor_index, delta_comp, timeout_ms);
