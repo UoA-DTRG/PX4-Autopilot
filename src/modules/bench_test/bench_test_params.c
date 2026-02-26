@@ -755,3 +755,18 @@ PARAM_DEFINE_FLOAT(BT_VC_T1C2, 0.0f);
  * @group Bench Test
  */
 PARAM_DEFINE_FLOAT(BT_VC_T1C3, 0.0f);
+
+/**
+ * Voltage compensator hard throttle limit
+ *
+ * Maximum normalised motor command [0, 1] that the voltage compensator is
+ * allowed to output.  The compensated command is clamped to this value before
+ * being sent to the motor, preventing unintended over-speed due to
+ * compensation overshoot.  Set to 1.0 to disable the limit.
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 3
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_VC_MAXCMD, 1.0f);

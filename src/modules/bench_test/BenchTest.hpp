@@ -379,7 +379,8 @@ private:
 		(ParamFloat<px4::params::BT_VC_T1C0>)   _param_bt_vc_t1c0,
 		(ParamFloat<px4::params::BT_VC_T1C1>)   _param_bt_vc_t1c1,
 		(ParamFloat<px4::params::BT_VC_T1C2>)   _param_bt_vc_t1c2,
-		(ParamFloat<px4::params::BT_VC_T1C3>)   _param_bt_vc_t1c3
+		(ParamFloat<px4::params::BT_VC_T1C3>)   _param_bt_vc_t1c3,
+		(ParamFloat<px4::params::BT_VC_MAXCMD>) _param_bt_vc_maxcmd
 	)
 
 	/* ── Voltage compensator runtime state ──────────────────────── */

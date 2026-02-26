@@ -257,6 +257,15 @@ void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t t
 			delta_comp = _voltage_compensator.update(value, soc, dt, Vb_pred, I_total);
 		}
 
+		/* ── Hard throttle limit ─────────────────────────────────── */
+		const float max_cmd = _param_bt_vc_maxcmd.get();
+
+		if (delta_comp > max_cmd) {
+			PX4_WARN("VC: motor %d comp cmd %.3f clamped to BT_VC_MAXCMD %.3f",
+				 motor_index, (double)delta_comp, (double)max_cmd);
+			delta_comp = max_cmd;
+		}
+
 		/* ── Publish bench_test_vc_status ─────────────────────── */
 		bench_test_vc_status_s status{};
 		status.timestamp  = now;
