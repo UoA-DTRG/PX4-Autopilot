@@ -92,6 +92,7 @@ Battery::Battery(int index, ModuleParams *parent, const int sample_interval_us, 
 	_param_handles.emergen_thr = param_find("BAT_EMERGEN_THR");
 
 	_param_handles.bat_avrg_current = param_find("BAT_AVRG_CURRENT");
+	_param_handles.bat_comp_mode = param_find("BAT_COMP_MODE");
 
 	updateParams();
 }
@@ -335,7 +336,18 @@ uint16_t Battery::determineFaults()
 
 void Battery::computeScale()
 {
-	_scale = _params.v_charged / _cell_voltage_filter_v.getState();
+	float cell_voltage;
+
+	if (_params.bat_comp_mode == 1 && _params.n_cells > 0) {
+		// Simple mode: use the raw measured voltage directly (no IR-drop correction)
+		cell_voltage = _voltage_v / _params.n_cells;
+
+	} else {
+		// Predicted mode (default): use the IR-drop-corrected, filtered estimated OCV
+		cell_voltage = _cell_voltage_filter_v.getState();
+	}
+
+	_scale = _params.v_charged / cell_voltage;
 
 	if (PX4_ISFINITE(_scale)) {
 		_scale = math::constrain(_scale, 1.f, 1.3f); // Allow at most 30% compensation
@@ -404,6 +416,7 @@ void Battery::updateParams()
 	param_get(_param_handles.crit_thr, &_params.crit_thr);
 	param_get(_param_handles.emergen_thr, &_params.emergen_thr);
 	param_get(_param_handles.bat_avrg_current, &_params.bat_avrg_current);
+	param_get(_param_handles.bat_comp_mode, &_params.bat_comp_mode);
 
 	if (n_cells != _params.n_cells) {
 		_internal_resistance_initialized = false;

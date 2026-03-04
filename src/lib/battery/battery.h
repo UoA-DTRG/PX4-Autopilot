@@ -124,6 +124,7 @@ protected:
 		param_t emergen_thr;
 		param_t source;
 		param_t bat_avrg_current;
+		param_t bat_comp_mode;
 	} _param_handles{};
 
 	struct {
@@ -137,6 +138,7 @@ protected:
 		float emergen_thr;
 		int32_t source;
 		float bat_avrg_current;
+		int32_t bat_comp_mode;
 	} _params{};
 
 	const int _index;

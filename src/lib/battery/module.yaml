@@ -178,3 +178,24 @@ parameters:
             decimal: 2
             increment: 0.1
             default: 15
+
+        BAT_COMP_MODE:
+            description:
+                short: Battery voltage compensation mode.
+                long: |
+                    Selects the method used to compute the battery scale factor for voltage-based
+                    thrust compensation.
+
+                    When set to 0 (Predicted), the compensator estimates the open-circuit voltage
+                    by correcting for resistive voltage drop (using the estimated or configured
+                    internal resistance and measured current). This predicted OCV is then used to
+                    derive the scale factor.
+
+                    When set to 1 (Simple), the raw measured battery voltage is used directly,
+                    without any internal-resistance correction. This is a simpler approach that
+                    reacts immediately to the actual measured voltage sag.
+            type: enum
+            values:
+                0: Predicted (IR-compensated OCV)
+                1: Simple (measured voltage)
+            default: 0
