@@ -31,6 +31,8 @@
 #
 ############################################################################
 
-# Header-only library — no .cpp, just make the include path available
-add_library(voltage_compensator INTERFACE)
-target_include_directories(voltage_compensator INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+# Compiled library: provides shared VC_* parameters + include path
+px4_add_library(voltage_compensator
+	voltage_compensator_params.c
+)
+target_include_directories(voltage_compensator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

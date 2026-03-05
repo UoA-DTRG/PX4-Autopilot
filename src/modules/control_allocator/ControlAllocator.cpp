@@ -990,38 +990,38 @@ int ControlAllocator::custom_command(int argc, char *argv[])
 void
 ControlAllocator::load_vc_params()
 {
-	_voltage_compensator.Vb_op = _param_ca_vc_vbop.get();
+	_voltage_compensator.Vb_op = _param_vc_vbop.get();
 
-	_voltage_compensator.tw1 = _param_ca_vc_tw1.get();
-	_voltage_compensator.tw2 = _param_ca_vc_tw2.get();
-	_voltage_compensator.tw3 = _param_ca_vc_tw3.get();
-	_voltage_compensator.tw4 = _param_ca_vc_tw4.get();
+	_voltage_compensator.tw1 = _param_vc_tw1.get();
+	_voltage_compensator.tw2 = _param_vc_tw2.get();
+	_voltage_compensator.tw3 = _param_vc_tw3.get();
+	_voltage_compensator.tw4 = _param_vc_tw4.get();
 
-	_voltage_compensator.ti1 = _param_ca_vc_ti1.get();
-	_voltage_compensator.ti2 = _param_ca_vc_ti2.get();
-	_voltage_compensator.ti3 = _param_ca_vc_ti3.get();
+	_voltage_compensator.ti1 = _param_vc_ti1.get();
+	_voltage_compensator.ti2 = _param_vc_ti2.get();
+	_voltage_compensator.ti3 = _param_vc_ti3.get();
 
-	_voltage_compensator.v0c[0] = _param_ca_vc_v0c0.get();
-	_voltage_compensator.v0c[1] = _param_ca_vc_v0c1.get();
-	_voltage_compensator.v0c[2] = _param_ca_vc_v0c2.get();
-	_voltage_compensator.v0c[3] = _param_ca_vc_v0c3.get();
+	_voltage_compensator.v0c[0] = _param_vc_v0c0.get();
+	_voltage_compensator.v0c[1] = _param_vc_v0c1.get();
+	_voltage_compensator.v0c[2] = _param_vc_v0c2.get();
+	_voltage_compensator.v0c[3] = _param_vc_v0c3.get();
 
-	_voltage_compensator.r0c[0] = _param_ca_vc_r0c0.get();
-	_voltage_compensator.r0c[1] = _param_ca_vc_r0c1.get();
-	_voltage_compensator.r0c[2] = _param_ca_vc_r0c2.get();
-	_voltage_compensator.r0c[3] = _param_ca_vc_r0c3.get();
+	_voltage_compensator.r0c[0] = _param_vc_r0c0.get();
+	_voltage_compensator.r0c[1] = _param_vc_r0c1.get();
+	_voltage_compensator.r0c[2] = _param_vc_r0c2.get();
+	_voltage_compensator.r0c[3] = _param_vc_r0c3.get();
 
-	_voltage_compensator.r1c[0] = _param_ca_vc_r1c0.get();
-	_voltage_compensator.r1c[1] = _param_ca_vc_r1c1.get();
-	_voltage_compensator.r1c[2] = _param_ca_vc_r1c2.get();
-	_voltage_compensator.r1c[3] = _param_ca_vc_r1c3.get();
+	_voltage_compensator.r1c[0] = _param_vc_r1c0.get();
+	_voltage_compensator.r1c[1] = _param_vc_r1c1.get();
+	_voltage_compensator.r1c[2] = _param_vc_r1c2.get();
+	_voltage_compensator.r1c[3] = _param_vc_r1c3.get();
 
-	_voltage_compensator.t1c[0] = _param_ca_vc_t1c0.get();
-	_voltage_compensator.t1c[1] = _param_ca_vc_t1c1.get();
-	_voltage_compensator.t1c[2] = _param_ca_vc_t1c2.get();
-	_voltage_compensator.t1c[3] = _param_ca_vc_t1c3.get();
+	_voltage_compensator.t1c[0] = _param_vc_t1c0.get();
+	_voltage_compensator.t1c[1] = _param_vc_t1c1.get();
+	_voltage_compensator.t1c[2] = _param_vc_t1c2.get();
+	_voltage_compensator.t1c[3] = _param_vc_t1c3.get();
 
-	_voltage_compensator.reset(_param_ca_vc_nmot.get());
+	_voltage_compensator.reset(_param_vc_nmot.get());
 
 	if (_param_ca_vc_en.get() > 0 && _voltage_compensator.isConfigured()) {
 		const char *mode = (_param_ca_vc_en.get() == 2) ? "simple (measured voltage)" : "predicted (battery model)";

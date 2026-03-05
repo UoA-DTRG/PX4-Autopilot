@@ -188,36 +188,36 @@ void BenchTest::abortTest(const char *reason)
 
 void BenchTest::loadCompensatorParams()
 {
-	_voltage_compensator.Vb_op = _param_bt_vc_vbop.get();
+	_voltage_compensator.Vb_op = _param_vc_vbop.get();
 
-	_voltage_compensator.tw1 = _param_bt_vc_tw1.get();
-	_voltage_compensator.tw2 = _param_bt_vc_tw2.get();
-	_voltage_compensator.tw3 = _param_bt_vc_tw3.get();
-	_voltage_compensator.tw4 = _param_bt_vc_tw4.get();
+	_voltage_compensator.tw1 = _param_vc_tw1.get();
+	_voltage_compensator.tw2 = _param_vc_tw2.get();
+	_voltage_compensator.tw3 = _param_vc_tw3.get();
+	_voltage_compensator.tw4 = _param_vc_tw4.get();
 
-	_voltage_compensator.ti1 = _param_bt_vc_ti1.get();
-	_voltage_compensator.ti2 = _param_bt_vc_ti2.get();
-	_voltage_compensator.ti3 = _param_bt_vc_ti3.get();
+	_voltage_compensator.ti1 = _param_vc_ti1.get();
+	_voltage_compensator.ti2 = _param_vc_ti2.get();
+	_voltage_compensator.ti3 = _param_vc_ti3.get();
 
-	_voltage_compensator.v0c[0] = _param_bt_vc_v0c0.get();
-	_voltage_compensator.v0c[1] = _param_bt_vc_v0c1.get();
-	_voltage_compensator.v0c[2] = _param_bt_vc_v0c2.get();
-	_voltage_compensator.v0c[3] = _param_bt_vc_v0c3.get();
+	_voltage_compensator.v0c[0] = _param_vc_v0c0.get();
+	_voltage_compensator.v0c[1] = _param_vc_v0c1.get();
+	_voltage_compensator.v0c[2] = _param_vc_v0c2.get();
+	_voltage_compensator.v0c[3] = _param_vc_v0c3.get();
 
-	_voltage_compensator.r0c[0] = _param_bt_vc_r0c0.get();
-	_voltage_compensator.r0c[1] = _param_bt_vc_r0c1.get();
-	_voltage_compensator.r0c[2] = _param_bt_vc_r0c2.get();
-	_voltage_compensator.r0c[3] = _param_bt_vc_r0c3.get();
+	_voltage_compensator.r0c[0] = _param_vc_r0c0.get();
+	_voltage_compensator.r0c[1] = _param_vc_r0c1.get();
+	_voltage_compensator.r0c[2] = _param_vc_r0c2.get();
+	_voltage_compensator.r0c[3] = _param_vc_r0c3.get();
 
-	_voltage_compensator.r1c[0] = _param_bt_vc_r1c0.get();
-	_voltage_compensator.r1c[1] = _param_bt_vc_r1c1.get();
-	_voltage_compensator.r1c[2] = _param_bt_vc_r1c2.get();
-	_voltage_compensator.r1c[3] = _param_bt_vc_r1c3.get();
+	_voltage_compensator.r1c[0] = _param_vc_r1c0.get();
+	_voltage_compensator.r1c[1] = _param_vc_r1c1.get();
+	_voltage_compensator.r1c[2] = _param_vc_r1c2.get();
+	_voltage_compensator.r1c[3] = _param_vc_r1c3.get();
 
-	_voltage_compensator.t1c[0] = _param_bt_vc_t1c0.get();
-	_voltage_compensator.t1c[1] = _param_bt_vc_t1c1.get();
-	_voltage_compensator.t1c[2] = _param_bt_vc_t1c2.get();
-	_voltage_compensator.t1c[3] = _param_bt_vc_t1c3.get();
+	_voltage_compensator.t1c[0] = _param_vc_t1c0.get();
+	_voltage_compensator.t1c[1] = _param_vc_t1c1.get();
+	_voltage_compensator.t1c[2] = _param_vc_t1c2.get();
+	_voltage_compensator.t1c[3] = _param_vc_t1c3.get();
 }
 
 float BenchTest::readBatterySoC()
@@ -250,7 +250,9 @@ float BenchTest::readBatteryVoltage()
 	}
 
 	return -1.0f; // no valid battery data
-}(int motor_index, float value, uint32_t timeout_ms,
+}
+
+void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t timeout_ms,
 					bool is_target, float delta_bg, int n_bg)
 {
 	/* Non-target motors: update their stored delta so the battery model stays
@@ -1772,7 +1774,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 			obj->_vc_last_update = 0;
 
 			if (!obj->_voltage_compensator.isConfigured()) {
-				PX4_WARN("-c given but BT_VC_VBOP not set – compensator disabled");
+				PX4_WARN("-c given but VC_VBOP not set – compensator disabled");
 				obj->_compensator_enabled = false;
 				obj->_compensator_simple  = false;
 
