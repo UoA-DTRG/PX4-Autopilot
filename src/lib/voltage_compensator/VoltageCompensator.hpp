@@ -316,4 +316,44 @@ struct VoltageCompensator {
 		out_result.v_rc     = V_RC;
 		out_result.c_delta  = C_delta;
 	}
+
+	/**
+	 * Simple compensated command using a directly measured battery voltage.
+	 *
+	 * Instead of running the full battery model to predict Vb, this method
+	 * accepts the instantaneous measured terminal voltage and computes the
+	 * correction factor as Vb_op / Vb_meas.  No dynamic state (omega, V_RC)
+	 * is updated, making this mode suitable when the battery measurement is
+	 * already available and reliable.
+	 *
+	 * @param delta        raw normalised command [0, 1]
+	 * @param Vb_meas      measured terminal battery voltage (V)
+	 * @param out_result   (out, optional) partial result snapshot
+	 * @return             compensated command δ', clamped to [0, 1]
+	 */
+	float updateSimple(float delta, float Vb_meas, Result *out_result = nullptr)
+	{
+		if (!isConfigured() || Vb_meas < 1.0f) {
+			return delta;
+		}
+
+		float C_delta = Vb_op / Vb_meas;
+
+		if (C_delta < 0.8f) { C_delta = 0.8f; }
+
+		if (C_delta > 1.5f) { C_delta = 1.5f; }
+
+		float delta_prime = C_delta * delta;
+
+		if (delta_prime < 0.0f) { delta_prime = 0.0f; }
+
+		if (delta_prime > 1.0f) { delta_prime = 1.0f; }
+
+		if (out_result) {
+			out_result->v_b_pred = Vb_meas;
+			out_result->c_delta  = C_delta;
+		}
+
+		return delta_prime;
+	}
 };

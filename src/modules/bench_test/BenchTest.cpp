@@ -237,7 +237,20 @@ float BenchTest::readBatterySoC()
 	return -1.0f; // no valid battery data
 }
 
-void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t timeout_ms,
+float BenchTest::readBatteryVoltage()
+{
+	for (int i = 0; i < 4; i++) {
+		battery_status_s batt;
+
+		if (_vc_batt_subs[i].copy(&batt) && batt.connected) {
+			if (batt.voltage_v > 1.0f) {
+				return batt.voltage_v;
+			}
+		}
+	}
+
+	return -1.0f; // no valid battery data
+}(int motor_index, float value, uint32_t timeout_ms,
 					bool is_target, float delta_bg, int n_bg)
 {
 	/* Non-target motors: update their stored delta so the battery model stays
@@ -269,8 +282,24 @@ void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t t
 	float delta_comp = value;
 	VoltageCompensator::Result vc_res;
 
-	if (soc >= 0.0f) {
-		delta_comp = _voltage_compensator.update(motor_index, value, soc, dt, Vb_pred, I_total, &vc_res);
+	if (_compensator_simple) {
+		/* Simple mode: use the instantaneous measured terminal voltage directly */
+		const float Vb_meas = readBatteryVoltage();
+
+		if (Vb_meas > 1.0f) {
+			delta_comp = _voltage_compensator.updateSimple(value, Vb_meas, &vc_res);
+
+			/* Keep delta_prev in sync so the log shows consistent raw values */
+			if (motor_index >= 0 && motor_index < VoltageCompensator::MAX_ROTORS) {
+				_voltage_compensator.delta_prev[motor_index] = value;
+			}
+		}
+
+	} else {
+		/* Predicted mode: full battery model integrates omega and V_RC */
+		if (soc >= 0.0f) {
+			delta_comp = _voltage_compensator.update(motor_index, value, soc, dt, Vb_pred, I_total, &vc_res);
+		}
 	}
 
 	/* ── Hard throttle limit ─────────────────────────────────── */
@@ -1688,9 +1717,10 @@ int BenchTest::custom_command(int argc, char *argv[])
 		return 1;
 	}
 
-	/* ── Parse optional -m <motor> and -c (compensator) arguments ── */
+	/* ── Parse optional -m <motor> and -c/-s (compensator) arguments ── */
 	int motor = -1; // -1 means not specified
 	bool compensate_flag = false;
+	bool simple_flag = false;
 	int myoptind = 0;
 	int ch;
 	const char *myoptarg = nullptr;
@@ -1703,7 +1733,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 	char **opt_argv = argv + 1;
 	myoptind = 0;
 
-	while ((ch = px4_getopt(opt_argc, opt_argv, "m:c", &myoptind, &myoptarg)) != EOF) {
+	while ((ch = px4_getopt(opt_argc, opt_argv, "m:cs", &myoptind, &myoptarg)) != EOF) {
 		switch (ch) {
 		case 'm':
 			motor = (int)strtol(myoptarg, nullptr, 10) - 1; // user provides 1-based
@@ -1719,6 +1749,11 @@ int BenchTest::custom_command(int argc, char *argv[])
 			compensate_flag = true;
 			break;
 
+		case 's':
+			compensate_flag = true;  // -s implies -c (compensator must be enabled)
+			simple_flag = true;
+			break;
+
 		default:
 			return print_usage("unknown option");
 		}
@@ -1726,9 +1761,10 @@ int BenchTest::custom_command(int argc, char *argv[])
 
 	/* ── Dispatch subcommands ───────────────────────────────────── */
 
-	/* Helper: arm the voltage compensator for a test run if -c was given */
+	/* Helper: arm the voltage compensator for a test run if -c or -s was given */
 	auto setup_compensator = [&]() {
 		obj->_compensator_enabled = compensate_flag;
+		obj->_compensator_simple  = simple_flag;
 
 		if (compensate_flag) {
 			obj->loadCompensatorParams();
@@ -1738,10 +1774,12 @@ int BenchTest::custom_command(int argc, char *argv[])
 			if (!obj->_voltage_compensator.isConfigured()) {
 				PX4_WARN("-c given but BT_VC_VBOP not set – compensator disabled");
 				obj->_compensator_enabled = false;
+				obj->_compensator_simple  = false;
 
 			} else {
-				PX4_INFO("Voltage compensator enabled (Vb_op=%.2f V)",
-					 (double)obj->_voltage_compensator.Vb_op);
+				const char *mode = simple_flag ? "simple (measured voltage)" : "predicted (battery model)";
+				PX4_INFO("Voltage compensator enabled (Vb_op=%.2f V, mode: %s)",
+					 (double)obj->_voltage_compensator.Vb_op, mode);
 			}
 		}
 	};
@@ -1755,6 +1793,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 		setup_compensator();
 		obj->runStepTest(motor);
 		obj->_compensator_enabled = false;
+		obj->_compensator_simple  = false;
 		return 0;
 	}
 
@@ -1764,6 +1803,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 		obj->_active_test = TestType::STEP_ALL;
 		obj->runAllMotorsSequential(&BenchTest::runStepTest);
 		obj->_compensator_enabled = false;
+		obj->_compensator_simple  = false;
 		return 0;
 	}
 
@@ -1776,6 +1816,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 		setup_compensator();
 		obj->runStepWithIdleTest(motor);
 		obj->_compensator_enabled = false;
+		obj->_compensator_simple  = false;
 		return 0;
 	}
 
@@ -1783,6 +1824,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 		setup_compensator();
 		obj->runStepSimultaneous();
 		obj->_compensator_enabled = false;
+		obj->_compensator_simple  = false;
 		return 0;
 	}
 
@@ -1795,6 +1837,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 		setup_compensator();
 		obj->runImpulseTest(motor);
 		obj->_compensator_enabled = false;
+		obj->_compensator_simple  = false;
 		return 0;
 	}
 
@@ -1804,6 +1847,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 		obj->_active_test = TestType::IMPULSE_ALL;
 		obj->runAllMotorsSequential(&BenchTest::runImpulseTest);
 		obj->_compensator_enabled = false;
+		obj->_compensator_simple  = false;
 		return 0;
 	}
 
@@ -1811,6 +1855,7 @@ int BenchTest::custom_command(int argc, char *argv[])
 		setup_compensator();
 		obj->runImpulseSimultaneous();
 		obj->_compensator_enabled = false;
+		obj->_compensator_simple  = false;
 		return 0;
 	}
 
@@ -1940,8 +1985,11 @@ $ bench_test step_idle -m 2
 Step all 8 motors at once:
 $ bench_test step_sim
 
-Run step test with voltage compensator enabled:
+Run step test with voltage compensator enabled (predicted mode):
 $ bench_test step -m 2 -c
+
+Run step test with simple (measured voltage) compensation:
+$ bench_test step -m 2 -s
 
 Run impulse test on all motors sequentially:
 $ bench_test impulse_all
@@ -1951,6 +1999,9 @@ $ bench_test impulse_sim
 
 Run impulse with voltage compensator:
 $ bench_test impulse_sim -c
+
+Run impulse with simple (measured voltage) compensation:
+$ bench_test impulse_sim -s
 
 Run chirp/tweet sweep on motor 1:
 $ bench_test tweet -m 1
@@ -1985,27 +2036,34 @@ $ bench_test status
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step", "Single motor step test (ramp-up, hold, ramp-down)");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
-	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator (BT_VC_* params)", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator, predicted mode (BT_VC_* params)", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Enable voltage compensator, simple mode (uses measured voltage)", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_all", "Step test on all motors sequentially");
-	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator, predicted mode", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Enable voltage compensator, simple mode", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_idle", "Step one motor while holding all others at BT_BG_LVL");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
-	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator, predicted mode", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Enable voltage compensator, simple mode", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("step_sim", "Step all motors simultaneously to BT_STEP_LVL");
-	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator, predicted mode", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Enable voltage compensator, simple mode", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse", "Single motor short impulse burst");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);
-	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator, predicted mode", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Enable voltage compensator, simple mode", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse_all", "Impulse test on all motors sequentially");
-	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator, predicted mode", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Enable voltage compensator, simple mode", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("impulse_sim", "Impulse all motors simultaneously");
-	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('c', "Enable voltage compensator, predicted mode", true);
+	PRINT_MODULE_USAGE_PARAM_FLAG('s', "Enable voltage compensator, simple mode", true);
 
 	PRINT_MODULE_USAGE_COMMAND_DESCR("tweet", "Single motor chirp/tweet frequency sweep");
 	PRINT_MODULE_USAGE_PARAM_INT('m', 1, 1, 8, "Motor number (1-based)", false);

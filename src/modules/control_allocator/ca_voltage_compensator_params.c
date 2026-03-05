@@ -43,13 +43,18 @@
  * Voltage compensator enable
  *
  * Enable the battery-voltage compensator in the control allocator.
- * When enabled, motor commands are scaled by Vb_op/Vb_predicted to
- * keep effective motor voltage constant regardless of battery sag.
- * Requires CA_VC_VBOP > 0 and valid battery model coefficients.
+ * When enabled, motor commands are scaled to keep effective motor voltage
+ * constant regardless of battery sag. Requires CA_VC_VBOP > 0.
  *
- * 0 = disabled, 1 = enabled
+ * 0 = disabled
+ * 1 = predicted mode (full battery model: estimates ω, current, RC-branch
+ *     voltage drop – compensates based on predicted terminal voltage)
+ * 2 = simple mode (reads the instantaneous measured terminal voltage from
+ *     battery_status and compensates directly – no model integration)
  *
- * @boolean
+ * @value 0 Disabled
+ * @value 1 Predicted (battery model)
+ * @value 2 Simple (measured voltage)
  * @group Control Allocator
  * @reboot_required true
  */

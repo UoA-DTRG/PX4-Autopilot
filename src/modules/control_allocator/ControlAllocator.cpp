@@ -711,37 +711,60 @@ ControlAllocator::publish_actuator_controls()
 #endif
 
 	/* ── Voltage compensator (applied after excitation, before publish) ── */
-	if (_param_ca_vc_en.get() && _voltage_compensator.isConfigured() && _armed) {
+	const int32_t vc_mode = _param_ca_vc_en.get();
+
+	if (vc_mode > 0 && _voltage_compensator.isConfigured() && _armed) {
 		battery_status_s bat{};
 		float soc = -1.0f;
+		float voltage_v = -1.0f;
 
 		if (_battery_status_sub.copy(&bat) && bat.connected) {
 			soc = bat.remaining;
+			voltage_v = bat.voltage_v;
 
 			if (soc < 0.0f || soc > 1.0f) {
 				soc = -1.0f;
 			}
 		}
 
-		if (soc >= 0.0f) {
+		float deltas_in[VoltageCompensator::MAX_ROTORS];
+		float deltas_out[VoltageCompensator::MAX_ROTORS];
+		VoltageCompensator::Result vc_res;
+
+		for (int i = 0; i < VoltageCompensator::MAX_ROTORS; i++) {
+			deltas_in[i] = (i < motors_idx) ? actuator_motors.control[i] : NAN;
+		}
+
+		bool compensated = false;
+
+		if (vc_mode == 2 && voltage_v > 1.0f) {
+			/* Simple mode: compensate each motor using the measured terminal voltage */
+			for (int i = 0; i < motors_idx; i++) {
+				if (PX4_ISFINITE(deltas_in[i])) {
+					deltas_out[i] = _voltage_compensator.updateSimple(deltas_in[i], voltage_v, (i == 0) ? &vc_res : nullptr);
+
+				} else {
+					deltas_out[i] = deltas_in[i];
+				}
+			}
+
+			/* vc_res is filled from motor 0 call; patch in the measured voltage */
+			vc_res.v_b_pred = voltage_v;
+			compensated = true;
+
+		} else if (vc_mode == 1 && soc >= 0.0f) {
+			/* Predicted mode: full battery model integrates ω and V_RC */
 			const hrt_abstime now = hrt_absolute_time();
 			float dt = (_vc_last_update > 0) ? (float)(now - _vc_last_update) / 1e6f : 0.002f;
 			_vc_last_update = now;
 
 			if (dt > 0.5f) { dt = 0.002f; }
 
-			float deltas_in[VoltageCompensator::MAX_ROTORS];
-			float deltas_out[VoltageCompensator::MAX_ROTORS];
-			VoltageCompensator::Result vc_res;
+			_voltage_compensator.updateAll(deltas_in, motors_idx, soc, dt, deltas_out, vc_res);
+			compensated = true;
+		}
 
-			for (int i = 0; i < VoltageCompensator::MAX_ROTORS; i++) {
-				deltas_in[i] = (i < motors_idx) ? actuator_motors.control[i] : NAN;
-			}
-
-			_voltage_compensator.updateAll(deltas_in, motors_idx, soc, dt,
-						       deltas_out, vc_res);
-
-			/* Publish VC status for logging */
+		if (compensated) {
 			bench_test_vc_status_s vc_status{};
 			vc_status.timestamp   = hrt_absolute_time();
 			vc_status.motor_index = 0xFF; /* all motors */
@@ -1000,11 +1023,12 @@ ControlAllocator::load_vc_params()
 
 	_voltage_compensator.reset(_param_ca_vc_nmot.get());
 
-	if (_param_ca_vc_en.get() && _voltage_compensator.isConfigured()) {
-		PX4_INFO("Voltage compensator enabled (Vb_op=%.2fV, %d motors)",
-			 (double)_voltage_compensator.Vb_op, _voltage_compensator.n_rotors);
+	if (_param_ca_vc_en.get() > 0 && _voltage_compensator.isConfigured()) {
+		const char *mode = (_param_ca_vc_en.get() == 2) ? "simple (measured voltage)" : "predicted (battery model)";
+		PX4_INFO("Voltage compensator enabled (Vb_op=%.2fV, %d motors, mode: %s)",
+			 (double)_voltage_compensator.Vb_op, _voltage_compensator.n_rotors, mode);
 
-	} else if (_param_ca_vc_en.get() && !_voltage_compensator.isConfigured()) {
+	} else if (_param_ca_vc_en.get() > 0 && !_voltage_compensator.isConfigured()) {
 		PX4_WARN("Voltage compensator enabled but Vb_op not set — disabled");
 	}
 }

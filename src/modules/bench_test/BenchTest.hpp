@@ -270,6 +270,7 @@ private:
 
 	/* ── Voltage compensator runtime state ──────────────────────── */
 	bool               _compensator_enabled{false};   /**< set by -c CLI flag */
+	bool               _compensator_simple{false};    /**< set by -s CLI flag: use measured voltage instead of predicted */
 	VoltageCompensator _voltage_compensator{};         /**< compensator instance */
 	hrt_abstime        _vc_last_update{0};             /**< timestamp of last compensator update */
 
@@ -292,6 +293,12 @@ private:
 	 * @return SoC in [0, 1], or -1.0f if unavailable.
 	 */
 	float readBatterySoC();
+
+	/**
+	 * Read the measured terminal voltage from the first valid battery_status subscription.
+	 * @return voltage in Volts, or -1.0f if unavailable.
+	 */
+	float readBatteryVoltage();
 
 	/**
 	 * Command a motor, routing it through the voltage compensator when active.
