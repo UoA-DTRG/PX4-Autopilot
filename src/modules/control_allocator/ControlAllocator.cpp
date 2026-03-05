@@ -125,6 +125,9 @@ ControlAllocator::parameters_updated()
 	bool updated = update_effectiveness_source();
 	update_allocation_method(updated); // must be called after update_effectiveness_source()
 
+	// Voltage compensator
+	load_vc_params();
+
 	if (_num_control_allocation == 0) {
 		return;
 	}
@@ -341,7 +344,14 @@ ControlAllocator::Run()
 
 		if (_vehicle_status_sub.update(&vehicle_status)) {
 
+			const bool was_armed = _armed;
 			_armed = vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED;
+
+			/* Reset voltage compensator state on arming transition */
+			if (_armed && !was_armed) {
+				_voltage_compensator.reset(_param_ca_vc_nmot.get());
+				_vc_last_update = 0;
+			}
 
 			ActuatorEffectiveness::FlightPhase flight_phase{ActuatorEffectiveness::FlightPhase::HOVER_FLIGHT};
 
@@ -700,6 +710,65 @@ ControlAllocator::publish_actuator_controls()
 
 #endif
 
+	/* ── Voltage compensator (applied after excitation, before publish) ── */
+	if (_param_ca_vc_en.get() && _voltage_compensator.isConfigured() && _armed) {
+		battery_status_s bat{};
+		float soc = -1.0f;
+
+		if (_battery_status_sub.copy(&bat) && bat.connected) {
+			soc = bat.remaining;
+
+			if (soc < 0.0f || soc > 1.0f) {
+				soc = -1.0f;
+			}
+		}
+
+		if (soc >= 0.0f) {
+			const hrt_abstime now = hrt_absolute_time();
+			float dt = (_vc_last_update > 0) ? (float)(now - _vc_last_update) / 1e6f : 0.002f;
+			_vc_last_update = now;
+
+			if (dt > 0.5f) { dt = 0.002f; }
+
+			float deltas_in[VoltageCompensator::MAX_ROTORS];
+			float deltas_out[VoltageCompensator::MAX_ROTORS];
+			VoltageCompensator::Result vc_res;
+
+			for (int i = 0; i < VoltageCompensator::MAX_ROTORS; i++) {
+				deltas_in[i] = (i < motors_idx) ? actuator_motors.control[i] : NAN;
+			}
+
+			_voltage_compensator.updateAll(deltas_in, motors_idx, soc, dt,
+						       deltas_out, vc_res);
+
+			/* Publish VC status for logging */
+			bench_test_vc_status_s vc_status{};
+			vc_status.timestamp   = hrt_absolute_time();
+			vc_status.motor_index = 0xFF; /* all motors */
+			vc_status.n_motors    = (uint8_t)motors_idx;
+			vc_status.soc         = soc;
+			vc_status.v_b_pred    = vc_res.v_b_pred;
+			vc_status.i_total     = vc_res.i_total;
+			vc_status.v0          = vc_res.v0;
+			vc_status.r0          = vc_res.r0;
+			vc_status.r1          = vc_res.r1;
+			vc_status.tau1        = vc_res.tau1;
+			vc_status.v_rc        = vc_res.v_rc;
+
+			for (int i = 0; i < motors_idx; i++) {
+				vc_status.delta_raw[i]  = deltas_in[i];
+				vc_status.delta_comp[i] = deltas_out[i];
+				vc_status.c_delta[i]    = (PX4_ISFINITE(deltas_in[i]) && deltas_in[i] > 1e-4f)
+							  ? (deltas_out[i] / deltas_in[i]) : 1.0f;
+				vc_status.omega[i]      = vc_res.omega[i];
+				vc_status.i_motor[i]    = vc_res.i_motor[i];
+				actuator_motors.control[i] = deltas_out[i];
+			}
+
+			_vc_status_pub.publish(vc_status);
+		}
+	}
+
 	for (int i = motors_idx; i < actuator_motors_s::NUM_CONTROLS; i++) {
 		actuator_motors.control[i] = NAN;
 	}
@@ -893,6 +962,51 @@ int ControlAllocator::print_status()
 int ControlAllocator::custom_command(int argc, char *argv[])
 {
 	return print_usage("unknown command");
+}
+
+void
+ControlAllocator::load_vc_params()
+{
+	_voltage_compensator.Vb_op = _param_ca_vc_vbop.get();
+
+	_voltage_compensator.tw1 = _param_ca_vc_tw1.get();
+	_voltage_compensator.tw2 = _param_ca_vc_tw2.get();
+	_voltage_compensator.tw3 = _param_ca_vc_tw3.get();
+	_voltage_compensator.tw4 = _param_ca_vc_tw4.get();
+
+	_voltage_compensator.ti1 = _param_ca_vc_ti1.get();
+	_voltage_compensator.ti2 = _param_ca_vc_ti2.get();
+	_voltage_compensator.ti3 = _param_ca_vc_ti3.get();
+
+	_voltage_compensator.v0c[0] = _param_ca_vc_v0c0.get();
+	_voltage_compensator.v0c[1] = _param_ca_vc_v0c1.get();
+	_voltage_compensator.v0c[2] = _param_ca_vc_v0c2.get();
+	_voltage_compensator.v0c[3] = _param_ca_vc_v0c3.get();
+
+	_voltage_compensator.r0c[0] = _param_ca_vc_r0c0.get();
+	_voltage_compensator.r0c[1] = _param_ca_vc_r0c1.get();
+	_voltage_compensator.r0c[2] = _param_ca_vc_r0c2.get();
+	_voltage_compensator.r0c[3] = _param_ca_vc_r0c3.get();
+
+	_voltage_compensator.r1c[0] = _param_ca_vc_r1c0.get();
+	_voltage_compensator.r1c[1] = _param_ca_vc_r1c1.get();
+	_voltage_compensator.r1c[2] = _param_ca_vc_r1c2.get();
+	_voltage_compensator.r1c[3] = _param_ca_vc_r1c3.get();
+
+	_voltage_compensator.t1c[0] = _param_ca_vc_t1c0.get();
+	_voltage_compensator.t1c[1] = _param_ca_vc_t1c1.get();
+	_voltage_compensator.t1c[2] = _param_ca_vc_t1c2.get();
+	_voltage_compensator.t1c[3] = _param_ca_vc_t1c3.get();
+
+	_voltage_compensator.reset(_param_ca_vc_nmot.get());
+
+	if (_param_ca_vc_en.get() && _voltage_compensator.isConfigured()) {
+		PX4_INFO("Voltage compensator enabled (Vb_op=%.2fV, %d motors)",
+			 (double)_voltage_compensator.Vb_op, _voltage_compensator.n_rotors);
+
+	} else if (_param_ca_vc_en.get() && !_voltage_compensator.isConfigured()) {
+		PX4_WARN("Voltage compensator enabled but Vb_op not set — disabled");
+	}
 }
 
 int ControlAllocator::print_usage(const char *reason)

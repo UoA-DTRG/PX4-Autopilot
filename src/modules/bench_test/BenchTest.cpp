@@ -267,9 +267,10 @@ void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t t
 	float Vb_pred = 0.0f;
 	float I_total = 0.0f;
 	float delta_comp = value;
+	VoltageCompensator::Result vc_res;
 
 	if (soc >= 0.0f) {
-		delta_comp = _voltage_compensator.update(motor_index, value, soc, dt, Vb_pred, I_total);
+		delta_comp = _voltage_compensator.update(motor_index, value, soc, dt, Vb_pred, I_total, &vc_res);
 	}
 
 	/* ── Hard throttle limit ─────────────────────────────────── */
@@ -287,8 +288,13 @@ void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t t
 	status.motor_index = (uint8_t)motor_index;
 	status.n_motors    = (uint8_t)_param_bt_num_motors.get();
 	status.soc         = (soc >= 0.0f) ? soc : -1.0f;
-	status.v_b_pred    = Vb_pred;
-	status.i_total     = I_total;
+	status.v_b_pred    = vc_res.v_b_pred;
+	status.i_total     = vc_res.i_total;
+	status.v0          = vc_res.v0;
+	status.r0          = vc_res.r0;
+	status.r1          = vc_res.r1;
+	status.tau1        = vc_res.tau1;
+	status.v_rc        = vc_res.v_rc;
 
 	for (int m = 0; m < VoltageCompensator::MAX_ROTORS; m++) {
 		const float raw  = _voltage_compensator.delta_prev[m];
@@ -296,6 +302,8 @@ void BenchTest::compensatedCommandMotor(int motor_index, float value, uint32_t t
 		status.delta_raw[m]  = raw;
 		status.delta_comp[m] = comp;
 		status.c_delta[m]    = (raw > 1e-4f) ? (comp / raw) : 1.0f;
+		status.omega[m]      = vc_res.omega[m];
+		status.i_motor[m]    = vc_res.i_motor[m];
 	}
 
 	_vc_status_pub.publish(status);

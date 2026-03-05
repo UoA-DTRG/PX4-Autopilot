@@ -83,6 +83,10 @@
 #include <uORB/topics/multisine_excitation_status.h>
 #endif
 
+#include <VoltageCompensator.hpp>
+#include <uORB/topics/battery_status.h>
+#include <uORB/topics/bench_test_vc_status.h>
+
 class ControlAllocator : public ModuleBase<ControlAllocator>, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
@@ -201,6 +205,13 @@ private:
 	uORB::Subscription _multisine_excitation_status_sub{ORB_ID(multisine_excitation_status)};
 #endif
 
+	/* Voltage compensator */
+	uORB::Subscription _battery_status_sub{ORB_ID(battery_status)};
+	uORB::Publication<bench_test_vc_status_s> _vc_status_pub{ORB_ID(bench_test_vc_status)};
+	VoltageCompensator _voltage_compensator{};
+	hrt_abstime _vc_last_update{0};
+	void load_vc_params();
+
 	matrix::Vector3f _torque_sp;
 	matrix::Vector3f _thrust_sp;
 	bool _publish_controls{true};
@@ -225,7 +236,33 @@ private:
 		(ParamInt<px4::params::CA_METHOD>) _param_ca_method,
 		(ParamInt<px4::params::CA_FAILURE_MODE>) _param_ca_failure_mode,
 		(ParamInt<px4::params::CA_R_REV>) _param_r_rev,
-		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer
+		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer,
+		(ParamInt<px4::params::CA_VC_EN>) _param_ca_vc_en,
+		(ParamFloat<px4::params::CA_VC_VBOP>) _param_ca_vc_vbop,
+		(ParamInt<px4::params::CA_VC_NMOT>) _param_ca_vc_nmot,
+		(ParamFloat<px4::params::CA_VC_TW1>) _param_ca_vc_tw1,
+		(ParamFloat<px4::params::CA_VC_TW2>) _param_ca_vc_tw2,
+		(ParamFloat<px4::params::CA_VC_TW3>) _param_ca_vc_tw3,
+		(ParamFloat<px4::params::CA_VC_TW4>) _param_ca_vc_tw4,
+		(ParamFloat<px4::params::CA_VC_TI1>) _param_ca_vc_ti1,
+		(ParamFloat<px4::params::CA_VC_TI2>) _param_ca_vc_ti2,
+		(ParamFloat<px4::params::CA_VC_TI3>) _param_ca_vc_ti3,
+		(ParamFloat<px4::params::CA_VC_V0C0>) _param_ca_vc_v0c0,
+		(ParamFloat<px4::params::CA_VC_V0C1>) _param_ca_vc_v0c1,
+		(ParamFloat<px4::params::CA_VC_V0C2>) _param_ca_vc_v0c2,
+		(ParamFloat<px4::params::CA_VC_V0C3>) _param_ca_vc_v0c3,
+		(ParamFloat<px4::params::CA_VC_R0C0>) _param_ca_vc_r0c0,
+		(ParamFloat<px4::params::CA_VC_R0C1>) _param_ca_vc_r0c1,
+		(ParamFloat<px4::params::CA_VC_R0C2>) _param_ca_vc_r0c2,
+		(ParamFloat<px4::params::CA_VC_R0C3>) _param_ca_vc_r0c3,
+		(ParamFloat<px4::params::CA_VC_R1C0>) _param_ca_vc_r1c0,
+		(ParamFloat<px4::params::CA_VC_R1C1>) _param_ca_vc_r1c1,
+		(ParamFloat<px4::params::CA_VC_R1C2>) _param_ca_vc_r1c2,
+		(ParamFloat<px4::params::CA_VC_R1C3>) _param_ca_vc_r1c3,
+		(ParamFloat<px4::params::CA_VC_T1C0>) _param_ca_vc_t1c0,
+		(ParamFloat<px4::params::CA_VC_T1C1>) _param_ca_vc_t1c1,
+		(ParamFloat<px4::params::CA_VC_T1C2>) _param_ca_vc_t1c2,
+		(ParamFloat<px4::params::CA_VC_T1C3>) _param_ca_vc_t1c3
 	)
 
 };
