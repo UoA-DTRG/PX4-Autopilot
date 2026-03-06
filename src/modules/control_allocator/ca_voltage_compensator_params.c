@@ -60,4 +60,4 @@
  */
 PARAM_DEFINE_INT32(CA_VC_EN, 0);
 
-/* Model coefficients shared with bench_test — see VC_* param group (Voltage Compensator) */
+/* Model coefficients shared with bench_test — defined in voltage_compensator/module.yaml (VC_* group) */

@@ -31,8 +31,10 @@
 #
 ############################################################################
 
-# Compiled library: provides shared VC_* parameters + include path
-px4_add_library(voltage_compensator
-	voltage_compensator_params.c
-)
-target_include_directories(voltage_compensator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Header-only library: consumers get the include path.
+# Parameters are defined in module.yaml and registered globally below.
+add_library(voltage_compensator INTERFACE)
+target_include_directories(voltage_compensator INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Register shared VC_* parameters with the PX4 parameter scanner
+set_property(GLOBAL APPEND PROPERTY PX4_MODULE_CONFIG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/module.yaml)

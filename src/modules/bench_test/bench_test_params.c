@@ -500,8 +500,8 @@ PARAM_DEFINE_FLOAT(BT_FLT_VMIN, 0.0f);
  *  Voltage compensator parameters
  *
  *  Battery model coefficients (VC_VBOP, VC_NMOT, VC_TW*, VC_TI*,
- *  VC_V0C*, VC_R0C*, VC_R1C*, VC_T1C*) are shared with the in-flight
- *  control allocator and defined in the "Voltage Compensator" group.
+ *  VC_V0C*, VC_R0C*, VC_R1C*, VC_T1C*) are defined in the shared
+ *  voltage_compensator library (module.yaml, "Voltage Compensator" group).
  *  The bench-test-specific params below are additional to that set.
  * ════════════════════════════════════════════════════════════════════════ */
 

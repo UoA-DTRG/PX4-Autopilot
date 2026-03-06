@@ -349,7 +349,7 @@ ControlAllocator::Run()
 
 			/* Reset voltage compensator state on arming transition */
 			if (_armed && !was_armed) {
-				_voltage_compensator.reset(_param_ca_vc_nmot.get());
+				_voltage_compensator.reset(_param_vc_nmot.get());
 				_vc_last_update = 0;
 			}
 

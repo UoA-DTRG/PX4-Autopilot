@@ -1,0 +1,217 @@
+module_name: voltage_compensator
+
+parameters:
+    - group: Voltage Compensator
+      definitions:
+        VC_VBOP:
+            description:
+                short: Nominal battery voltage (Vb_op)
+                long: |
+                    The assumed "operating point" battery voltage.
+                    The compensator scales commands so that delta*Vb_op = delta'*Vb_actual,
+                    keeping rotor speed constant regardless of battery state.
+                    Typically the mid-SoC pack voltage. Set to 0.0 to disable.
+            type: float
+            unit: V
+            min: 0.0
+            max: 60.0
+            decimal: 2
+            increment: 0.1
+            default: 0.0
+
+        VC_NMOT:
+            description:
+                short: Number of motors in battery current model
+                long: |
+                    Number of motors the current model sums over.
+                    Should match the actual motor count on the airframe.
+            type: int32
+            min: 1
+            max: 8
+            default: 4
+
+        VC_TW1:
+            description:
+                short: Speed estimator theta_w1 (linear voltage term)
+                long: |
+                    Speed estimator coefficient for the linear voltage term.
+                    omega_k = (theta1*Vdelta + theta2*sqrt(Vdelta) + theta3 - theta4*omega_{k-1}) / (1 + theta4)
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_TW2:
+            description:
+                short: Speed estimator theta_w2 (sqrt voltage term)
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_TW3:
+            description:
+                short: Speed estimator theta_w3 (constant term)
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_TW4:
+            description:
+                short: Speed estimator theta_w4 (dynamics term)
+            type: float
+            decimal: 6
+            default: 0.0
+
+        VC_TI1:
+            description:
+                short: Current estimator theta_I1 (linear speed)
+                long: |
+                    I_rotor = theta1*omega + theta2*omega^2 + theta3
+            type: float
+            decimal: 6
+            default: 0.0
+
+        VC_TI2:
+            description:
+                short: Current estimator theta_I2 (quadratic speed)
+            type: float
+            decimal: 8
+            default: 0.0
+
+        VC_TI3:
+            description:
+                short: Current estimator theta_I3 (constant)
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_V0C0:
+            description:
+                short: Battery OCV polynomial c0 (constant)
+                long: |
+                    V0(SoC) = c0 + c1*s + c2*s^2 + c3*s^3
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_V0C1:
+            description:
+                short: Battery OCV polynomial c1 (linear)
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_V0C2:
+            description:
+                short: Battery OCV polynomial c2 (quadratic)
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_V0C3:
+            description:
+                short: Battery OCV polynomial c3 (cubic)
+            type: float
+            decimal: 4
+            default: 0.0
+
+        VC_R0C0:
+            description:
+                short: Battery R0 polynomial c0 (constant)
+                long: |
+                    R0(SoC) = c0 + c1*s + c2*s^2 + c3*s^3
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_R0C1:
+            description:
+                short: Battery R0 polynomial c1 (linear)
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_R0C2:
+            description:
+                short: Battery R0 polynomial c2 (quadratic)
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_R0C3:
+            description:
+                short: Battery R0 polynomial c3 (cubic)
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_R1C0:
+            description:
+                short: Battery R1 polynomial c0 (constant)
+                long: |
+                    R1(SoC) = c0 + c1*s + c2*s^2 + c3*s^3
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_R1C1:
+            description:
+                short: Battery R1 polynomial c1 (linear)
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_R1C2:
+            description:
+                short: Battery R1 polynomial c2 (quadratic)
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_R1C3:
+            description:
+                short: Battery R1 polynomial c3 (cubic)
+            type: float
+            unit: Ohm
+            decimal: 6
+            default: 0.0
+
+        VC_T1C0:
+            description:
+                short: Battery tau1 polynomial c0 (constant)
+                long: |
+                    tau1(SoC) = c0 + c1*s + c2*s^2 + c3*s^3  (RC branch time constant)
+            type: float
+            unit: s
+            decimal: 4
+            default: 0.0
+
+        VC_T1C1:
+            description:
+                short: Battery tau1 polynomial c1 (linear)
+            type: float
+            unit: s
+            decimal: 4
+            default: 0.0
+
+        VC_T1C2:
+            description:
+                short: Battery tau1 polynomial c2 (quadratic)
+            type: float
+            unit: s
+            decimal: 4
+            default: 0.0
+
+        VC_T1C3:
+            description:
+                short: Battery tau1 polynomial c3 (cubic)
+            type: float
+            unit: s
+            decimal: 4
+            default: 0.0
