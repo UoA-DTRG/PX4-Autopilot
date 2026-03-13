@@ -197,23 +197,36 @@ MulticopterRateControl::Run()
 			// update saturation status from control allocation feedback
 			control_allocator_status_s control_allocator_status;
 
-			if (_control_allocator_status_sub.update(&control_allocator_status)) {
-				Vector<bool, 3> saturation_positive;
-				Vector<bool, 3> saturation_negative;
+			//prevent further positive control saturation
+			if(_param_antiwindup_en.get()==1){
+				if(_csv_mixer.get()==0){
 
-				if (!control_allocator_status.torque_setpoint_achieved) {
-					for (size_t i = 0; i < 3; i++) {
-						if (control_allocator_status.unallocated_torque[i] > FLT_EPSILON) {
-							saturation_positive(i) = true;
+					if (_control_allocator_status_sub.update(&control_allocator_status)) {
+						Vector<bool, 3> saturation_positive;
+						Vector<bool, 3> saturation_negative;
 
-						} else if (control_allocator_status.unallocated_torque[i] < -FLT_EPSILON) {
-							saturation_negative(i) = true;
+						if (!control_allocator_status.torque_setpoint_achieved) {
+							for (size_t i = 0; i < 3; i++) {
+								if (control_allocator_status.unallocated_torque[i] > FLT_EPSILON) {
+									saturation_positive(i) = true;
+
+								} else if (control_allocator_status.unallocated_torque[i] < -FLT_EPSILON) {
+									saturation_negative(i) = true;
+								}
+							}
 						}
-					}
-				}
 
-				// TODO: send the unallocated value directly for better anti-windup
-				_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
+
+					// TODO: send the unallocated value directly for better anti-windup
+					_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
+					}
+
+
+				}
+				else{
+					_param_antiwindup_en.set(0);
+					_param_antiwindup_en.commit();
+				}
 			}
 
 			// run rate controller

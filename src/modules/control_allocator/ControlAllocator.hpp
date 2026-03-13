@@ -236,7 +236,7 @@ private:
 		(ParamInt<px4::params::CA_METHOD>) _param_ca_method,
 		(ParamInt<px4::params::CA_FAILURE_MODE>) _param_ca_failure_mode,
 		(ParamInt<px4::params::CA_R_REV>) _param_r_rev,
-		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer,
+		(ParamInt<px4::params::DTRG_MIXER_CSV>) _csv_mixer,
 		(ParamInt<px4::params::CA_VC_EN>) _param_ca_vc_en,
 		(ParamFloat<px4::params::VC_VBOP>) _param_vc_vbop,
 		(ParamInt<px4::params::VC_NMOT>) _param_vc_nmot,

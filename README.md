@@ -4,7 +4,7 @@
 
 This repository holds the [DTRG](https://dtrg.org/) fork of the [PX4](http://px4.io) flight control solution for drones, with the main applications located in the [src/modules](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules) directory. It also contains the PX4 Drone Middleware Platform, which provides drivers and middleware to run drones.
 
-This firmware is build upon the v1.14 release of PX4
+This firmware is build upon the v1.16 release of PX4
 * Official Website: http://px4.io (License: BSD 3-clause, [LICENSE](https://github.com/PX4/PX4-Autopilot/blob/main/LICENSE))
 
 ## DTRG Additions
@@ -30,12 +30,16 @@ This DTRG fork is designed with the following airframes in mind:
 * PlanarOcto (flat octocopter)
 * Planatary Hex (modified flat hexacopter)
 * P#1
+* Fantail (quadcopter with additonal rear forward-facing propellor)
 
 Precompiled binaries for relevant flight controllers and information about the firmware can be found in the releases tab of this reporitory
 
 Documentation for features implemented in v1.14 can be found in the DTRG teams drive documentation folder. It is highly recommended to read the documentation before attempting to use the firmware as some features may pose a safety risk if not used correctly.
 
-
+## Developer Notes
+ When modifying please use your own branch following the following convention:
+ yourname/feature-or-specific-branch-name
+ If you are developing a feature please ensure that the feature is fully parameterised and tested before creating a Pull Request. On acceptance of the merge request a release with commonly used binaries should be made. Binaries should be built with the git version tag v{major_version}-{dtrg-version} i.e. v1.16.0-1.2.3
 
 ## Project Governance
 
