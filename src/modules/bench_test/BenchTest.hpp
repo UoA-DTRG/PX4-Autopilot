@@ -43,6 +43,8 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionInterval.hpp>
+#include <uORB/topics/actuator_motors.h>
+#include <uORB/topics/input_rc.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
@@ -82,22 +84,44 @@ private:
 
 	static constexpr uint32_t kLoopIntervalUs = 2500; // 400 Hz
 
+	// RC switch is considered "high" (start requested) above this pulse width [us].
+	static constexpr uint16_t kSwitchThresholdUs = 1500;
+
 	void Run() override;
 
 	void publishZero(const hrt_abstime &now);
 	void publishOutputs(const hrt_abstime &now,
 			    float thrust_x, float thrust_y, float thrust_z,
 			    float torque_x, float torque_y, float torque_z);
-	float computeAxisOutput(float dt_since_start) const;
+	float computeAxisOutput(float dt_since_start, bool motor_saturated);
+
+	// True when the step/ramp profile should be running (start switch high,
+	// or no switch configured).
+	bool startRequested();
+
+	// True when any connected motor has reached its upper or lower saturation limit.
+	bool motorSaturated();
+
+	// Number of motors to consider for saturation. Uses BT_NUM_MOTORS if set,
+	// otherwise auto-detects from the actuator_motors output.
+	int numMotors();
 
 	uORB::Publication<vehicle_thrust_setpoint_s> _vehicle_thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::Publication<vehicle_torque_setpoint_s> _vehicle_torque_setpoint_pub{ORB_ID(vehicle_torque_setpoint)};
 
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
+	uORB::Subscription _input_rc_sub{ORB_ID(input_rc)};
+	uORB::Subscription _actuator_motors_sub{ORB_ID(actuator_motors)};
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	hrt_abstime _test_start_time{0};
+	hrt_abstime _output_start_time{0};
 	hrt_abstime _last_warn_time{0};
+
+	// Ramp freeze state: once a motor saturates (or BT_MAX_VAL is hit) the
+	// ramp holds its value until the profile is restarted.
+	bool  _ramp_frozen{false};
+	float _ramp_value{0.f};
 
 	perf_counter_t _loop_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")};
 
@@ -111,6 +135,10 @@ private:
 		(ParamFloat<px4::params::BT_STEP_DUR>)  _param_bt_step_dur,
 		(ParamFloat<px4::params::BT_RAMP_RATE>) _param_bt_ramp_rate,
 		(ParamFloat<px4::params::BT_MAX_VAL>)   _param_bt_max_val,
-		(ParamInt<px4::params::BT_ARM_ENABLE>)  _param_bt_arm_enable
+		(ParamInt<px4::params::BT_ARM_ENABLE>)  _param_bt_arm_enable,
+		(ParamInt<px4::params::BT_START_SW>)    _param_bt_start_sw,
+		(ParamInt<px4::params::BT_NUM_MOTORS>)  _param_bt_num_motors,
+		(ParamFloat<px4::params::BT_SAT_MARGIN>) _param_bt_sat_margin,
+		(ParamFloat<px4::params::BT_SPINUP_T>)  _param_bt_spinup_t
 	)
 };

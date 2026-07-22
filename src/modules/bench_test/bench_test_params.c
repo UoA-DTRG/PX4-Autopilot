@@ -142,7 +142,10 @@ PARAM_DEFINE_FLOAT(BT_RAMP_RATE, 0.05f);
 /**
  * Bench test ramp maximum
  *
- * Absolute clamp value at which the ramp stops and holds.
+ * Absolute safety clamp for the ramp. The ramp normally increases until a
+ * motor saturates (upper or lower), at which point it freezes and holds. This
+ * value is the hard limit at which the ramp also stops and holds, in case
+ * saturation is never reached.
  *
  * @min 0.0
  * @max 1.0
@@ -162,3 +165,76 @@ PARAM_DEFINE_FLOAT(BT_MAX_VAL, 0.3f);
  * @group Bench Test
  */
 PARAM_DEFINE_INT32(BT_ARM_ENABLE, 0);
+
+/**
+ * Bench test start switch (RC channel)
+ *
+ * Selects the raw RC input channel (input_rc) used as the start switch for
+ * the step and ramp profiles. This reads input_rc directly, so any channel
+ * up to 18 is available (e.g. 16 for CH16), not just the mapped aux channels.
+ * The switch is considered high when its pulse width exceeds 1500 us.
+ *
+ * While the switch is low the module only commands the hover baseline; the
+ * profile runs while the switch is high, and the test clock is reset when the
+ * switch returns low so each flip re-runs the profile from the start.
+ *
+ * Set to 0 to disable the switch gate and start the profile immediately on
+ * mode entry (legacy behaviour).
+ *
+ * @min 0
+ * @max 18
+ * @group Bench Test
+ */
+PARAM_DEFINE_INT32(BT_START_SW, 0);
+
+/**
+ * Bench test number of motors
+ *
+ * Number of connected motors to inspect for saturation when deciding to
+ * freeze the ramp. Motors occupy the first indices of the control allocator
+ * saturation array, so only indices 0..N-1 are checked. This avoids unused
+ * actuator slots incorrectly freezing the ramp.
+ *
+ * Set to 0 to auto-detect the count from the actuator_motors output (number
+ * of finite motor channels).
+ *
+ * @min 0
+ * @max 12
+ * @group Bench Test
+ */
+PARAM_DEFINE_INT32(BT_NUM_MOTORS, 0);
+
+/**
+ * Bench test saturation margin
+ *
+ * Margin used to detect motor saturation for the ramp freeze, instead of the
+ * hard 0 / 1 limits. A motor is considered saturated when its normalised
+ * output rises above (1 - margin) or falls below (0 + margin). For example a
+ * margin of 0.05 triggers at 0.95 (upper) and 0.05 (lower).
+ *
+ * For reversible motors the lower threshold is (-1 + margin).
+ *
+ * @min 0.0
+ * @max 0.5
+ * @decimal 3
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_SAT_MARGIN, 0.05f);
+
+/**
+ * Bench test throttle spin-up time
+ *
+ * Duration over which the hover baseline thrust (BT_HOVER_THR) is ramped up
+ * from zero when the outputs first become active (armed and BT_ARM_ENABLE=1).
+ * This provides a soft-start so the motors spin up gradually instead of
+ * jumping straight to the hover thrust.
+ *
+ * Set to 0 to apply the hover thrust immediately (no spin-up).
+ *
+ * @unit s
+ * @min 0.0
+ * @max 30.0
+ * @decimal 1
+ * @group Bench Test
+ */
+PARAM_DEFINE_FLOAT(BT_SPINUP_T, 2.0f);
