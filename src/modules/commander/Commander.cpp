@@ -559,6 +559,10 @@ transition_result_t Commander::arm(arm_disarm_reason_t calling_reason, bool run_
 		run_preflight_checks = false;
 	}
 
+	// Bench test runs a rigidly mounted vehicle with no manual control enabled;
+	// allow arming directly from RC in this mode.
+	const bool bench_test_mode = _vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_BENCH_TEST;
+
 	if (run_preflight_checks) {
 		if (_vehicle_control_mode.flag_control_manual_enabled) {
 
@@ -583,9 +587,10 @@ transition_result_t Commander::arm(arm_disarm_reason_t calling_reason, bool run_
 				return TRANSITION_DENIED;
 			}
 
-		} else if (calling_reason == arm_disarm_reason_t::stick_gesture
-			   || calling_reason == arm_disarm_reason_t::rc_switch
-			   || calling_reason == arm_disarm_reason_t::rc_button) {
+		} else if (!bench_test_mode
+			   && (calling_reason == arm_disarm_reason_t::stick_gesture
+			       || calling_reason == arm_disarm_reason_t::rc_switch
+			       || calling_reason == arm_disarm_reason_t::rc_button)) {
 
 			mavlink_log_critical(&_mavlink_log_pub, "Arming denied: switch to manual mode first\t");
 			events::send(events::ID("commander_arm_denied_not_manual"), {events::Log::Critical, events::LogInternal::Info},
@@ -637,8 +642,11 @@ transition_result_t Commander::disarm(arm_disarm_reason_t calling_reason, bool f
 		const bool commanded_by_rc = (calling_reason == arm_disarm_reason_t::stick_gesture)
 					     || (calling_reason == arm_disarm_reason_t::rc_switch)
 					     || (calling_reason == arm_disarm_reason_t::rc_button);
+		// Bench test runs on a rigidly mounted vehicle, so the land detector reports
+		// "in air" once the motors spin. Allow disarming freely in this mode.
+		const bool bench_test_mode = _vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_BENCH_TEST;
 
-		if (!landed && !(mc_manual_thrust_mode && commanded_by_rc && _param_com_disarm_man.get())) {
+		if (!landed && !bench_test_mode && !(mc_manual_thrust_mode && commanded_by_rc && _param_com_disarm_man.get())) {
 			if (calling_reason != arm_disarm_reason_t::stick_gesture) {
 				mavlink_log_critical(&_mavlink_log_pub, "Disarming denied: not landed\t");
 				events::send(events::ID("commander_disarm_denied_not_landed"),
