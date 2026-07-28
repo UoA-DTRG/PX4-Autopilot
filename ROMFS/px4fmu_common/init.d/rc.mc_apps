@@ -29,6 +29,15 @@ fi
 # Start Multicopter Position Controller.
 #
 mc_hover_thrust_estimator start
+
+#
+# Start the RLS wrench estimator if enabled.
+#
+if param compare -s RLS_EST_EN 1
+then
+	rls_wrench_estimator start
+fi
+
 flight_mode_manager start
 mc_pos_control start
 

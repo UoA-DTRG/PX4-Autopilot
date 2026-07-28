@@ -173,6 +173,7 @@ set(msg_files
 	RateCtrlStatus.msg
 	RcChannels.msg
 	RcParameterMap.msg
+	RlsWrenchEstimator.msg
 	RoverAttitudeSetpoint.msg
 	RoverAttitudeStatus.msg
 	RoverPositionSetpoint.msg

@@ -1,0 +1,5 @@
+menuconfig MODULES_RLS_WRENCH_ESTIMATOR
+	bool "rls_wrench_estimator"
+	default n
+	---help---
+		Enable support for rls_wrench_estimator
