@@ -42,6 +42,7 @@
 #include "GotoControl/GotoControl.hpp"
 
 #include <drivers/drv_hrt.h>
+#include <lib/mathlib/mathlib.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <lib/mathlib/math/filter/NotchFilter.hpp>
 #include <lib/mathlib/math/WelfordMean.hpp>
@@ -141,15 +142,27 @@ private:
 	float roll_setpoint = 0.0f;
 	float pitch_setpoint = 0.0f;
 	float _ht_limit = 0.5f; 		/**< DTRG horizontal horizontal thrust limit */
-	float _ht_r_limit = 10.0f;		/**< DTRG horizontal thrust Roll limit */
-	float _ht_p_limit = 10.0f;		/**< DTRG horizontal thrust Pitch limit */
-	int _ht_en; 				/**< DTRG horizontal thrust Enabled*/
-	int _ht_rc_en_add;			/**< DTRF HT RC enable channel */
+	// Assigned as radians in parameters_update(); the in-class default must match the
+	// unit or an un-updated instance would carry a 573 deg limit.
+	float _ht_r_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Roll limit [rad] */
+	float _ht_p_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Pitch limit [rad] */
+	int _ht_en{0}; 				/**< DTRG horizontal thrust Enabled*/
+	int _ht_rc_en_add{-1};			/**< DTRF HT RC enable channel */
 	int _dtrg_ht_mask = 0;
-	int _ht_x_add;                         	/**< DTRG horizontal thrust X channel */
-	int _ht_y_add;                         	/**< DTRG horizontal thrust Y channel */
-	int _ht_r_add;                         	/**< DTRG horizontal thrust Roll channel */
-	int _ht_p_add; 		       		/**< DTRG horizontal thrust Pitch channel */
+	int _ht_x_add{-1};                     	/**< DTRG horizontal thrust X channel */
+	int _ht_y_add{-1};                     	/**< DTRG horizontal thrust Y channel */
+	// 0-based RC channel indices, -1 when the channel parameter is 0 (input disabled)
+	int _ht_r_add{-1};                     	/**< DTRG horizontal thrust Roll channel */
+	int _ht_p_add{-1}; 	       		/**< DTRG horizontal thrust Pitch channel */
+
+	/**
+	 * Scaled tilt setpoint from a DTRG-assigned RC channel.
+	 *
+	 * @param channel_index 0-based RC channel, or -1 when DTRG_HT_R/DTRG_HT_P is 0
+	 * @param limit         magnitude limit [rad]
+	 * @return              0 when the input is disabled, out of range or inside the deadzone
+	 */
+	float dtrgAuxTiltSetpoint(int channel_index, float limit) const;
 
 
 	vehicle_land_detected_s _vehicle_land_detected {

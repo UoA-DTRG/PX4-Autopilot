@@ -9,28 +9,40 @@
  *
  * AUX channel for horizontal thrust roll control in 6DOF mode.
  *
- * @min 1
+ * @min 0
  * @max 16
+ * @value 0 Disabled
+ * @value 9 AUX9
  * @value 10 AUX10
  * @value 11 AUX11
  * @value 12 AUX12
+ * @value 13 AUX13
+ * @value 14 AUX14
+ * @value 15 AUX15
+ * @value 16 AUX16
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_HT_R, 10);
+PARAM_DEFINE_INT32(DTRG_HT_R, 0);
 
 /**
  * Horizontal thrust Pitch channel
  *
  * AUX channel for horizontal thrust pitch control in 6DOF mode.
  *
- * @min 1
+ * @min 0
  * @max 16
+ * @value 0 Disabled
+ * @value 9 AUX9
  * @value 10 AUX10
  * @value 11 AUX11
  * @value 12 AUX12
+ * @value 13 AUX13
+ * @value 14 AUX14
+ * @value 15 AUX15
+ * @value 16 AUX16
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_HT_P, 11);
+PARAM_DEFINE_INT32(DTRG_HT_P, 0);
 
 /**
  * Horizontal thrust control mask

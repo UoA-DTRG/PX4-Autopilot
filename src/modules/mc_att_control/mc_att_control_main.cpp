@@ -109,11 +109,48 @@ MulticopterAttitudeControl::parameters_updated()
 	if (_ht_en){
 		_ht_rc_en_add = _param_dtrg_ht_rc_en.get()-1;
 		_ht_limit = _param_dtrg_ht_max.get();
-		_ht_r_add = _param_dtrg_h_t_R.get()-1;
-		_ht_p_add = _param_dtrg_h_t_P.get()-1;
+		// DTRG_HT_R / DTRG_HT_P of 0 means the input is disabled. Keep the sentinel
+		// at -1 rather than letting the -1 offset produce a negative index into
+		// rc_channels.channels[].
+		_ht_r_add = (_param_dtrg_h_t_R.get() > 0) ? (_param_dtrg_h_t_R.get() - 1) : -1;
+		_ht_p_add = (_param_dtrg_h_t_P.get() > 0) ? (_param_dtrg_h_t_P.get() - 1) : -1;
+		_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
+		_ht_p_limit = math::radians(_param_dtrg_ht_p_max.get());
 		_dtrg_ht_mask = _param_dtrg_ht_mask.get();
 	}
 
+}
+
+float
+MulticopterAttitudeControl::dtrgAuxTiltSetpoint(int channel_index, float limit) const
+{
+	// A channel parameter of 0 disables that input, which arrives here as -1. The
+	// upper bound is a belt-and-braces check on the channel parameters, which are
+	// not range-checked anywhere else before being used as an array index.
+	const int num_channels = static_cast<int>(sizeof(_rc_channels.channels) / sizeof(_rc_channels.channels[0]));
+
+	if ((channel_index < 0) || (channel_index >= num_channels)) {
+		return 0.f;
+	}
+
+	const float raw = _rc_channels.channels[channel_index];
+
+	// deadzone
+	if (!PX4_ISFINITE(raw) || (fabsf(raw) <= 0.02f)) {
+		return 0.f;
+	}
+
+	return math::constrain(raw * limit, -limit, limit);
+}
+
+bool
+MulticopterAttitudeControl::htSwitchActive() const
+{
+	const int num_channels = static_cast<int>(sizeof(_rc_channels.channels) / sizeof(_rc_channels.channels[0]));
+
+	return (_ht_en != 0)
+	       && (_ht_rc_en_add >= 0) && (_ht_rc_en_add < num_channels)
+	       && (_rc_channels.channels[_ht_rc_en_add] > 0.5f);
 }
 
 float
@@ -182,9 +219,12 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 
 
 
-	if (_ht_en && (_rc_channels.channels[_ht_rc_en_add] > 0.5f)){
-		v = Vector2f(_man_roll_input_filter.update(_rc_channels.channels[_ht_r_add] * _man_tilt_max),
-		-_man_pitch_input_filter.update(_rc_channels.channels[_ht_p_add] * _man_tilt_max));
+	if (htSwitchActive()){
+		// Roll/pitch come from the assigned aux channels, scaled by the DTRG angle
+		// limits (DTRG_HT_R_MAX / DTRG_HT_P_MAX) rather than the manual tilt max.
+		// A channel parameter of 0 disables that axis, leaving its tilt at 0.
+		v = Vector2f(_man_roll_input_filter.update(dtrgAuxTiltSetpoint(_ht_r_add, _ht_r_limit)),
+			     -_man_pitch_input_filter.update(dtrgAuxTiltSetpoint(_ht_p_add, _ht_p_limit)));
 	}else{
 		v = Vector2f(_man_roll_input_filter.update(_manual_control_setpoint.roll * _man_tilt_max),
 				      -_man_pitch_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max));
@@ -215,7 +255,7 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 	}
 
 	// DTRG horizontal thrust: override roll/pitch quaternion and thrust when HT is active
-	if (_ht_en && (_rc_channels.channels[_ht_rc_en_add] > 0.5f)) {
+	if (htSwitchActive()) {
 		// Recalculate quaternion based on HT mask mode
 		Vector2f v_ht;
 
@@ -259,7 +299,7 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 	attitude_setpoint.thrust_body[2] = -throttle_curve(_manual_control_setpoint.throttle);
 
 	// DTRG horizontal thrust switch
-	if (_ht_en && (_rc_channels.channels[_ht_rc_en_add] > 0.5f)) {
+	if (htSwitchActive()) {
 		// DTRG horizontal thrust saturation topic
 		horizontal_thrust_limit_s hzlim_msg{};
 		hzlim_msg.timestamp = hrt_absolute_time();
