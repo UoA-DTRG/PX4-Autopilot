@@ -450,6 +450,24 @@ void MulticopterPositionControl::Run()
 
 		_trajectory_setpoint_sub.update(&_setpoint);
 
+		// Follow the admittance controller's offset setpoint while it declares itself
+		// engaged and both of its topics are fresh. Anything else - module stopped,
+		// bypassed (ADM_CTR_EN 1), or stale - falls through to the trajectory setpoint
+		// published above.
+		admittance_status_s admittance_status;
+
+		if (_admittance_status_sub.copy(&admittance_status)
+		    && admittance_status.engaged
+		    && (hrt_elapsed_time(&admittance_status.timestamp) < kAdmittanceTimeout)) {
+
+			trajectory_setpoint_s admittance_setpoint;
+
+			if (_admittance_setpoint_sub.copy(&admittance_setpoint)
+			    && (hrt_elapsed_time(&admittance_setpoint.timestamp) < kAdmittanceTimeout)) {
+				_setpoint = admittance_setpoint;
+			}
+		}
+
 		adjustSetpointForEKFResets(vehicle_local_position, _setpoint);
 
 		if (_vehicle_control_mode.flag_multicopter_position_control_enabled) {

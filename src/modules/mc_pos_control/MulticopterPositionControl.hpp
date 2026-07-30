@@ -58,6 +58,7 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
+#include <uORB/topics/admittance_status.h>
 #include <uORB/topics/hover_thrust_estimate.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/trajectory_setpoint.h>
@@ -109,13 +110,17 @@ private:
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
-	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)}; //TODO this was commented out in the old 6D offboard with the tag "Using Addmittance"
+	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
 	uORB::Subscription _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
-	//TODO this existed replacing the trajectory_setpoint_sub
-	// uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
+	// The admittance controller republishes the trajectory setpoint with a
+	// compliance offset applied. It is only followed while it reports itself
+	// engaged, so a stopped, bypassed or stale module leaves control untouched.
+	uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
+	uORB::Subscription _admittance_status_sub{ORB_ID(admittance_status)};
+	static constexpr hrt_abstime kAdmittanceTimeout{100_ms};
 
 	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)};
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};

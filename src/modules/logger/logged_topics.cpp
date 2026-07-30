@@ -154,6 +154,11 @@ void LoggedTopics::add_default_topics()
 	add_topic("sequential_desaturation");
 	add_topic("horizontal_thrust_limit");
 
+	// Admittance controller. Logged whether or not it is engaged, so the response
+	// it would have commanded can be reviewed while running in bypass.
+	add_optional_topic("admittance_setpoint", 100);
+	add_optional_topic("admittance_status", 100);
+
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);

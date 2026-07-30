@@ -38,6 +38,16 @@ then
 	rls_wrench_estimator start
 fi
 
+#
+# Start the admittance controller if enabled.
+# ADM_CTR_EN 1 runs it in bypass so its output is logged but not applied,
+# ADM_CTR_EN 2 lets mc_pos_control follow it.
+#
+if param greater -s ADM_CTR_EN 0
+then
+	admittance_control start
+fi
+
 flight_mode_manager start
 mc_pos_control start
 

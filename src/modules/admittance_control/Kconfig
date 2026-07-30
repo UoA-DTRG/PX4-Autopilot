@@ -1,0 +1,5 @@
+menuconfig MODULES_ADMITTANCE_CONTROL
+	bool "admittance_control"
+	default n
+	---help---
+		Enable support for admittance_control
