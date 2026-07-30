@@ -309,8 +309,11 @@ void MulticopterPositionControl::parameters_update(bool force)
 		_ht_en = _param_dtrg_ht_en.get();
 		if (_ht_en){
 			_ht_rc_en_add = _param_dtrg_ht_rc_en.get()-1;
-			_ht_r_add = _param_dtrg_ht_R.get()-1;
-			_ht_p_add = _param_dtrg_ht_P.get()-1;
+			// DTRG_HT_R / DTRG_HT_P of 0 means the input is disabled. Keep the
+			// sentinel at -1 rather than letting the -1 offset produce a negative
+			// index into rc_channels.channels[].
+			_ht_r_add = (_param_dtrg_ht_R.get() > 0) ? (_param_dtrg_ht_R.get() - 1) : -1;
+			_ht_p_add = (_param_dtrg_ht_P.get() > 0) ? (_param_dtrg_ht_P.get() - 1) : -1;
 			_dtrg_ht_mask = _param_dtrg_ht_mask.get();
 			_ht_limit = _param_dtrg_ht_max.get();
 			_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
@@ -319,6 +322,27 @@ void MulticopterPositionControl::parameters_update(bool force)
 
 
 	}
+}
+
+float MulticopterPositionControl::dtrgAuxTiltSetpoint(int channel_index, float limit) const
+{
+	// A channel parameter of 0 disables that input, which arrives here as -1. The
+	// upper bound is a belt-and-braces check on the channel parameters, which are
+	// not range-checked anywhere else before being used as an array index.
+	const int num_channels = static_cast<int>(sizeof(_rc_channels.channels) / sizeof(_rc_channels.channels[0]));
+
+	if ((channel_index < 0) || (channel_index >= num_channels)) {
+		return 0.f;
+	}
+
+	const float raw = _rc_channels.channels[channel_index];
+
+	// deadzone
+	if (!PX4_ISFINITE(raw) || (fabsf(raw) <= 0.02f)) {
+		return 0.f;
+	}
+
+	return math::constrain(raw * limit, -limit, limit);
 }
 
 PositionControlStates MulticopterPositionControl::set_vehicle_states(const vehicle_local_position_s
@@ -626,20 +650,20 @@ void MulticopterPositionControl::Run()
 
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
-			if(_ht_en && (_rc_channels.channels[_ht_rc_en_add] > 0.5f)){
+			const bool ht_rc_enabled = (_ht_rc_en_add >= 0)
+						   && (_ht_rc_en_add < static_cast<int>(sizeof(_rc_channels.channels) / sizeof(
+									   _rc_channels.channels[0])))
+						   && (_rc_channels.channels[_ht_rc_en_add] > 0.5f);
+
+			if(_ht_en && ht_rc_enabled){
 
 				if(!_vehicle_control_mode.flag_control_offboard_enabled){
 					// if offboard is not enabled, use the RC channels to get roll and pitch setpoints
-					// setpoints are constrained to the limits set by the with 0.01f deadzone
-					roll_setpoint = math::constrain(
-						fabsf(_rc_channels.channels[_ht_r_add]) > 0.02f ?
-						_rc_channels.channels[_ht_r_add] * _ht_r_limit : 0.f,
-						-_ht_r_limit, _ht_r_limit);
-
-					pitch_setpoint = math::constrain(
-						fabsf(_rc_channels.channels[_ht_p_add]) > 0.02f ?
-						_rc_channels.channels[_ht_p_add] * _ht_p_limit : 0.f,
-						-_ht_p_limit, _ht_p_limit);
+					// setpoints are constrained to the limits set by the with 0.02f deadzone.
+					// DTRG_HT_R / DTRG_HT_P of 0 disables that axis' stick input, which
+					// leaves the corresponding setpoint at 0 (level).
+					roll_setpoint = dtrgAuxTiltSetpoint(_ht_r_add, _ht_r_limit);
+					pitch_setpoint = dtrgAuxTiltSetpoint(_ht_p_add, _ht_p_limit);
 				}else{
 					if (_debug_array_sub.update(&_debug_array)){
 
