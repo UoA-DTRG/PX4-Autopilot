@@ -90,32 +90,67 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 			normalizeControlAllocationMatrix();
 		}
 
-
-
-
-		if (_param_mixer_edit_en.get()){
-
-			int motorUsed;
-
-			for  (int i = 0; i < 12; i++) {
-				if (~(_param_mixer_edit_motors.get() & (1u << i))) {
-					motorUsed=i;
-					break;
-				}
-			}
-
-			float newScaling = _param_mixer_edit_val.get();
-			for (int i = 0; i < 12; i++) {
-				if (_param_mixer_edit_motors.get() & (1u << i)) {
-					_mix(i,5)=newScaling*_mix(motorUsed,5);
-				}
-			}
-		}
-
-		normalizeControlAllocationMatrix();
+		applyThrustZGroupScaling();
 
 		_mix_update_needed = false;
 
+	}
+}
+
+void
+ControlAllocationPseudoInverse::applyThrustZGroupScaling()
+{
+	if (!_param_mixer_edit_en.get()) {
+		return;
+	}
+
+	const uint32_t motor_mask = (uint32_t)_param_mixer_edit_motors.get();
+	const int num_motors = (_num_actuators < MAX_VAR_MIXER_MOTORS) ? _num_actuators : MAX_VAR_MIXER_MOTORS;
+
+	// Reference: first motor outside the group that still has usable vertical authority. A motor that was
+	// zeroed out (e.g. by an actuator failure) must not be used, as it would null the whole group.
+	int reference = -1;
+
+	for (int i = 0; i < num_motors; i++) {
+		if (!(motor_mask & (1u << i)) && fabsf(_mix(i, ControlAxis::THRUST_Z)) > FLT_EPSILON) {
+			reference = i;
+			break;
+		}
+	}
+
+	if (reference < 0) {
+		// No motor left to scale against (empty/full mask or failed reference): leave the mixer untouched
+		return;
+	}
+
+	float sum_before = 0.f;
+
+	for (int i = 0; i < num_motors; i++) {
+		sum_before += fabsf(_mix(i, ControlAxis::THRUST_Z));
+	}
+
+	const float scaling = _param_mixer_edit_val.get();
+
+	for (int i = 0; i < num_motors; i++) {
+		if (motor_mask & (1u << i)) {
+			_mix(i, ControlAxis::THRUST_Z) = scaling * _mix(reference, ControlAxis::THRUST_Z);
+		}
+	}
+
+	// Keep the total vertical authority constant, so that only the distribution between the groups
+	// changes and the hover throttle / z-loop gain stay the same.
+	float sum_after = 0.f;
+
+	for (int i = 0; i < num_motors; i++) {
+		sum_after += fabsf(_mix(i, ControlAxis::THRUST_Z));
+	}
+
+	if (sum_after > FLT_EPSILON) {
+		const float renormalization = sum_before / sum_after;
+
+		for (int i = 0; i < num_motors; i++) {
+			_mix(i, ControlAxis::THRUST_Z) *= renormalization;
+		}
 	}
 }
 

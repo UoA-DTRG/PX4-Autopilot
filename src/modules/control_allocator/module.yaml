@@ -1,5 +1,5 @@
 __max_num_mc_motors: &max_num_mc_motors 12
-__max_num_var_mixer: &max_num_var_mixer 11
+g__max_num_var_mixer: &max_num_var_mixer 1
 __max_num_servos: &max_num_servos 8
 __max_num_tilts: &max_num_tilts 4
 
@@ -44,37 +44,42 @@ parameters:
       definitions:
         MIX_EDIT_EN:
             description:
-                short: Enable Changing scaling of rotor
+                short: Enable per-group vertical thrust scaling
                 long: |
-                  Setting constant Sun Motor Map Scaling.
-                  0 (false) represents the motor map will be unchanged.
-                  1 (true) represents the motor map will be changed by
-                  the value in MIXER_SUN_SCALE for the last two rotors
-                  representing Planetary Hex
+                  Redistributes the vertical thrust (THRUST_Z) column of the mixer between motor groups.
+                  0 (Disabled): the mixer is used exactly as computed from the geometry.
+                  1 (Enabled): the motors selected by MIX0_EDIT_MOTORS get a vertical thrust gain of
+                  MIX0_EDIT_VAL times the gain of the first motor outside the group. The column is then
+                  rescaled so that the total vertical authority (hover throttle, z-loop gain) is unchanged.
+                  Roll, pitch and yaw allocation is not modified. Only apply this to a group whose rotors
+                  are balanced in position and spin direction, otherwise the redistribution produces a
+                  throttle-dependent roll/pitch/yaw torque.
             type: enum
             values:
                 0: Disabled
                 1: Enabled
             default: 0
-        MIX_EDIT_VAL:
+        MIX${i}_EDIT_VAL:
             description:
-                short: Rotor Scaling of group ${i}
+                short: Vertical thrust scaling of group ${i}
                 long: |
-                  Setting the Rotor Scaling of group ${i}.
-                  Setting this variable to 1 represents equal vertical thrust usage in terms of
-                  throttle. Increasing it more than one means sun rotors are used more,
-                  while decreasing increases planet rotor usage
+                  Vertical thrust gain of the motors in MIX${i}_EDIT_MOTORS, relative to the motors
+                  outside the group. 1 means all rotors contribute equally in terms of throttle.
+                  Above 1 the rotors in the group are used more, below 1 they are used less, with the
+                  rotors outside the group taking up the difference. Requires MIX_EDIT_EN.
             type: float
             decimal: 2
             increment: 0.01
+            num_instances: *max_num_var_mixer
             min: 0.5
             max: 2
             default: 1.0
-        MIX_EDIT_MOTORS:
+        MIX${i}_EDIT_MOTORS:
             description:
-                short: Rotors with scaling group ${i}
+                short: Rotors in scaling group ${i}
                 long: |
-                  Choose the rotors with a scale of MIXER_SCALE_${i}.
+                  Motors that get the vertical thrust gain MIX${i}_EDIT_VAL. At least one motor must be
+                  left outside the group, as it is used as the reference gain. Requires MIX_EDIT_EN.
             type: bitmask
             bit:
                 0: Motor 1
@@ -90,6 +95,7 @@ parameters:
                 10: Motor 11
                 11: Motor 12
             default: 0
+            num_instances: *max_num_var_mixer
     - group: Geometry
       definitions:
         CA_AIRFRAME:

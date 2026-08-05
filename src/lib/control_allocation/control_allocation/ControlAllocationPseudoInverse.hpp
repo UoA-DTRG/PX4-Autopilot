@@ -64,6 +64,11 @@ public:
 	void setMetricAllocation(bool metric_allocation) { _metric_allocation = metric_allocation; }
 
 	bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) final;
+
+	void updateParameters() override { updateParams(); }
+
+	/** Number of motors that can be assigned to a vertical-thrust scaling group (matches the MIX0_EDIT_MOTORS bitmask) */
+	static constexpr int MAX_VAR_MIXER_MOTORS = 12;
 protected:
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _mix;
 
@@ -84,14 +89,25 @@ private:
 
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
+
+	/**
+	 * Re-distribute the vertical thrust (THRUST_Z) column of the mixer between motor groups.
+	 *
+	 * The motors selected by MIX0_EDIT_MOTORS get a THRUST_Z gain of MIX0_EDIT_VAL times the gain of the
+	 * first motor outside the group. The column is then rescaled so that the total vertical authority
+	 * (and therefore the hover throttle and the z-loop gain) is unchanged. Only THRUST_Z is touched,
+	 * so roll/pitch/yaw allocation is left as computed by the pseudo-inverse.
+	 */
+	void applyThrustZGroupScaling();
+
 	bool _normalization_needs_update{false};
 
 	DEFINE_PARAMETERS_CUSTOM_PARENT(
 		ModuleParams,
-		(ParamInt<px4::params::DTRG_CSV_MIXER>) _csv_mixer,
+		(ParamInt<px4::params::DTRG_MIXER_CSV>) _csv_mixer,
 		(ParamInt<px4::params::DTRG_MIXER_NORM>) _mixer_normalization,
-		(ParamFloat<px4::params::MIX_EDIT_VAL>) _param_mixer_edit_val,
-		(ParamInt<px4::params::MIX_EDIT_MOTORS>) _param_mixer_edit_motors,
+		(ParamFloat<px4::params::MIX0_EDIT_VAL>) _param_mixer_edit_val,
+		(ParamInt<px4::params::MIX0_EDIT_MOTORS>) _param_mixer_edit_motors,
 		(ParamBool<px4::params::MIX_EDIT_EN>) _param_mixer_edit_en
 	);
 };
