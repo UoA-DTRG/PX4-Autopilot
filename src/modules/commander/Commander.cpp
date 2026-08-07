@@ -51,10 +51,6 @@
 #include <lib/modes/ui.hpp>
 #include <lib/modes/standard_modes.hpp>
 
-/* shared decoding of the bench test direction switch (header-only, so this does
- * not require the bench_test module to be built) */
-#include <bench_test/bench_test_switch.h>
-
 /* PX4 headers */
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_tone_alarm.h>
@@ -556,64 +552,12 @@ transition_result_t Commander::arm(arm_disarm_reason_t calling_reason, bool run_
 		return TRANSITION_DENIED;
 	}
 
-	// Bench test spins the motors with the control loops disabled, so it must not be
-	// armed unless it was explicitly enabled with BT_ARM_ENABLE. The parameter belongs
-	// to the bench_test module, which is not built on every board, so look it up by name.
-	if (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_BENCH_TEST) {
-		int32_t bench_test_enabled = 0;
-		const param_t bench_test_enabled_handle = param_find_no_notification("BT_ARM_ENABLE");
-
-		if ((bench_test_enabled_handle == PARAM_INVALID)
-		    || (param_get(bench_test_enabled_handle, &bench_test_enabled) != PX4_OK)
-		    || (bench_test_enabled != 1)) {
-
-			mavlink_log_critical(&_mavlink_log_pub, "Arming denied: bench test not enabled, set BT_ARM_ENABLE=1\t");
-			events::send(events::ID("commander_arm_denied_bench_test_disabled"), {events::Log::Critical, events::LogInternal::Info},
-				     "Arming denied: bench test mode not enabled");
-			tune_negative(true);
-			return TRANSITION_DENIED;
-		}
-
-		// The direction switch must be centred so the excitation does not start the
-		// instant the motors spin up. Only relevant when a profile is selected
-		// (BT_MODE != 0, i.e. not hover-only) and a switch channel is assigned.
-		int32_t bench_test_mode = 0;
-		int32_t bench_test_sign_sw = 0;
-		const param_t bench_test_mode_handle = param_find_no_notification("BT_MODE");
-		const param_t bench_test_sign_sw_handle = param_find_no_notification("BT_SIGN_SW");
-
-		if ((bench_test_mode_handle != PARAM_INVALID) && (bench_test_sign_sw_handle != PARAM_INVALID)
-		    && (param_get(bench_test_mode_handle, &bench_test_mode) == PX4_OK)
-		    && (param_get(bench_test_sign_sw_handle, &bench_test_sign_sw) == PX4_OK)
-		    && (bench_test_mode != 0) && (bench_test_sign_sw > 0)) {
-
-			input_rc_s input_rc{};
-			uORB::Subscription input_rc_sub{ORB_ID(input_rc)};
-
-			// If the switch cannot be read it decodes as centre, which is the safe
-			// state the bench_test module would act on anyway, so arming is allowed.
-			if (input_rc_sub.copy(&input_rc)
-			    && (fabsf(bench_test::signFromInputRc(input_rc, bench_test_sign_sw)) > 0.f)) {
-
-				mavlink_log_critical(&_mavlink_log_pub, "Arming denied: centre the bench test direction switch\t");
-				events::send(events::ID("commander_arm_denied_bench_test_switch"), {events::Log::Critical, events::LogInternal::Info},
-					     "Arming denied: centre the bench test direction switch");
-				tune_negative(true);
-				return TRANSITION_DENIED;
-			}
-		}
-	}
-
 	// allow a grace period for re-arming: preflight checks don't need to pass during that time, for example for accidental in-air disarming
 	if (calling_reason == arm_disarm_reason_t::rc_switch
 	    && ((_last_disarmed_timestamp != 0) && (hrt_elapsed_time(&_last_disarmed_timestamp) < 5_s))) {
 
 		run_preflight_checks = false;
 	}
-
-	// Bench test runs a rigidly mounted vehicle with no manual control enabled;
-	// allow arming directly from RC in this mode.
-	const bool bench_test_mode = _vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_BENCH_TEST;
 
 	if (run_preflight_checks) {
 		if (_vehicle_control_mode.flag_control_manual_enabled) {
@@ -639,10 +583,9 @@ transition_result_t Commander::arm(arm_disarm_reason_t calling_reason, bool run_
 				return TRANSITION_DENIED;
 			}
 
-		} else if (!bench_test_mode
-			   && (calling_reason == arm_disarm_reason_t::stick_gesture
-			       || calling_reason == arm_disarm_reason_t::rc_switch
-			       || calling_reason == arm_disarm_reason_t::rc_button)) {
+		} else if (calling_reason == arm_disarm_reason_t::stick_gesture
+			   || calling_reason == arm_disarm_reason_t::rc_switch
+			   || calling_reason == arm_disarm_reason_t::rc_button) {
 
 			mavlink_log_critical(&_mavlink_log_pub, "Arming denied: switch to manual mode first\t");
 			events::send(events::ID("commander_arm_denied_not_manual"), {events::Log::Critical, events::LogInternal::Info},
@@ -694,11 +637,8 @@ transition_result_t Commander::disarm(arm_disarm_reason_t calling_reason, bool f
 		const bool commanded_by_rc = (calling_reason == arm_disarm_reason_t::stick_gesture)
 					     || (calling_reason == arm_disarm_reason_t::rc_switch)
 					     || (calling_reason == arm_disarm_reason_t::rc_button);
-		// Bench test runs on a rigidly mounted vehicle, so the land detector reports
-		// "in air" once the motors spin. Allow disarming freely in this mode.
-		const bool bench_test_mode = _vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_BENCH_TEST;
 
-		if (!landed && !bench_test_mode && !(mc_manual_thrust_mode && commanded_by_rc && _param_com_disarm_man.get())) {
+		if (!landed && !(mc_manual_thrust_mode && commanded_by_rc && _param_com_disarm_man.get())) {
 			if (calling_reason != arm_disarm_reason_t::stick_gesture) {
 				mavlink_log_critical(&_mavlink_log_pub, "Disarming denied: not landed\t");
 				events::send(events::ID("commander_disarm_denied_not_landed"),

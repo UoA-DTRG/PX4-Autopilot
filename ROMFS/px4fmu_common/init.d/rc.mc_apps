@@ -36,8 +36,3 @@ mc_pos_control start
 # Start Multicopter Land Detector.
 #
 land_detector start multicopter
-
-#
-# Start Bench Test controller (only publishes when NAVIGATION_STATE_BENCH_TEST is active).
-#
-bench_test start

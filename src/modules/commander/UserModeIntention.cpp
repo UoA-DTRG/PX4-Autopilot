@@ -34,8 +34,6 @@
 
 #include "UserModeIntention.hpp"
 
-#include <px4_platform_common/events.h>
-
 UserModeIntention::UserModeIntention(ModuleParams *parent, const vehicle_status_s &vehicle_status,
 				     const HealthAndArmingChecks &health_and_arming_checks, ModeChangeHandler *handler)
 	: ModuleParams(parent), _vehicle_status(vehicle_status), _health_and_arming_checks(health_and_arming_checks),
@@ -51,18 +49,6 @@ bool UserModeIntention::change(uint8_t user_intended_nav_state, ModeChangeSource
 	if (_handler) {
 		// If a replacement mode is selected, select the internal one instead. The replacement will be selected after.
 		user_intended_nav_state = _handler->getReplacedModeIfAny(user_intended_nav_state);
-	}
-
-	// Bench test commands the motors directly with the control loops disabled, so it
-	// must only be entered while disarmed. Staying in it once armed is fine.
-	if (user_intended_nav_state == vehicle_status_s::NAVIGATION_STATE_BENCH_TEST
-	    && isArmed()
-	    && _vehicle_status.nav_state != vehicle_status_s::NAVIGATION_STATE_BENCH_TEST) {
-
-		mavlink_log_critical(&_mavlink_log_pub, "Bench test mode denied: disarm first\t");
-		events::send(events::ID("commander_bench_test_mode_denied_armed"), {events::Log::Critical, events::LogInternal::Info},
-			     "Bench test mode denied: disarm first");
-		return false;
 	}
 
 	// Always allow mode change while disarmed

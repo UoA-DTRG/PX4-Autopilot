@@ -1,8 +1,0 @@
-menuconfig MODULES_BENCH_TEST
-	bool "bench_test"
-	default n
-	---help---
-		Enable support for bench_test flight mode.
-		Injects hover / step / ramp signals directly into
-		vehicle_thrust_setpoint and vehicle_torque_setpoint for
-		system identification on a rigidly mounted vehicle.
