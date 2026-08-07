@@ -39,6 +39,7 @@ BenchTest::BenchTest() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::rate_ctrl)
 {
+	_profile_params = currentProfileParams();
 }
 
 BenchTest::~BenchTest()
@@ -66,6 +67,16 @@ void BenchTest::Run()
 		parameter_update_s param_update;
 		_parameter_update_sub.copy(&param_update);
 		updateParams();
+
+		// Retuning the profile mid-run would otherwise apply the new settings from
+		// wherever the current run happens to be. Restart instead, so the profile
+		// always runs from t = 0 with a consistent set of parameters.
+		if (profileParamsChanged()) {
+			_test_start_time = 0;
+			_ramp_frozen = false;
+			_ramp_value = 0.f;
+			_active_sign = 0.f;
+		}
 	}
 
 	vehicle_status_s vehicle_status{};
@@ -79,6 +90,7 @@ void BenchTest::Run()
 		_output_start_time = 0;
 		_ramp_frozen = false;
 		_ramp_value = 0.f;
+		_active_sign = 0.f;
 		perf_end(_loop_perf);
 		return;
 	}
@@ -103,25 +115,30 @@ void BenchTest::Run()
 		return;
 	}
 
-	// Gate the step/ramp profile on the start switch. While it is low we hold
-	// the hover baseline and keep the clock reset so the next flip runs fresh.
-	const bool start_requested = startRequested();
+	// A single 3-position switch drives the profile: centre commands no excitation
+	// (hover baseline only) and keeps the clock reset, so the next move off centre
+	// runs fresh. Moving to the other side also restarts the profile.
+	const float sign = signFromSwitch();
+	const bool start_requested = fabsf(sign) > 0.f;
 
 	if (!start_requested) {
 		_test_start_time = 0;
 		_ramp_frozen = false;
 		_ramp_value = 0.f;
-	} else if (_test_start_time == 0) {
+		_active_sign = 0.f;
+
+	} else if (_test_start_time == 0 || fabsf(sign - _active_sign) > 0.f) {
 		_test_start_time = now;
 		_ramp_frozen = false;
 		_ramp_value = 0.f;
+		_active_sign = sign;
 	}
 
 	float axis_output = 0.f;
 
 	if (start_requested) {
 		const float dt_since_start = static_cast<float>(now - _test_start_time) * 1e-6f;
-		axis_output = computeAxisOutput(dt_since_start, motorSaturated());
+		axis_output = computeAxisOutput(sign, dt_since_start, motorSaturated());
 	}
 
 	// Soft-start: ramp the hover baseline up from zero over BT_SPINUP_T from the
@@ -177,10 +194,8 @@ void BenchTest::Run()
 	perf_end(_loop_perf);
 }
 
-float BenchTest::computeAxisOutput(float dt_since_start, bool motor_saturated)
+float BenchTest::computeAxisOutput(float sign, float dt_since_start, bool motor_saturated)
 {
-	const float sign = (_param_bt_sign.get() >= 0) ? 1.f : -1.f;
-
 	switch (static_cast<Mode>(_param_bt_mode.get())) {
 	case Mode::Hover:
 		return 0.f;
@@ -221,34 +236,45 @@ float BenchTest::computeAxisOutput(float dt_since_start, bool motor_saturated)
 	return 0.f;
 }
 
-bool BenchTest::startRequested()
+float BenchTest::signFromSwitch()
 {
-	const int32_t sw = _param_bt_start_sw.get();
-
-	// No switch configured: start the profile immediately on mode entry.
-	if (sw <= 0) {
-		return true;
-	}
-
 	input_rc_s input_rc{};
 
 	if (!_input_rc_sub.copy(&input_rc)) {
-		return false;
+		return 0.f;
 	}
 
-	// Ignore stale / lost RC so the profile stops if the link drops.
-	if (input_rc.rc_lost || input_rc.rc_failsafe) {
-		return false;
-	}
+	return bench_test::signFromInputRc(input_rc, _param_BT_SIGN_SW.get());
+}
 
-	const int channel_index = sw - 1; // BT_START_SW is 1-based (e.g. 16 -> values[15])
+BenchTest::ProfileParams BenchTest::currentProfileParams()
+{
+	ProfileParams p{};
+	p.mode       = _param_bt_mode.get();
+	p.axis       = _param_bt_axis.get();
+	p.step_mag   = _param_bt_step_mag.get();
+	p.step_delay = _param_bt_step_delay.get();
+	p.step_dur   = _param_bt_step_dur.get();
+	p.ramp_rate  = _param_bt_ramp_rate.get();
+	p.max_val    = _param_bt_max_val.get();
+	return p;
+}
 
-	if (channel_index < 0 || channel_index >= input_rc.channel_count
-	    || channel_index >= input_rc_s::RC_INPUT_MAX_CHANNELS) {
-		return false;
-	}
+bool BenchTest::profileParamsChanged()
+{
+	const ProfileParams current = currentProfileParams();
 
-	return input_rc.values[channel_index] > kSwitchThresholdUs;
+	const bool changed = (current.mode != _profile_params.mode)
+			     || (current.axis != _profile_params.axis)
+			     || (fabsf(current.step_mag - _profile_params.step_mag) > 0.f)
+			     || (fabsf(current.step_delay - _profile_params.step_delay) > 0.f)
+			     || (fabsf(current.step_dur - _profile_params.step_dur) > 0.f)
+			     || (fabsf(current.ramp_rate - _profile_params.ramp_rate) > 0.f)
+			     || (fabsf(current.max_val - _profile_params.max_val) > 0.f);
+
+	_profile_params = current;
+
+	return changed;
 }
 
 bool BenchTest::motorSaturated()
@@ -368,13 +394,13 @@ int BenchTest::custom_command(int argc, char *argv[])
 int BenchTest::print_status()
 {
 	PX4_INFO("Running");
-	PX4_INFO("mode: %d, axis: %d, sign: %d, arm_enable: %d, start_sw: %d",
+	PX4_INFO("mode: %d, axis: %d, sign_sw: %d, arm_enable: %d",
 		 (int)_param_bt_mode.get(),
 		 (int)_param_bt_axis.get(),
-		 (int)_param_bt_sign.get(),
-		 (int)_param_bt_arm_enable.get(),
-		 (int)_param_bt_start_sw.get());
-	PX4_INFO("ramp_frozen: %d, ramp_value: %.3f",
+		 (int)_param_BT_SIGN_SW.get(),
+		 (int)_param_bt_arm_enable.get());
+	PX4_INFO("sign: %d, ramp_frozen: %d, ramp_value: %.3f",
+		 (int)signFromSwitch(),
 		 (int)_ramp_frozen,
 		 (double)_ramp_value);
 	perf_print_counter(_loop_perf);
@@ -397,11 +423,18 @@ system identification on a rigidly mounted vehicle. Sub-mode (hover / step /
 ramp), axis, and magnitudes are controlled via BT_* parameters. Only outputs
 non-zero commands when the vehicle is armed AND BT_ARM_ENABLE is 1.
 
-The step and ramp profiles are started by a raw RC channel (input_rc)
-selected with BT_START_SW, e.g. 16 for CH16 (0 disables the gate and starts
-on mode entry). While the switch is low only the hover baseline is commanded.
-The ramp increases until a motor saturates (upper or lower) or BT_MAX_VAL is
-reached, then holds.
+A single 3-position RC switch on the raw RC channel selected with BT_SIGN_SW
+runs the profile: up (>1700us) excites positive, down (<1300us) negative, and
+centre commands no excitation (hover baseline only). Moving off centre starts
+the profile and moving to the other side restarts it. The ramp increases until
+a motor saturates (upper or lower) or BT_MAX_VAL is reached, then holds.
+
+Changing any of the profile parameters (BT_MODE, BT_AXIS, BT_STEP_*,
+BT_RAMP_RATE, BT_MAX_VAL) also restarts the profile from t = 0.
+
+Arming is refused while the direction switch is off centre, so the excitation
+cannot start as the motors spin up. This does not apply in hover-only mode
+(BT_MODE = 0) or when no switch is assigned (BT_SIGN_SW = 0).
 
 When the outputs first become active the hover baseline is ramped up from zero
 over BT_SPINUP_T (throttle spin-up). Disarming is permitted in this mode even
