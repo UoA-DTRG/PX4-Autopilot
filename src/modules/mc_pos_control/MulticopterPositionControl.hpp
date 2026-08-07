@@ -149,8 +149,6 @@ private:
 	int _ht_en{0}; 				/**< DTRG horizontal thrust Enabled*/
 	int _ht_rc_en_add{-1};			/**< DTRF HT RC enable channel */
 	int _dtrg_ht_mask = 0;
-	int _ht_x_add{-1};                     	/**< DTRG horizontal thrust X channel */
-	int _ht_y_add{-1};                     	/**< DTRG horizontal thrust Y channel */
 	// 0-based RC channel indices, -1 when the channel parameter is 0 (input disabled)
 	int _ht_r_add{-1};                     	/**< DTRG horizontal thrust Roll channel */
 	int _ht_p_add{-1}; 	       		/**< DTRG horizontal thrust Pitch channel */
@@ -236,7 +234,8 @@ private:
 		//DTRG
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en, 		/**< enable the dtrg 6d offboard control*/
 		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
-		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask,	/**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::DTRG_HT_MASK>)
+		_param_dtrg_ht_mask,	/**< HT gmask for pitching and rolling using HT thrust*/
 		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_ht_R,		/**< horizontal thrust Roll channel */
 		(ParamInt<px4::params::DTRG_HT_P>)  	    _param_dtrg_ht_P,		/**< horizontal thrust Pitch channel */
 		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */

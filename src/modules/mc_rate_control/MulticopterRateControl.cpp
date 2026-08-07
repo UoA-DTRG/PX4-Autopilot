@@ -198,8 +198,8 @@ MulticopterRateControl::Run()
 			control_allocator_status_s control_allocator_status;
 
 			//prevent further positive control saturation
-			if(_param_antiwindup_en.get()==1){
-				if(_csv_mixer.get()==0){
+			if (_param_antiwindup_en.get() == 1) {
+				if (_csv_mixer.get() == 0) {
 
 					if (_control_allocator_status_sub.update(&control_allocator_status)) {
 						Vector<bool, 3> saturation_positive;
@@ -217,13 +217,12 @@ MulticopterRateControl::Run()
 						}
 
 
-					// TODO: send the unallocated value directly for better anti-windup
-					_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
+						// TODO: send the unallocated value directly for better anti-windup
+						_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
 					}
 
 
-				}
-				else{
+				} else {
 					_param_antiwindup_en.set(0);
 					_param_antiwindup_en.commit();
 				}
