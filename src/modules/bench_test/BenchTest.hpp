@@ -33,6 +33,8 @@
 
 #pragma once
 
+#include "bench_test_switch.h"
+
 #include <drivers/drv_hrt.h>
 #include <lib/perf/perf_counter.h>
 #include <px4_platform_common/defines.h>
@@ -84,20 +86,35 @@ private:
 
 	static constexpr uint32_t kLoopIntervalUs = 2500; // 400 Hz
 
-	// RC switch is considered "high" (start requested) above this pulse width [us].
-	static constexpr uint16_t kSwitchThresholdUs = 1500;
-
 	void Run() override;
 
 	void publishZero(const hrt_abstime &now);
 	void publishOutputs(const hrt_abstime &now,
 			    float thrust_x, float thrust_y, float thrust_z,
 			    float torque_x, float torque_y, float torque_z);
-	float computeAxisOutput(float dt_since_start, bool motor_saturated);
+	float computeAxisOutput(float sign, float dt_since_start, bool motor_saturated);
 
-	// True when the step/ramp profile should be running (start switch high,
-	// or no switch configured).
-	bool startRequested();
+	// Direction of the excitation, taken from the 3-position RC switch selected by
+	// BT_SIGN_SW: +1 (switch up), -1 (switch down), 0 (centre / no excitation).
+	// Off-centre is what starts the profile; there is no separate start switch.
+	float signFromSwitch();
+
+	// The parameters that define the excitation profile. A change to any of them
+	// restarts the profile so the new settings run from t = 0.
+	struct ProfileParams {
+		int32_t mode;
+		int32_t axis;
+		float step_mag;
+		float step_delay;
+		float step_dur;
+		float ramp_rate;
+		float max_val;
+	};
+
+	ProfileParams currentProfileParams();
+
+	// Compares the profile parameters against the stored snapshot and updates it.
+	bool profileParamsChanged();
 
 	// True when any connected motor has reached its upper or lower saturation limit.
 	bool motorSaturated();
@@ -123,12 +140,18 @@ private:
 	bool  _ramp_frozen{false};
 	float _ramp_value{0.f};
 
+	// Sign the currently running profile was started with. A change (including
+	// a return to centre) restarts the profile.
+	float _active_sign{0.f};
+
+	ProfileParams _profile_params{};
+
 	perf_counter_t _loop_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")};
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::BT_MODE>)        _param_bt_mode,
 		(ParamInt<px4::params::BT_AXIS>)        _param_bt_axis,
-		(ParamInt<px4::params::BT_SIGN>)        _param_bt_sign,
+		(ParamInt<px4::params::BT_SIGN_SW>)     _param_BT_SIGN_SW,
 		(ParamFloat<px4::params::BT_HOVER_THR>) _param_bt_hover_thr,
 		(ParamFloat<px4::params::BT_STEP_MAG>)  _param_bt_step_mag,
 		(ParamFloat<px4::params::BT_STEP_DELAY>)_param_bt_step_delay,
@@ -136,7 +159,6 @@ private:
 		(ParamFloat<px4::params::BT_RAMP_RATE>) _param_bt_ramp_rate,
 		(ParamFloat<px4::params::BT_MAX_VAL>)   _param_bt_max_val,
 		(ParamInt<px4::params::BT_ARM_ENABLE>)  _param_bt_arm_enable,
-		(ParamInt<px4::params::BT_START_SW>)    _param_bt_start_sw,
 		(ParamInt<px4::params::BT_NUM_MOTORS>)  _param_bt_num_motors,
 		(ParamFloat<px4::params::BT_SAT_MARGIN>) _param_bt_sat_margin,
 		(ParamFloat<px4::params::BT_SPINUP_T>)  _param_bt_spinup_t

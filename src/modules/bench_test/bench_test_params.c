@@ -63,15 +63,30 @@ PARAM_DEFINE_INT32(BT_MODE, 0);
 PARAM_DEFINE_INT32(BT_AXIS, 2);
 
 /**
- * Bench test sign / direction
+ * Bench test direction switch (RC channel)
  *
- * Sign applied to the step and ramp output. +1 or -1.
+ * Selects the raw RC input channel (input_rc) used as the single control for the
+ * step and ramp profiles. Intended for a 3-position switch:
+ *   - above 1700 us: positive excitation
+ *   - below 1300 us: negative excitation
+ *   - centre: no excitation, only the hover baseline is commanded
  *
- * @value -1 Negative
- * @value 1 Positive
+ * Moving the switch from centre to either side starts the profile, and moving
+ * it to the other side restarts it, so each flip runs the profile from the
+ * start. Set to 0 to disable the excitation entirely (hover baseline only).
+ *
+ * @value 0 Disabled
+ * @value 9 AUX9
+ * @value 10 AUX10
+ * @value 11 AUX11
+ * @value 12 AUX12
+ * @value 13 AUX13
+ * @value 14 AUX14
+ * @value 15 AUX15
+ * @value 16 AUX16
  * @group Bench Test
  */
-PARAM_DEFINE_INT32(BT_SIGN, 1);
+PARAM_DEFINE_INT32(BT_SIGN_SW, 0);
 
 /**
  * Bench test hover thrust
@@ -165,27 +180,6 @@ PARAM_DEFINE_FLOAT(BT_MAX_VAL, 0.3f);
  * @group Bench Test
  */
 PARAM_DEFINE_INT32(BT_ARM_ENABLE, 0);
-
-/**
- * Bench test start switch (RC channel)
- *
- * Selects the raw RC input channel (input_rc) used as the start switch for
- * the step and ramp profiles. This reads input_rc directly, so any channel
- * up to 18 is available (e.g. 16 for CH16), not just the mapped aux channels.
- * The switch is considered high when its pulse width exceeds 1500 us.
- *
- * While the switch is low the module only commands the hover baseline; the
- * profile runs while the switch is high, and the test clock is reset when the
- * switch returns low so each flip re-runs the profile from the start.
- *
- * Set to 0 to disable the switch gate and start the profile immediately on
- * mode entry (legacy behaviour).
- *
- * @min 0
- * @max 18
- * @group Bench Test
- */
-PARAM_DEFINE_INT32(BT_START_SW, 0);
 
 /**
  * Bench test number of motors
