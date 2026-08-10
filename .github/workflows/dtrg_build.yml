@@ -1,0 +1,115 @@
+name: DTRG Build
+
+# Our own CI, independent of the upstream PX4 workflows: build the boards we
+# actually fly plus SITL, and publish the firmware as artifacts.
+#
+# Upstream workflows target 'main' on push and every branch on pull_request.
+# This one is scoped to dtrg-main so it runs on our integration branch only.
+
+on:
+  push:
+    branches:
+      - 'dtrg-main'
+    paths-ignore:
+      - 'docs/**'
+      - 'Documentation/**'
+      - '**.md'
+  pull_request:
+    branches:
+      - 'dtrg-main'
+    paths-ignore:
+      - 'docs/**'
+      - 'Documentation/**'
+      - '**.md'
+  workflow_dispatch:
+
+# a new push to the same branch cancels the previous run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nuttx:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    container: px4io/px4-dev-nuttx-focal:2022-08-12
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - px4_fmu-v5_default
+          - px4_fmu-v6c_default
+          - px4_fmu-v6xrt_default
+          - goosetech_fmu-v6xrt_default
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # the container runs as a different user than the one that checked out
+      - name: Git ownership workaround
+        run: git config --system --add safe.directory '*'
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ matrix.target }}-ccache-${{ github.run_id }}
+          restore-keys: ${{ matrix.target }}-ccache-
+
+      - name: Configure ccache
+        run: |
+          mkdir -p ~/.ccache
+          echo "base_dir = ${GITHUB_WORKSPACE}" > ~/.ccache/ccache.conf
+          echo "compression = true" >> ~/.ccache/ccache.conf
+          echo "compression_level = 6" >> ~/.ccache/ccache.conf
+          echo "max_size = 150M" >> ~/.ccache/ccache.conf
+          echo "hash_dir = false" >> ~/.ccache/ccache.conf
+          ccache -z
+
+      - name: Build ${{ matrix.target }}
+        run: make ${{ matrix.target }}
+
+      - name: ccache statistics
+        run: ccache -s
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: build/${{ matrix.target }}/${{ matrix.target }}.px4
+          if-no-files-found: error
+
+  sitl:
+    name: px4_sitl_default
+    runs-on: ubuntu-latest
+    container: px4io/px4-dev-base-focal:2021-09-08
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Git ownership workaround
+        run: git config --system --add safe.directory '*'
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: sitl-ccache-${{ github.run_id }}
+          restore-keys: sitl-ccache-
+
+      - name: Configure ccache
+        run: |
+          mkdir -p ~/.ccache
+          echo "base_dir = ${GITHUB_WORKSPACE}" > ~/.ccache/ccache.conf
+          echo "compression = true" >> ~/.ccache/ccache.conf
+          echo "max_size = 150M" >> ~/.ccache/ccache.conf
+          echo "hash_dir = false" >> ~/.ccache/ccache.conf
+          ccache -z
+
+      - name: Build px4_sitl_default
+        run: make px4_sitl_default
+
+      - name: ccache statistics
+        run: ccache -s
