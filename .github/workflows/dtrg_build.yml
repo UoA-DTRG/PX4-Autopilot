@@ -33,6 +33,12 @@ jobs:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
     container: px4io/px4-dev-nuttx-focal:2022-08-12
+    env:
+      # The container ships arm-none-eabi-gcc 9.3.1, which produces roughly 2%
+      # larger code than the toolchain we build with locally. On fmu-v6c that is
+      # the difference between ~32 kB free and a 9 kB FLASH overflow, so CI has
+      # to use the same compiler we flash from rather than the container's.
+      ARM_TOOLCHAIN_VERSION: 13.2.rel1
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +55,28 @@ jobs:
       # the container runs as a different user than the one that checked out
       - name: Git ownership workaround
         run: git config --system --add safe.directory '*'
+
+      - name: Cache Arm GNU Toolchain
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/arm-toolchain
+          key: arm-gnu-toolchain-${{ env.ARM_TOOLCHAIN_VERSION }}
+
+      - name: Install Arm GNU Toolchain ${{ env.ARM_TOOLCHAIN_VERSION }}
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: |
+          command -v curl >/dev/null || { apt-get update && apt-get install -y curl xz-utils; }
+          mkdir -p /opt/arm-toolchain
+          curl -fLs "https://developer.arm.com/-/media/Files/downloads/gnu/${ARM_TOOLCHAIN_VERSION}/binrel/arm-gnu-toolchain-${ARM_TOOLCHAIN_VERSION}-x86_64-arm-none-eabi.tar.xz" \
+            | tar -xJ --strip-components=1 -C /opt/arm-toolchain
+
+      # GITHUB_PATH is prepended, so this shadows the container's 9.3.1
+      - name: Use Arm GNU Toolchain
+        run: echo "/opt/arm-toolchain/bin" >> $GITHUB_PATH
+
+      - name: Record toolchain version
+        run: arm-none-eabi-gcc --version | head -1
 
       - name: Restore ccache
         uses: actions/cache@v4
