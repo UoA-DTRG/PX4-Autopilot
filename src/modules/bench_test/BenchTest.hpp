@@ -95,7 +95,7 @@ private:
 	float computeAxisOutput(float sign, float dt_since_start, bool motor_saturated);
 
 	// Direction of the excitation, taken from the 3-position RC switch selected by
-	// BT_SIGN_SW: +1 (switch up), -1 (switch down), 0 (centre / no excitation).
+	// RC_MAP_CMD_SIGN: +1 (switch up), -1 (switch down), 0 (centre / no excitation).
 	// Off-centre is what starts the profile; there is no separate start switch.
 	float signFromSwitch();
 
@@ -151,7 +151,7 @@ private:
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::BT_MODE>)        _param_bt_mode,
 		(ParamInt<px4::params::BT_AXIS>)        _param_bt_axis,
-		(ParamInt<px4::params::BT_SIGN_SW>)     _param_BT_SIGN_SW,
+		(ParamInt<px4::params::RC_MAP_CMD_SIGN>)     _param_bt_cmd_sign,
 		(ParamFloat<px4::params::BT_HOVER_THR>) _param_bt_hover_thr,
 		(ParamFloat<px4::params::BT_STEP_MAG>)  _param_bt_step_mag,
 		(ParamFloat<px4::params::BT_STEP_DELAY>)_param_bt_step_delay,

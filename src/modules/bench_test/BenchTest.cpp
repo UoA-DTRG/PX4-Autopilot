@@ -244,7 +244,7 @@ float BenchTest::signFromSwitch()
 		return 0.f;
 	}
 
-	return bench_test::signFromInputRc(input_rc, _param_BT_SIGN_SW.get());
+	return bench_test::signFromInputRc(input_rc, _param_bt_cmd_sign.get());
 }
 
 BenchTest::ProfileParams BenchTest::currentProfileParams()
@@ -397,7 +397,7 @@ int BenchTest::print_status()
 	PX4_INFO("mode: %d, axis: %d, sign_sw: %d, arm_enable: %d",
 		 (int)_param_bt_mode.get(),
 		 (int)_param_bt_axis.get(),
-		 (int)_param_BT_SIGN_SW.get(),
+		 (int)_param_bt_cmd_sign.get(),
 		 (int)_param_bt_arm_enable.get());
 	PX4_INFO("sign: %d, ramp_frozen: %d, ramp_value: %.3f",
 		 (int)signFromSwitch(),
@@ -423,7 +423,7 @@ system identification on a rigidly mounted vehicle. Sub-mode (hover / step /
 ramp), axis, and magnitudes are controlled via BT_* parameters. Only outputs
 non-zero commands when the vehicle is armed AND BT_ARM_ENABLE is 1.
 
-A single 3-position RC switch on the raw RC channel selected with BT_SIGN_SW
+A single 3-position RC switch on the raw RC channel selected with RC_MAP_CMD_SIGN
 runs the profile: up (>1700us) excites positive, down (<1300us) negative, and
 centre commands no excitation (hover baseline only). Moving off centre starts
 the profile and moving to the other side restarts it. The ramp increases until
@@ -434,7 +434,7 @@ BT_RAMP_RATE, BT_MAX_VAL) also restarts the profile from t = 0.
 
 Arming is refused while the direction switch is off centre, so the excitation
 cannot start as the motors spin up. This does not apply in hover-only mode
-(BT_MODE = 0) or when no switch is assigned (BT_SIGN_SW = 0).
+(BT_MODE = 0) or when no switch is assigned (RC_MAP_CMD_SIGN = 0).
 
 When the outputs first become active the hover baseline is ramped up from zero
 over BT_SPINUP_T (throttle spin-up). Disarming is permitted in this mode even

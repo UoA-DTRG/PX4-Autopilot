@@ -75,18 +75,24 @@ PARAM_DEFINE_INT32(BT_AXIS, 2);
  * it to the other side restarts it, so each flip runs the profile from the
  * start. Set to 0 to disable the excitation entirely (hover baseline only).
  *
+ * @min 0
+ * @max 16
  * @value 0 Disabled
- * @value 9 AUX9
- * @value 10 AUX10
- * @value 11 AUX11
- * @value 12 AUX12
- * @value 13 AUX13
- * @value 14 AUX14
- * @value 15 AUX15
- * @value 16 AUX16
+ * @value 5 Channel 5
+ * @value 6 Channel 6
+ * @value 7 Channel 7
+ * @value 8 Channel 8
+ * @value 9 Channel 9
+ * @value 10 Channel 10
+ * @value 11 Channel 11
+ * @value 12 Channel 12
+ * @value 13 Channel 13
+ * @value 14 Channel 14
+ * @value 15 Channel 15
+ * @value 16 Channel 16
  * @group Bench Test
  */
-PARAM_DEFINE_INT32(BT_SIGN_SW, 0);
+PARAM_DEFINE_INT32(RC_MAP_CMD_SIGN, 0);
 
 /**
  * Bench test hover thrust

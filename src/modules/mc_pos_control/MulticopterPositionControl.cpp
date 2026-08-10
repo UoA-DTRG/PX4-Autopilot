@@ -309,8 +309,8 @@ void MulticopterPositionControl::parameters_update(bool force)
 		_ht_en = _param_dtrg_ht_en.get();
 
 		if (_ht_en) {
-			_ht_rc_en_add = _param_dtrg_ht_rc_en.get() - 1;
-			// DTRG_HT_R / DTRG_HT_P of 0 means the input is disabled. Keep the
+			_ht_rc_en_add = _param_dtrg_ht_rc.get() - 1;
+			// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 means the input is disabled. Keep the
 			// sentinel at -1 rather than letting the -1 offset produce a negative
 			// index into rc_channels.channels[].
 			_ht_r_add = (_param_dtrg_ht_R.get() > 0) ? (_param_dtrg_ht_R.get() - 1) : -1;
@@ -662,7 +662,7 @@ void MulticopterPositionControl::Run()
 				if (!_vehicle_control_mode.flag_control_offboard_enabled) {
 					// if offboard is not enabled, use the RC channels to get roll and pitch setpoints
 					// setpoints are constrained to the limits set by the with 0.02f deadzone.
-					// DTRG_HT_R / DTRG_HT_P of 0 disables that axis' stick input, which
+					// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 disables that axis' stick input, which
 					// leaves the corresponding setpoint at 0 (level).
 					roll_setpoint = dtrgAuxTiltSetpoint(_ht_r_add, _ht_r_limit);
 					pitch_setpoint = dtrgAuxTiltSetpoint(_ht_p_add, _ht_p_limit);

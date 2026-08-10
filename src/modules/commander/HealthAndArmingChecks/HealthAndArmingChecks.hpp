@@ -69,6 +69,7 @@
 #include "checks/flightTimeCheck.hpp"
 #include "checks/missionCheck.hpp"
 #include "checks/rcAndDataLinkCheck.hpp"
+#include "checks/rcChannelConflictCheck.hpp"
 #include "checks/vtolCheck.hpp"
 #include "checks/offboardCheck.hpp"
 #include "checks/openDroneIDCheck.hpp"
@@ -155,6 +156,7 @@ private:
 	FlightTimeChecks _flight_time_checks;
 	MissionChecks _mission_checks;
 	RcAndDataLinkChecks _rc_and_data_link_checks;
+	RcChannelConflictChecks _rc_channel_conflict_checks;
 	VtolChecks _vtol_checks;
 	OffboardChecks _offboard_checks;
 #ifndef CONSTRAINED_FLASH
@@ -196,6 +198,7 @@ private:
 		&_geofence_checks, // must be after _home_position_checks
 		&_flight_time_checks,
 		&_rc_and_data_link_checks,
+		&_rc_channel_conflict_checks,
 		&_vtol_checks,
 	};
 };

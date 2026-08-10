@@ -237,6 +237,21 @@ PARAM_DEFINE_FLOAT(COM_DISARM_PRFLT, 10.0f);
 PARAM_DEFINE_INT32(COM_ARM_WO_GPS, 1);
 
 /**
+ * RC channel conflict check
+ *
+ * Measures taken when two RC channel mapping parameters (RC_MAP_*) name the same
+ * raw RC channel, so that one stick or switch would drive both functions at once.
+ *
+ * A message is shown as soon as the conflicting assignment is made, regardless of
+ * this setting.
+ *
+ * @group Commander
+ * @value 0 Deny arming
+ * @value 1 Warning only
+ */
+PARAM_DEFINE_INT32(COM_ARM_RC_CONF, 0);
+
+/**
  * Arm switch is a momentary button
  *
  * 0: Arming/disarming triggers on switch transition.

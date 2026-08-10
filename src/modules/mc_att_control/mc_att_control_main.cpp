@@ -108,9 +108,9 @@ MulticopterAttitudeControl::parameters_updated()
 	_ht_en = _param_dtrg_ht_en.get();
 
 	if (_ht_en) {
-		_ht_rc_en_add = _param_dtrg_ht_rc_en.get() - 1;
+		_ht_rc_en_add = _param_dtrg_ht_rc.get() - 1;
 		_ht_limit = _param_dtrg_ht_max.get();
-		// DTRG_HT_R / DTRG_HT_P of 0 means the input is disabled. Keep the sentinel
+		// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 means the input is disabled. Keep the sentinel
 		// at -1 rather than letting the -1 offset produce a negative index into
 		// rc_channels.channels[].
 		_ht_r_add = (_param_dtrg_h_t_R.get() > 0) ? (_param_dtrg_h_t_R.get() - 1) : -1;

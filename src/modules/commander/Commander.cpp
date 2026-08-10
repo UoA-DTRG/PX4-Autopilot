@@ -580,7 +580,7 @@ transition_result_t Commander::arm(arm_disarm_reason_t calling_reason, bool run_
 		int32_t bench_test_mode = 0;
 		int32_t bench_test_sign_sw = 0;
 		const param_t bench_test_mode_handle = param_find_no_notification("BT_MODE");
-		const param_t bench_test_sign_sw_handle = param_find_no_notification("BT_SIGN_SW");
+		const param_t bench_test_sign_sw_handle = param_find_no_notification("RC_MAP_CMD_SIGN");
 
 		if ((bench_test_mode_handle != PARAM_INVALID) && (bench_test_sign_sw_handle != PARAM_INVALID)
 		    && (param_get(bench_test_mode_handle, &bench_test_mode) == PX4_OK)

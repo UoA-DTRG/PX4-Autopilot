@@ -7,42 +7,50 @@
 /**
  * Horizontal thrust Roll channel
  *
- * AUX channel for horizontal thrust roll control in 6DOF mode.
+ * Raw RC channel (input_rc) for horizontal thrust roll control in 6DOF mode.
  *
  * @min 0
  * @max 16
  * @value 0 Disabled
- * @value 9 AUX9
- * @value 10 AUX10
- * @value 11 AUX11
- * @value 12 AUX12
- * @value 13 AUX13
- * @value 14 AUX14
- * @value 15 AUX15
- * @value 16 AUX16
+ * @value 5 Channel 5
+ * @value 6 Channel 6
+ * @value 7 Channel 7
+ * @value 8 Channel 8
+ * @value 9 Channel 9
+ * @value 10 Channel 10
+ * @value 11 Channel 11
+ * @value 12 Channel 12
+ * @value 13 Channel 13
+ * @value 14 Channel 14
+ * @value 15 Channel 15
+ * @value 16 Channel 16
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_HT_R, 0);
+PARAM_DEFINE_INT32(RC_MAP_HT_ROLL, 0);
 
 /**
  * Horizontal thrust Pitch channel
  *
- * AUX channel for horizontal thrust pitch control in 6DOF mode.
+ * Raw RC channel (input_rc) for horizontal thrust pitch control in 6DOF mode.
  *
  * @min 0
  * @max 16
  * @value 0 Disabled
- * @value 9 AUX9
- * @value 10 AUX10
- * @value 11 AUX11
- * @value 12 AUX12
- * @value 13 AUX13
- * @value 14 AUX14
- * @value 15 AUX15
- * @value 16 AUX16
+ * @value 5 Channel 5
+ * @value 6 Channel 6
+ * @value 7 Channel 7
+ * @value 8 Channel 8
+ * @value 9 Channel 9
+ * @value 10 Channel 10
+ * @value 11 Channel 11
+ * @value 12 Channel 12
+ * @value 13 Channel 13
+ * @value 14 Channel 14
+ * @value 15 Channel 15
+ * @value 16 Channel 16
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_HT_P, 0);
+PARAM_DEFINE_INT32(RC_MAP_HT_PITCH, 0);
 
 /**
  * Horizontal thrust control mask

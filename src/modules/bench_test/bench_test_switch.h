@@ -34,7 +34,7 @@
 /**
  * @file bench_test_switch.h
  *
- * Shared decoding of the bench test 3-position direction switch (BT_SIGN_SW).
+ * Shared decoding of the bench test 3-position direction switch (RC_MAP_CMD_SIGN).
  * Header-only so commander can apply the same interpretation for its arming
  * check without depending on the bench_test module being built.
  */
@@ -75,7 +75,7 @@ static inline float signFromPulse(uint16_t value)
  * Decode the direction switch from an input_rc sample.
  *
  * @param input_rc raw RC sample
- * @param channel  1-based channel number (BT_SIGN_SW), 0 = disabled
+ * @param channel  1-based channel number (RC_MAP_CMD_SIGN), 0 = disabled
  * @return +1 / -1 / 0. Returns 0 (centre) for a disabled or out-of-range
  *         channel and on RC loss, so both users fail safe to "no excitation".
  */
@@ -89,7 +89,7 @@ static inline float signFromInputRc(const input_rc_s &input_rc, int32_t channel)
 		return 0.f;
 	}
 
-	const int channel_index = channel - 1; // BT_SIGN_SW is 1-based
+	const int channel_index = channel - 1; // RC_MAP_CMD_SIGN is 1-based
 
 	if ((channel_index >= input_rc.channel_count)
 	    || (channel_index >= (int)input_rc_s::RC_INPUT_MAX_CHANNELS)) {

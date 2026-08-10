@@ -150,7 +150,7 @@ private:
 	/**
 	 * Tilt setpoint from a DTRG-assigned RC channel.
 	 *
-	 * @param channel_index 0-based RC channel, or -1 when DTRG_HT_R/DTRG_HT_P is 0
+	 * @param channel_index 0-based RC channel, or -1 when RC_MAP_HT_ROLL/RC_MAP_HT_PITCH is 0
 	 * @param limit         magnitude limit [rad], from DTRG_HT_R_MAX / DTRG_HT_P_MAX
 	 * @return              0 when the input is disabled, out of range or inside the deadzone
 	 */
@@ -204,9 +204,9 @@ private:
 		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
 
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
-		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
-		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_h_t_R,		/**< horizontal thrust Roll channel */
-		(ParamInt<px4::params::DTRG_HT_P>)  	    _param_dtrg_h_t_P,		/**< horizontal thrust Pitch channel */
+		(ParamInt<px4::params::RC_MAP_HT_MODE>)      _param_dtrg_ht_rc,	/**< horizontal thrust enable RC channel*/
+		(ParamInt<px4::params::RC_MAP_HT_ROLL>)  	    _param_dtrg_h_t_R,		/**< horizontal thrust Roll channel */
+		(ParamInt<px4::params::RC_MAP_HT_PITCH>)  	    _param_dtrg_h_t_P,		/**< horizontal thrust Pitch channel */
 		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
 		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
 		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max,	/**< horizontal thrust pitch angle Limit */
