@@ -106,10 +106,11 @@ MulticopterAttitudeControl::parameters_updated()
 
 	//DTRG horizontal thrust Params
 	_ht_en = _param_dtrg_ht_en.get();
-	if (_ht_en){
-		_ht_rc_en_add = _param_dtrg_ht_rc_en.get()-1;
+
+	if (_ht_en) {
+		_ht_rc_en_add = _param_dtrg_ht_rc.get() - 1;
 		_ht_limit = _param_dtrg_ht_max.get();
-		// DTRG_HT_R / DTRG_HT_P of 0 means the input is disabled. Keep the sentinel
+		// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 means the input is disabled. Keep the sentinel
 		// at -1 rather than letting the -1 offset produce a negative index into
 		// rc_channels.channels[].
 		_ht_r_add = (_param_dtrg_h_t_R.get() > 0) ? (_param_dtrg_h_t_R.get() - 1) : -1;
@@ -199,7 +200,10 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 	_stick_yaw.generateYawSetpoint(attitude_setpoint.yaw_sp_move_rate, _yaw_setpoint_stabilized, yaw_stick_input, yaw, dt,
 				       _unaided_heading);
 
-	if (_ht_en) _rc_channels_sub.update(&_rc_channels);
+	if (_ht_en) {
+		_rc_channels_sub.update(&_rc_channels);
+	}
+
 	/*
 	 * Input mapping for roll & pitch setpoints
 	 * ----------------------------------------
@@ -219,15 +223,16 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 
 
 
-	if (htSwitchActive()){
+	if (htSwitchActive()) {
 		// Roll/pitch come from the assigned aux channels, scaled by the DTRG angle
 		// limits (DTRG_HT_R_MAX / DTRG_HT_P_MAX) rather than the manual tilt max.
 		// A channel parameter of 0 disables that axis, leaving its tilt at 0.
 		v = Vector2f(_man_roll_input_filter.update(dtrgAuxTiltSetpoint(_ht_r_add, _ht_r_limit)),
 			     -_man_pitch_input_filter.update(dtrgAuxTiltSetpoint(_ht_p_add, _ht_p_limit)));
-	}else{
+
+	} else {
 		v = Vector2f(_man_roll_input_filter.update(_manual_control_setpoint.roll * _man_tilt_max),
-				      -_man_pitch_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max));
+			     -_man_pitch_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max));
 	}
 
 	float v_norm = v.norm(); // the norm of v defines the tilt angle

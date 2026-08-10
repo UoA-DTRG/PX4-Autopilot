@@ -307,9 +307,10 @@ void MulticopterPositionControl::parameters_update(bool force)
 
 		//DTRG
 		_ht_en = _param_dtrg_ht_en.get();
-		if (_ht_en){
-			_ht_rc_en_add = _param_dtrg_ht_rc_en.get()-1;
-			// DTRG_HT_R / DTRG_HT_P of 0 means the input is disabled. Keep the
+
+		if (_ht_en) {
+			_ht_rc_en_add = _param_dtrg_ht_rc.get() - 1;
+			// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 means the input is disabled. Keep the
 			// sentinel at -1 rather than letting the -1 offset produce a negative
 			// index into rc_channels.channels[].
 			_ht_r_add = (_param_dtrg_ht_R.get() > 0) ? (_param_dtrg_ht_R.get() - 1) : -1;
@@ -633,6 +634,7 @@ void MulticopterPositionControl::Run()
 					_control.update(dt);
 				}
 			}
+
 			// Publish internal position control setpoints
 			// on top of the input/feed-forward setpoints these containt the PID corrections
 			// This message is used by other modules (such as Landdetector) to determine vehicle intention.
@@ -652,20 +654,21 @@ void MulticopterPositionControl::Run()
 			vehicle_attitude_setpoint_s attitude_setpoint{};
 			const bool ht_rc_enabled = (_ht_rc_en_add >= 0)
 						   && (_ht_rc_en_add < static_cast<int>(sizeof(_rc_channels.channels) / sizeof(
-									   _rc_channels.channels[0])))
+								   _rc_channels.channels[0])))
 						   && (_rc_channels.channels[_ht_rc_en_add] > 0.5f);
 
-			if(_ht_en && ht_rc_enabled){
+			if (_ht_en && ht_rc_enabled) {
 
-				if(!_vehicle_control_mode.flag_control_offboard_enabled){
+				if (!_vehicle_control_mode.flag_control_offboard_enabled) {
 					// if offboard is not enabled, use the RC channels to get roll and pitch setpoints
 					// setpoints are constrained to the limits set by the with 0.02f deadzone.
-					// DTRG_HT_R / DTRG_HT_P of 0 disables that axis' stick input, which
+					// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 disables that axis' stick input, which
 					// leaves the corresponding setpoint at 0 (level).
 					roll_setpoint = dtrgAuxTiltSetpoint(_ht_r_add, _ht_r_limit);
 					pitch_setpoint = dtrgAuxTiltSetpoint(_ht_p_add, _ht_p_limit);
-				}else{
-					if (_debug_array_sub.update(&_debug_array)){
+
+				} else {
+					if (_debug_array_sub.update(&_debug_array)) {
 
 						// if offboard is enabled, use the roll and pitch setpoints from the debug array
 						roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
@@ -690,12 +693,15 @@ void MulticopterPositionControl::Run()
 				if (_dtrg_ht_mask == 1) {// Roll for y axis
 					final_roll = roll_RP;
 					final_pitch = pitch_setpoint;
+
 				} else if (_dtrg_ht_mask == 2) { //Pitch for x axis
 					final_pitch = pitch_RP;
 					final_roll = roll_setpoint;
+
 				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
 					final_roll = roll_RP;
 					final_pitch = pitch_RP;
+
 				} else {
 					final_roll = roll_setpoint;
 					final_pitch = pitch_setpoint;
@@ -707,15 +713,19 @@ void MulticopterPositionControl::Run()
 				q_sp.copyTo(attitude_setpoint.q_d);
 				// convert thrusts from inertial to body frame
 				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0],
-					local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
+						      local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
+
 				// Pick and Choose the horizontal thrust stuff using parameter
 				if (_dtrg_ht_mask == 1) { //roll for y
 					attitude_setpoint.thrust_body[0] =  thrust_frd(0); //thrust for x
+
 				} else if (_dtrg_ht_mask == 2) { //pitch for x
 					attitude_setpoint.thrust_body[1] =  thrust_frd(1); //thrust for y
+
 				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
 					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
 					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
+
 				} else {
 					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
 					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
@@ -732,10 +742,12 @@ void MulticopterPositionControl::Run()
 
 				//vertical thrust
 				attitude_setpoint.thrust_body[2] = thrust_frd(2);
-			}else{
+
+			} else {
 				//Standard attitude setpoint
 				_control.getAttitudeSetpoint(attitude_setpoint);
 			}
+
 			attitude_setpoint.timestamp = hrt_absolute_time();
 			_vehicle_attitude_setpoint_pub.publish(attitude_setpoint);
 

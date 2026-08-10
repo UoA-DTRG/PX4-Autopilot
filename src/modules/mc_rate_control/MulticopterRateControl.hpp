@@ -128,7 +128,6 @@ private:
 	matrix::Vector3f _thrust_setpoint{};
 
 	matrix::Vector3f _vector_thrust_sp{};
-	float _vec_thr_xy_p; /**< gain for vector thrust XY direction. */
 
 	float _energy_integration_time{0.0f};
 	float _control_energy[4] {};

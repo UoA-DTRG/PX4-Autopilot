@@ -20,7 +20,7 @@ signal while thrust/torque, motor outputs, and IMU response are logged.
   one chosen axis.
 - The hover baseline is **soft-started**: it ramps up from zero to `BT_HOVER_THR`
   over `BT_SPINUP_T` seconds each time the outputs become active.
-- A **single 3-position RC switch** (`BT_SIGN_SW`) runs the whole profile:
+- A **single 3-position RC switch** (`RC_MAP_CMD_SIGN`) runs the whole profile:
   centre = no excitation, up = positive, down = negative. Moving off centre
   starts the profile, and moving to the other side restarts it.
 - In **ramp** mode the excitation increases until a motor **saturates** (within a
@@ -32,7 +32,7 @@ signal while thrust/torque, motor outputs, and IMU response are logged.
 - **Arming is refused** while the direction switch is off centre (*"Arming
   denied: centre the bench test direction switch"*), so the excitation cannot
   start the instant the motors spin up. Not applied in hover-only mode
-  (`BT_MODE = 0`) or when no switch is assigned (`BT_SIGN_SW = 0`).
+  (`BT_MODE = 0`) or when no switch is assigned (`RC_MAP_CMD_SIGN = 0`).
 - **Entering the mode while armed is refused** (*"Bench test mode denied: disarm
   first"*): you must be disarmed to switch into Bench Test.
 
@@ -42,7 +42,7 @@ signal while thrust/torque, motor outputs, and IMU response are logged.
    rig.
 2. **Assign the mode** to a flight-mode switch position via `COM_FLTMODEx = 16`
    (Bench Test).
-3. **Assign the direction switch**: set `BT_SIGN_SW` to the RC channel of a
+3. **Assign the direction switch**: set `RC_MAP_CMD_SIGN` to the RC channel of a
    3-position switch (e.g. `15` for AUX15). Centre = no excitation, up =
    positive, down = negative. This one switch both starts the profile and sets
    its direction.
@@ -79,7 +79,7 @@ All parameters are in the **Bench Test** group.
 |----------------|-------|---------|-------------|
 | `BT_MODE`      | int   | `0`     | Excitation profile: `0` hover only, `1` step, `2` ramp. |
 | `BT_AXIS`      | int   | `2`     | Axis under excitation: `0` thrust X, `1` thrust Y, `2` thrust Z (collective), `3` roll torque, `4` pitch torque, `5` yaw torque. Horizontal thrust axes (X, Y) are only realisable on fully-actuated / omni / tilt-rotor airframes. |
-| `BT_SIGN_SW`   | int   | `0`     | Raw RC channel (`input_rc`) of the 3-position direction switch: high (>1700 µs) → positive excitation, low (<1300 µs) → negative, centre → no excitation. `0` disables the excitation entirely. |
+| `RC_MAP_CMD_SIGN`   | int   | `0`     | Raw RC channel (`input_rc`) of the 3-position direction switch: high (>1700 µs) → positive excitation, low (<1300 µs) → negative, centre → no excitation. `0` disables the excitation entirely. |
 | `BT_HOVER_THR` | float | `0.5`   | Baseline hover thrust (normalised, 0–1), published as `-BT_HOVER_THR` on the Z body axis (NED: −Z is up). |
 
 ### Step profile (`BT_MODE = 1`)
@@ -114,7 +114,7 @@ All parameters are in the **Bench Test** group.
 ## Notes and behaviour details
 
 - **Output gate vs. direction switch** are independent: `BT_ARM_ENABLE` must be
-  `1` for *any* output (and for arming at all); `BT_SIGN_SW` only controls when
+  `1` for *any* output (and for arming at all); `RC_MAP_CMD_SIGN` only controls when
   and in which direction the excitation runs on top of the hover baseline.
 - **Saturation** is evaluated on `actuator_motors.control` (the normalised
   allocator output), limited to the connected motors. This is the signal the
