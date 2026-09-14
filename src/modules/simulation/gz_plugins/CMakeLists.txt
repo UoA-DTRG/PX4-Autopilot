@@ -52,15 +52,26 @@ if (gz-transport_FOUND)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PX4_GZ_PLUGIN_OUTPUT_DIR})
 
     # Add our plugins as subdirectories
-    add_subdirectory(optical_flow)
+    # PX4-OpticalFlow hardcodes a Linux .so library name and requires OpenCV < 5,
+    # so the optical flow plugin cannot be built on macOS.
+    if (NOT APPLE)
+        add_subdirectory(optical_flow)
+    endif()
+
     add_subdirectory(template_plugin)
     add_subdirectory(gstreamer)
     add_subdirectory(moving_platform_controller)
 
     # Add an alias target for each plugin
-    if (TARGET GstCameraSystem)
-        add_custom_target(px4_gz_plugins ALL DEPENDS OpticalFlowSystem MovingPlatformController TemplatePlugin GstCameraSystem)
-    else()
-        add_custom_target(px4_gz_plugins ALL DEPENDS OpticalFlowSystem MovingPlatformController TemplatePlugin)
+    set(px4_gz_plugin_targets MovingPlatformController TemplatePlugin)
+
+    if (TARGET OpticalFlowSystem)
+        list(APPEND px4_gz_plugin_targets OpticalFlowSystem)
     endif()
+
+    if (TARGET GstCameraSystem)
+        list(APPEND px4_gz_plugin_targets GstCameraSystem)
+    endif()
+
+    add_custom_target(px4_gz_plugins ALL DEPENDS ${px4_gz_plugin_targets})
 endif()
