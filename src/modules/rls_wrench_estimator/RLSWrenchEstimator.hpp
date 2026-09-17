@@ -41,9 +41,11 @@
 
 #pragma once
 
+#include "AlignmentEstimator/AlignmentEstimator.hpp"
 #include "RLSIdentification/RLSIdentification.hpp"
 #include "WrenchEstimator/WrenchEstimator.hpp"
 
+#include <px4_platform_common/atomic.h>
 #include <px4_platform_common/defines.h>
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
@@ -92,6 +94,45 @@ public:
 
 	int print_status() override;
 
+	/**
+	 * Identification stages, advanced from the (MAVLink) console.
+	 *
+	 * Identify: k_f and the CoM offset adapt. Free flight only - the RLS cannot tell
+	 *           a steady external force from a parameter error and will absorb it.
+	 * Align:    identification frozen, the sensor-to-rotor misalignment is estimated.
+	 *           Needs the vehicle to yaw, otherwise the misalignment and a real
+	 *           lateral force are indistinguishable (see AlignmentEstimator).
+	 * Interact: everything frozen, fe/me are the measurement.
+	 */
+	enum class Stage : int32_t {
+		Identify = 0,
+		Align    = 1,
+		Interact = 2
+	};
+
+	/** Stage requested from the console; Auto follows the external DEBUG_VECT flag. */
+	static constexpr int32_t STAGE_AUTO = -1;
+
+	void setStageOverride(int32_t stage) { _stage_override.store(stage); }
+	int32_t getStageOverride() const { return _stage_override.load(); }
+	Stage getStage() const { return _stage; }
+
+	const AlignmentEstimator &getAlignmentEstimator() const { return _alignment; }
+
+	/**
+	 * Ask the work queue to drop the alignment estimate. Requested rather than done
+	 * here because the console thread must not clear state the work queue may be
+	 * part-way through updating.
+	 */
+	void requestAlignmentReset() { _alignment_reset_request.store(true); }
+
+	/** True once the current estimate has been written to the parameters */
+	bool isAlignmentSaved() const { return _alignment_saved.load(); }
+	void markAlignmentSaved() { _alignment_saved.store(true); }
+
+	/** Current RLS_EST_ALN_* values plus the correction just estimated [deg] */
+	matrix::Vector2f getAlignmentResult() const;
+
 private:
 	static constexpr int MAX_ROTORS = RLS_MAX_ROTORS;
 
@@ -106,8 +147,18 @@ private:
 	bool copyAndCheckAllFinite(vehicle_acceleration_s &accel, actuator_outputs_s &actuator_outputs,
 					vehicle_attitude_s &v_att, vehicle_angular_velocity_s &v_ang_vel, battery_status_s &batt_stat);
 
+	/**
+	 * Find and keep the actuator_outputs instance that carries the rotor commands.
+	 * @return true if a fresh sample of that instance was copied into actuator_outputs
+	 */
+	bool selectActuatorOutputs(actuator_outputs_s &actuator_outputs);
+	static bool actuatorOutputsDriveRotors(const actuator_outputs_s &outputs, int num_rotors);
+
+	void resetAlignment();
+
 	RLSIdentification _identification{};
 	WrenchEstimator _wrench_estimator{};
+	AlignmentEstimator _alignment{};
 
 	// Publications
 	uORB::Publication<rls_wrench_estimator_s> _rls_wrench_estimator_pub{ORB_ID(rls_wrench_estimator)};
@@ -143,6 +194,10 @@ private:
 	param_t _param_handle_rotor_count{PARAM_INVALID};
 	RotorParamHandles _rotor_handles[MAX_ROTORS]{};
 
+	// actuator_outputs multi-instance selection (-1 = none selected yet)
+	int _actuator_outputs_instance{-1};
+	hrt_abstime _actuator_outputs_scan_last{0};
+
 	hrt_abstime _timestamp_last{0};
 	systemlib::Hysteresis _valid_hysteresis{false};
 
@@ -173,8 +228,14 @@ private:
 		(ParamFloat<px4::params::RLS_EST_IXX>) _param_rls_inertia_x,
 		(ParamFloat<px4::params::RLS_EST_IYY>) _param_rls_inertia_y,
 		(ParamFloat<px4::params::RLS_EST_IZZ>) _param_rls_inertia_z,
+		(ParamFloat<px4::params::RLS_EST_ALN_R>) _param_rls_align_roll,
+		(ParamFloat<px4::params::RLS_EST_ALN_P>) _param_rls_align_pitch,
 		(ParamInt<px4::params::BAT1_N_CELLS>) _param_n_cells
 	)
+
+	// Rotation from the IMU/attitude frame into the rotor-geometry frame
+	matrix::Quatf _q_align{};
+	matrix::Dcmf _R_align{};
 
 	int _num_rotors{0};
 	int _n_groups{1};
@@ -185,7 +246,16 @@ private:
 	bool _in_air{false};
 	bool _valid{false};
 	bool _finite{false};
-	bool _interaction_flag{false};
+	bool _interaction_flag{false};          // true in Stage::Interact
+	bool _interaction_flag_external{false}; // flag as commanded over MAVLink DEBUG_VECT
+	Stage _stage{Stage::Identify};
+	// Written from the console thread, actioned by the work queue
+	px4::atomic_bool _alignment_reset_request{false};
+	// Guards against applying the same correction twice: the estimate is an increment
+	// on the parameters, so saving it a second time would double it.
+	px4::atomic_bool _alignment_saved{false};
+	// Written from the console thread, read from the work queue
+	px4::atomic_int32_t _stage_override{STAGE_AUTO};
 	hrt_abstime _debug_timestamp_last{};
 	float _voltage{11.7f};
 };

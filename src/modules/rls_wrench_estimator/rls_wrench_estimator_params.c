@@ -137,16 +137,11 @@ PARAM_DEFINE_FLOAT(RLS_EST_KF_CONF, 0.001f);
 /**
  * Accelerometer xy-noise for RLS parameter identification
  *
- * @decimal 5
- * @min 0.01
- * @max 100.0
- * @unit m/s^2
- * @group RLS Wrench Estimator
- */
-PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 1.f);
-
-/**
- * Accelerometer z-noise for RLS parameter identification
+ * Measurement covariance of the lateral axes in the thrust-constant RLS. These
+ * axes carry little thrust-constant information but do carry any lateral external
+ * force, so they are deliberately trusted less than z: with a single k_f fitting a
+ * three-axis measurement, weighting them highly makes the fit absorb a steady
+ * lateral disturbance into k_f and leaves a bias on the z estimate instead.
  *
  * @decimal 5
  * @min 0.01
@@ -154,7 +149,22 @@ PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 1.f);
  * @unit m/s^2
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_Z_NOISE, 10.f);
+PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 10.f);
+
+/**
+ * Accelerometer z-noise for RLS parameter identification
+ *
+ * Measurement covariance of the body z-axis in the thrust-constant RLS. This is
+ * the axis the rotor thrust acts along, so it is the one the identification should
+ * trust most. Keep it below RLS_EST_XY_NOISE.
+ *
+ * @decimal 5
+ * @min 0.01
+ * @max 100.0
+ * @unit m/s^2
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(RLS_EST_Z_NOISE, 1.f);
 
 /**
  * PWM to speed (P1)
@@ -283,8 +293,51 @@ PARAM_DEFINE_FLOAT(RLS_EST_YO_CONF, 1000.0f);
 PARAM_DEFINE_FLOAT(RLS_EST_F_NOISE, 1.0f);
 
 /**
- * Vehicle moment of inertia about x-axis [kg m^2]*1e3
+ * Sensor-to-rotor-frame roll alignment [deg]
  *
+ * Rotation about the body x-axis from the frame the IMU and attitude estimate are
+ * reported in to the frame the rotor geometry (CA_ROTOR*) is defined in.
+ *
+ * Only a few degrees are needed to matter: the vehicle's whole weight acts along
+ * the rotor thrust axis, so an angle A between the two frames turns |F| * sin(A)
+ * of vertical thrust into an apparent lateral force in the estimate - roughly
+ * 0.18 N per degree on a 1 kg vehicle. It is body-fixed, so unlike wind it does
+ * not average out and cannot be told apart from a real force at a fixed heading.
+ *
+ * Sign: a NEGATIVE value corrects a POSITIVE bias on the estimated y force.
+ * Set it to -asin(Fe_y / |Fi|) measured in a steady, wind-free hover, or from a
+ * bench measurement of the rotor plane against the reported attitude.
+ *
+ * This corrects the estimate only. If the misalignment is in the IMU mounting,
+ * fixing SENS_BOARD_X_OFF instead also corrects the controllers and the mixer.
+ *
+ * @decimal 3
+ * @min -15.0
+ * @max 15.0
+ * @unit deg
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(RLS_EST_ALN_R, 0.0f);
+
+/**
+ * Sensor-to-rotor-frame pitch alignment [deg]
+ *
+ * Rotation about the body y-axis, see RLS_EST_ALN_R.
+ *
+ * Sign: a POSITIVE value corrects a POSITIVE bias on the estimated x force.
+ *
+ * @decimal 3
+ * @min -15.0
+ * @max 15.0
+ * @unit deg
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(RLS_EST_ALN_P, 0.0f);
+
+/**
+ * Vehicle moment of inertia about x-axis
+ *
+ * Given in g m^2, i.e. the SI inertia in kg m^2 multiplied by 1e3.
  *
  * @decimal 5
  * @min 0.1
@@ -294,8 +347,9 @@ PARAM_DEFINE_FLOAT(RLS_EST_F_NOISE, 1.0f);
 PARAM_DEFINE_FLOAT(RLS_EST_IXX, 2.5513f);
 
 /**
- * Vehicle moment of inertia about y-axis [kg m^2]*1e3
+ * Vehicle moment of inertia about y-axis
  *
+ * Given in g m^2, i.e. the SI inertia in kg m^2 multiplied by 1e3.
  *
  * @decimal 5
  * @min 0.1
@@ -305,8 +359,9 @@ PARAM_DEFINE_FLOAT(RLS_EST_IXX, 2.5513f);
 PARAM_DEFINE_FLOAT(RLS_EST_IYY, 2.8425f);
 
 /**
- * Vehicle moment of inertia about z-axis [kg m^2]*1e3
+ * Vehicle moment of inertia about z-axis
  *
+ * Given in g m^2, i.e. the SI inertia in kg m^2 multiplied by 1e3.
  *
  * @decimal 5
  * @min 0.1

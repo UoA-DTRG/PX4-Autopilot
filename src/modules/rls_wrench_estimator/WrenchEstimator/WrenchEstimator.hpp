@@ -96,7 +96,8 @@ private:
 
 	Vector3f _Fe{};
 	Vector3f _Fe_inertial{};
-	Vector3f _Me{};
+	Vector3f _Me{};             //< external moment estimate (integral + momentum term)
+	Vector3f _integral_moment{}; //< integrator state of the moment observer
 
 	Vector3f _omega{};
 

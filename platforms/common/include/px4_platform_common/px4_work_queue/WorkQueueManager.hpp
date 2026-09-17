@@ -76,6 +76,11 @@ static constexpr wq_config_t hp_default{"wq:hp_default", 2800, -18};
 
 static constexpr wq_config_t uavcan{"wq:uavcan", 3624, -19};
 
+// RLS identification / external wrench estimation. Kept off nav_and_controllers:
+// the RLS matrices need more stack than that queue has to spare, and it is shared
+// with the attitude and position controllers.
+static constexpr wq_config_t wrench_est{"wq:wrench_est", 3600, -20};
+
 static constexpr wq_config_t ttyS0{"wq:ttyS0", 1728, -21};
 static constexpr wq_config_t ttyS1{"wq:ttyS1", 1728, -22};
 static constexpr wq_config_t ttyS2{"wq:ttyS2", 1728, -23};

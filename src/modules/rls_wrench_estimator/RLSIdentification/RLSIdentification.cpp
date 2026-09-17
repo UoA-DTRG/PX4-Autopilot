@@ -67,16 +67,17 @@ void RLSIdentification::initialize(const float (&x_init)[3], const float (&x_con
 	// One thrust constant per group, all initialised to the same guess/confidence.
 	// Unused groups (g >= _n_groups) receive no rotor contribution, so their H
 	// columns stay zero and they never update.
-	SquareMatrix<float, RLS_MAX_GROUPS> P_init_thrust;
-	P_init_thrust.setAll(0.f);
+	// Seeded in place rather than through a local: a RLS_MAX_GROUPS-square
+	// temporary is 576 B, and initialize() is reached from Run() (via
+	// updateParams() on any parameter update, and again on landing), on top of an
+	// already deep frame.
+	_Pp_thrust.setAll(0.f);
 	_xp_thrust.setAll(0.f);
 
 	for (int g = 0; g < RLS_MAX_GROUPS; g++) {
 		_xp_thrust(g) = x_init[0];
-		P_init_thrust(g, g) = x_confidence[0];
+		_Pp_thrust(g, g) = x_confidence[0];
 	}
-
-	_Pp_thrust = P_init_thrust;
 
 	SquareMatrix<float, 3> R_thrust;
 	R_thrust.setIdentity();
@@ -183,9 +184,13 @@ inline void RLSIdentification::_computeKThrust(const bool &interaction_flag)
 {
 	//  K[k] = P[k-1]*H[k]'*inv(H[k]*P[k-1]*H[k]'+R[k])
 	if (!interaction_flag) {
-		SquareMatrix<float, 3> Q;
-		Q = (_H_thrust * _Pp_thrust * _H_thrust.transpose()) + _R_thrust;
-		_K_thrust = _Pp_thrust * _H_thrust.transpose() * inv(Q);
+		// P*H' is shared between the gain and the innovation covariance, and H*P*H'
+		// is just H*(P*H'). Naming it once keeps a single RLS_MAX_GROUPS-by-3
+		// temporary alive instead of letting the expression tree build a fresh one
+		// per operator, which is what sizes the work-queue stack this runs on.
+		const Matrix<float, RLS_MAX_GROUPS, 3> PHt = _Pp_thrust * _H_thrust.transpose();
+		const SquareMatrix<float, 3> Q = (_H_thrust * PHt) + _R_thrust;
+		_K_thrust = PHt * inv(Q);
 
 	} else {
 		_K_thrust.setAll(0.f);
@@ -194,10 +199,14 @@ inline void RLSIdentification::_computeKThrust(const bool &interaction_flag)
 
 inline void RLSIdentification::_computePThrust()
 {
-	//  P[k] = (I - K[k]H[k])*P[k-1]
-	SquareMatrix<float, RLS_MAX_GROUPS> I;
-	I.setIdentity();
-	_Pp_thrust = (I - _K_thrust * _H_thrust) * _Pp_thrust;
+	//  P[k] = (I - K[k]H[k])*P[k-1], factored as P - K*(H*P).
+	//
+	// The two forms are algebraically identical, but the grouping matters here.
+	// Written out with an explicit identity, the expression materialises four
+	// RLS_MAX_GROUPS-square temporaries (4 x 12 x 12 x 4 B = 2304 B) on the stack -
+	// most of the work-queue stack this runs on, in one expression. Multiplying
+	// H*P first keeps the largest intermediate at 3 x RLS_MAX_GROUPS.
+	_Pp_thrust -= _K_thrust * (_H_thrust * _Pp_thrust);
 }
 
 inline void RLSIdentification::_computePredictionErrorThrust(const Vector3f &y)

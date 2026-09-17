@@ -154,10 +154,19 @@ void LoggedTopics::add_default_topics()
 	add_topic("sequential_desaturation");
 	add_topic("horizontal_thrust_limit");
 
+	// RLS wrench estimator. Faster than the admittance topics below because the
+	// contact transients this resolves are what the admittance response is judged
+	// against, and it also carries the identified k_f / x_offset for tuning.
+	add_optional_topic("rls_wrench_estimator", 20);
+
 	// Admittance controller. Logged whether or not it is engaged, so the response
 	// it would have commanded can be reviewed while running in bypass.
 	add_optional_topic("admittance_setpoint", 100);
 	add_optional_topic("admittance_status", 100);
+
+	// The admittance RC gate (ADM_CTR_RC_CH) reads the scaled channels, so without
+	// this a BYPASS_RC_SWITCH in the log cannot be explained from input_rc alone.
+	add_topic("rc_channels", 100);
 
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
