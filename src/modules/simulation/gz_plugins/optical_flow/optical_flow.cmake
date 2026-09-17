@@ -32,7 +32,16 @@
 ############################################################################
 
 include(ExternalProject)
+
 find_package(OpenCV REQUIRED)
+
+# Build the external project against the same OpenCV this module resolved, so the two
+# cannot drift apart. Only forwarded when set, to leave the default lookup untouched.
+set(OpticalFlow_CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>)
+
+if(OpenCV_DIR)
+    list(APPEND OpticalFlow_CMAKE_ARGS -DOpenCV_DIR=${OpenCV_DIR})
+endif()
 
 if(NOT TARGET OpticalFlow)
     ExternalProject_Add(OpticalFlow
@@ -40,8 +49,8 @@ if(NOT TARGET OpticalFlow)
         GIT_TAG master
         PREFIX ${CMAKE_BINARY_DIR}/OpticalFlow
         INSTALL_DIR ${CMAKE_BINARY_DIR}/OpticalFlow/install
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-        BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/OpticalFlow/install/lib/libOpticalFlow.so
+        CMAKE_ARGS ${OpticalFlow_CMAKE_ARGS}
+        BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/OpticalFlow/install/lib/libOpticalFlow${CMAKE_SHARED_LIBRARY_SUFFIX}
         UPDATE_DISCONNECTED ON
         BUILD_ALWAYS OFF
         STEP_TARGETS build
@@ -49,5 +58,6 @@ if(NOT TARGET OpticalFlow)
 
     ExternalProject_Get_Property(OpticalFlow install_dir)
     set(OpticalFlow_INCLUDE_DIRS ${install_dir}/include CACHE INTERNAL "")
-    set(OpticalFlow_LIBS ${install_dir}/lib/libOpticalFlow.so CACHE INTERNAL "")
+    set(OpticalFlow_LIBRARY_DIRS ${install_dir}/lib CACHE INTERNAL "")
+    set(OpticalFlow_LIBS ${install_dir}/lib/libOpticalFlow${CMAKE_SHARED_LIBRARY_SUFFIX} CACHE INTERNAL "")
 endif()

@@ -33,6 +33,32 @@
 
 project(px4_gz_plugins)
 
+# Homebrew's qt@5 is keg-only, so CMake cannot find it on its own. gz-gui (pulled in
+# by gz-sim below) requires Qt5, and without it configuration dies at generate time
+# with "The link interface of target gz-gui8::gz-gui8 contains Qt5::Core".
+if(APPLE AND NOT Qt5_DIR)
+    find_program(BREW_EXECUTABLE brew)
+
+    if(BREW_EXECUTABLE)
+        execute_process(
+            COMMAND ${BREW_EXECUTABLE} --prefix qt@5
+            OUTPUT_VARIABLE QT5_BREW_PREFIX
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+
+        if(QT5_BREW_PREFIX AND EXISTS "${QT5_BREW_PREFIX}/lib/cmake/Qt5")
+            list(APPEND CMAKE_PREFIX_PATH "${QT5_BREW_PREFIX}")
+        endif()
+    endif()
+
+    if(NOT CMAKE_PREFIX_PATH MATCHES "Qt5|qt@5" AND NOT DEFINED ENV{CMAKE_PREFIX_PATH})
+        message(STATUS
+            "Qt5 not located automatically; if configuring fails on gz-gui, "
+            "install it (brew install qt@5) or set CMAKE_PREFIX_PATH to its prefix")
+    endif()
+endif()
+
 if(NOT DEFINED ENV{GZ_DISTRO} OR NOT "$ENV{GZ_DISTRO}"  STREQUAL "harmonic")
     find_package(gz-transport NAMES gz-transport14 gz-transport13)
     find_package(gz-sim NAMES gz-sim9 gz-sim8)
@@ -52,11 +78,10 @@ if (gz-transport_FOUND)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PX4_GZ_PLUGIN_OUTPUT_DIR})
 
     # Add our plugins as subdirectories
-    # PX4-OpticalFlow hardcodes a Linux .so library name and requires OpenCV < 5,
-    # so the optical flow plugin cannot be built on macOS.
-    if (NOT APPLE)
-        add_subdirectory(optical_flow)
-    endif()
+    # optical_flow resolves its own OpenCV and skips itself when there is no usable one,
+    # so all OpenCV lookup stays inside that directory (its imported targets must not leak
+    # into this scope, or sibling plugins would link a mix of OpenCV versions).
+    add_subdirectory(optical_flow)
 
     add_subdirectory(template_plugin)
     add_subdirectory(gstreamer)
