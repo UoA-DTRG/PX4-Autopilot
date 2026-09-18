@@ -182,13 +182,18 @@ private:
 			// Only report saturation when armed: the allocator runs while disarmed and, with idle thrust,
 			// any attitude correction torque (e.g. vehicle resting on a slope) saturates the motors.
 			if (status.arming_state == vehicle_status_s::ARMING_STATE_ARMED) {
+				// The desaturation gain is signed: its sign follows the direction of the correction the
+				// allocator had to apply, so saturation of equal severity shows up as either sign.
+				// Compare the magnitude, otherwise only one direction is ever reported.
+				const float sat_threshold = 0.01f;
+
 				msg.errors_count1 =
-					((sequential_desaturation.x_sat > 0.01f)) |
-					((sequential_desaturation.y_sat > 0.01f) << 1) |
-					((sequential_desaturation.z_sat > 0.01f) << 2) |
-					((sequential_desaturation.roll_sat > 0.01f) << 3) |
-					((sequential_desaturation.pitch_sat > 0.01f) << 4) |
-					((sequential_desaturation.yaw_sat > 0.01f) << 5);
+					((fabsf(sequential_desaturation.x_sat) > sat_threshold)) |
+					((fabsf(sequential_desaturation.y_sat) > sat_threshold) << 1) |
+					((fabsf(sequential_desaturation.z_sat) > sat_threshold) << 2) |
+					((fabsf(sequential_desaturation.roll_sat) > sat_threshold) << 3) |
+					((fabsf(sequential_desaturation.pitch_sat) > sat_threshold) << 4) |
+					((fabsf(sequential_desaturation.yaw_sat) > sat_threshold) << 5);
 
 				// check if any motor is near / at saturation
 				const float upper_bound = 0.9f;
