@@ -163,5 +163,8 @@ param set-default CA_ROTOR7_AZ -0.8571673
 param set-default CA_ROTOR7_CT 1.0
 param set-default CA_ROTOR7_KM -0.00857637
 
+# DTRG horizontal thrust. The mode switch is shared with SITL; the roll/pitch
+# stick channels stay unmapped here because they depend on the transmitter, and
+# the SITL airframe maps them for the keyboard/RC-override scripts.
 param set-default DTRG_HT_EN 1
 param set-default RC_MAP_HT_MODE 8

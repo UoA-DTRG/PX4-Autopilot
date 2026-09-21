@@ -45,3 +45,11 @@ param set-default SIM_GZ_EC_MAX8 1774
 # The hardware airframe defines THR_MDL_FAC and MPC_THR_HOVER from the motor
 # model. Do not override those shared SITL/HITL defaults here.
 param set-default NAV_DLL_ACT 2
+
+# DTRG horizontal thrust, driven from the host with RC_CHANNELS_OVERRIDE
+# (Keyboard Control/keyboard_teleop.py, or Tools/dtrg_rc_override.py). SITL has
+# no receiver, so these channels only ever carry what those scripts send.
+# DTRG_HT_EN and RC_MAP_HT_MODE come from the hardware airframe.
+param set-default RC_MAP_HT_ROLL 9
+param set-default RC_MAP_HT_PITCH 10
+param set-default DTRG_HT_MASK 0
