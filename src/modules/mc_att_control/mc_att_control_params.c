@@ -59,23 +59,32 @@ PARAM_DEFINE_INT32(DTRG_HT_EN, 0);
  *
  *
  *
- * Enable the horizontal thrust control via RC channel, Defualts to 8 which is default arming channel.
- * If you would like to have the UAV fly only in HT mode then this can be set to 5 or the arming channel.
+ * Raw RC channel (input_rc) that enables horizontal thrust control while it reads high.
+ * Disabled by default; if you would like to have the UAV fly only in HT mode then this
+ * can be set to the arming channel.
  *
- * WARNING - ensure that the selected channel is not used for any other function and that the channel is correctly configured in the radio
- * @value 5 (channel 5)
- * @value 6 (channel 6)
- * @value 7 (channel 7)
- * @value 8 Aux 1 (channel 8)
- * @value 9 Aux 2 (channel 9)
- * @value 10 Aux 3 (channel 10)
- * @value 11 Aux 4 (channel 11)
- * @value 12 Aux 5 (channel 12)
- * @value 13 Aux 6 (channel 13)
+ * The channel must not be used for any other function - arming is blocked while it is
+ * also assigned to another RC_MAP parameter - and it must be correctly configured in the radio.
+ *
+ * @min 0
+ * @max 16
+ * @value 0 Disabled
+ * @value 5 Channel 5
+ * @value 6 Channel 6
+ * @value 7 Channel 7
+ * @value 8 Channel 8
+ * @value 9 Channel 9
+ * @value 10 Channel 10
+ * @value 11 Channel 11
+ * @value 12 Channel 12
+ * @value 13 Channel 13
+ * @value 14 Channel 14
+ * @value 15 Channel 15
+ * @value 16 Channel 16
  * @reboot_required true
  * @group DTRG
  */
-PARAM_DEFINE_INT32(DTRG_HT_RC_EN, 8);
+PARAM_DEFINE_INT32(RC_MAP_HT_MODE, 0);
 
 /**
  * Horizontal Thrust XY Limit

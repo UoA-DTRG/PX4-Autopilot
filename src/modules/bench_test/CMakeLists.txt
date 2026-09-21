@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2025 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2026 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,33 +31,15 @@
 #
 ############################################################################
 
-include(ExternalProject)
-
-find_package(OpenCV REQUIRED)
-
-# Build the external project against the same OpenCV this module resolved, so the two
-# cannot drift apart. Only forwarded when set, to leave the default lookup untouched.
-set(OpticalFlow_CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>)
-
-if(OpenCV_DIR)
-    list(APPEND OpticalFlow_CMAKE_ARGS -DOpenCV_DIR=${OpenCV_DIR})
-endif()
-
-if(NOT TARGET OpticalFlow)
-    ExternalProject_Add(OpticalFlow
-        GIT_REPOSITORY https://github.com/PX4/PX4-OpticalFlow.git
-        GIT_TAG master
-        PREFIX ${CMAKE_BINARY_DIR}/OpticalFlow
-        INSTALL_DIR ${CMAKE_BINARY_DIR}/OpticalFlow/install
-        CMAKE_ARGS ${OpticalFlow_CMAKE_ARGS}
-        BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/OpticalFlow/install/lib/libOpticalFlow${CMAKE_SHARED_LIBRARY_SUFFIX}
-        UPDATE_DISCONNECTED ON
-        BUILD_ALWAYS OFF
-        STEP_TARGETS build
-    )
-
-    ExternalProject_Get_Property(OpticalFlow install_dir)
-    set(OpticalFlow_INCLUDE_DIRS ${install_dir}/include CACHE INTERNAL "")
-    set(OpticalFlow_LIBRARY_DIRS ${install_dir}/lib CACHE INTERNAL "")
-    set(OpticalFlow_LIBS ${install_dir}/lib/libOpticalFlow${CMAKE_SHARED_LIBRARY_SUFFIX} CACHE INTERNAL "")
-endif()
+px4_add_module(
+	MODULE modules__bench_test
+	MAIN bench_test
+	COMPILE_FLAGS
+		${MAX_CUSTOM_OPT_LEVEL}
+	SRCS
+		BenchTest.cpp
+		BenchTest.hpp
+	DEPENDS
+		mathlib
+		px4_work_queue
+)

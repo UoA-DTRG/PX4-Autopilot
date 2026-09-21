@@ -86,7 +86,7 @@ private:
 	 * @param increase_only if true, only allow to increase (add) a fraction of desaturation_vector
 	 */
 	float desaturateActuators(ActuatorVector &actuator_sp, const ActuatorVector &desaturation_vector,
-				 bool increase_only = false);
+				  bool increase_only = false);
 
 	/**
 	 * Computes the gain k by which desaturation_vector has to be multiplied

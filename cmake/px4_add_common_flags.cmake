@@ -105,6 +105,7 @@ function(px4_add_common_flags)
 			-Wno-unknown-warning-option
 			-Wno-unused-const-variable
 			-Wno-varargs
+			-Wno-vla-cxx-extension # clang >= 18 (Apple clang 16+)
 		)
 
 	elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")

@@ -180,29 +180,29 @@ private:
 
 			// Fill in the errors_count fields
 			msg.errors_count1 =
-			((sequential_desaturation.x_sat > 0.01f)) |
-			((sequential_desaturation.y_sat > 0.01f) << 1) |
-			((sequential_desaturation.z_sat > 0.01f) << 2) |
-			((sequential_desaturation.roll_sat > 0.01f) << 3) |
-			((sequential_desaturation.pitch_sat > 0.01f) << 4) |
-			((sequential_desaturation.yaw_sat > 0.01f) << 5);
+				((sequential_desaturation.x_sat > 0.01f)) |
+				((sequential_desaturation.y_sat > 0.01f) << 1) |
+				((sequential_desaturation.z_sat > 0.01f) << 2) |
+				((sequential_desaturation.roll_sat > 0.01f) << 3) |
+				((sequential_desaturation.pitch_sat > 0.01f) << 4) |
+				((sequential_desaturation.yaw_sat > 0.01f) << 5);
 
 			// check if any motor is near / at saturation
 			const float upper_bound = 0.9f;
 
 			msg.errors_count2 =
-			((actuator_motors.control[0] > upper_bound)) |
-			((actuator_motors.control[1] > upper_bound) << 1) |
-			((actuator_motors.control[2] > upper_bound) << 2) |
-			((actuator_motors.control[3] > upper_bound) << 3) |
-			((actuator_motors.control[4] > upper_bound) << 4) |
-			((actuator_motors.control[5] > upper_bound) << 5) |
-			((actuator_motors.control[6] > upper_bound) << 6) |
-			((actuator_motors.control[7] > upper_bound) << 7);
+				((actuator_motors.control[0] > upper_bound)) |
+				((actuator_motors.control[1] > upper_bound) << 1) |
+				((actuator_motors.control[2] > upper_bound) << 2) |
+				((actuator_motors.control[3] > upper_bound) << 3) |
+				((actuator_motors.control[4] > upper_bound) << 4) |
+				((actuator_motors.control[5] > upper_bound) << 5) |
+				((actuator_motors.control[6] > upper_bound) << 6) |
+				((actuator_motors.control[7] > upper_bound) << 7);
 
 			msg.errors_count3 =
-			(horizontal_thrust_limit.x_sat) |
-			((horizontal_thrust_limit.y_sat) << 2);
+				(horizontal_thrust_limit.x_sat) |
+				((horizontal_thrust_limit.y_sat) << 2);
 
 			msg.errors_count4 = 706; // tell the status monitor that this code is running
 

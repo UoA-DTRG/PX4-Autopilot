@@ -36,6 +36,7 @@
 #include <uORB/topics/vehicle_status.h>
 #include "HealthAndArmingChecks/HealthAndArmingChecks.hpp"
 #include <px4_platform_common/module_params.h>
+#include <systemlib/mavlink_log.h>
 
 enum class ModeChangeSource {
 	User,           ///< RC or MAVLink
@@ -100,6 +101,8 @@ private:
 
 	bool _ever_had_mode_change{false}; ///< true if there was ever a mode change call (also if the same mode as already set)
 	bool _had_mode_change{false}; ///< true if there was a mode change call since the last getHadModeChangeAndClear()
+
+	orb_advert_t _mavlink_log_pub{nullptr};
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::COM_POSCTL_NAVL>) _param_com_posctl_navl

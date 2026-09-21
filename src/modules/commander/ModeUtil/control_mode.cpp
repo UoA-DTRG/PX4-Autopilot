@@ -119,6 +119,11 @@ void getVehicleControlMode(uint8_t nav_state, uint8_t vehicle_type,
 		vehicle_control_mode.flag_control_termination_enabled = true;
 		break;
 
+	case vehicle_status_s::NAVIGATION_STATE_BENCH_TEST:
+		// Only the control allocator runs; bench_test module publishes thrust/torque directly
+		vehicle_control_mode.flag_control_allocation_enabled = true;
+		break;
+
 	case vehicle_status_s::NAVIGATION_STATE_OFFBOARD:
 		vehicle_control_mode.flag_control_offboard_enabled = true;
 

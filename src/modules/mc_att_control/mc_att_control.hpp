@@ -115,7 +115,7 @@ private:
 
 	//for DTRG horitontal thrust
 	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
-	struct rc_channels_s _rc_channels{};
+	struct rc_channels_s _rc_channels {};
 	uORB::Publication<horizontal_thrust_limit_s>	     _horizontal_thrust_limit_pub{ORB_ID(horizontal_thrust_limit)};
 
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
@@ -137,7 +137,6 @@ private:
 	bool _heading_good_for_control{true}; // initialized true to have heading lock when local position never published
 	float _unaided_heading{NAN}; // initialized NAN to not distract heading lock when local position never published
 	float _man_tilt_max{0.f};			/**< maximum tilt allowed for manual flight [rad] */
-	float _ht_gain{0.f};                   	/**< DTRG horizontal thrust rate */
 	int _ht_en{0};                       	/**< DTRG horizontal thrust enable */
 	int _ht_rc_en_add{-1};				/**< DTRF HT RC enable channel */
 	// 0-based RC channel indices, -1 when the channel parameter is 0 (input disabled)
@@ -151,7 +150,7 @@ private:
 	/**
 	 * Tilt setpoint from a DTRG-assigned RC channel.
 	 *
-	 * @param channel_index 0-based RC channel, or -1 when DTRG_HT_R/DTRG_HT_P is 0
+	 * @param channel_index 0-based RC channel, or -1 when RC_MAP_HT_ROLL/RC_MAP_HT_PITCH is 0
 	 * @param limit         magnitude limit [rad], from DTRG_HT_R_MAX / DTRG_HT_P_MAX
 	 * @return              0 when the input is disabled, out of range or inside the deadzone
 	 */
@@ -205,13 +204,14 @@ private:
 		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
 
 		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en,		/**< horizontal thrust feature */
-		(ParamInt<px4::params::DTRG_HT_RC_EN>)      _param_dtrg_ht_rc_en,	/**< horizontal thrust enable RC channel*/
-		(ParamInt<px4::params::DTRG_HT_R>)  	    _param_dtrg_h_t_R,		/**< horizontal thrust Roll channel */
-		(ParamInt<px4::params::DTRG_HT_P>)  	    _param_dtrg_h_t_P,		/**< horizontal thrust Pitch channel */
+		(ParamInt<px4::params::RC_MAP_HT_MODE>)      _param_dtrg_ht_rc,	/**< horizontal thrust enable RC channel*/
+		(ParamInt<px4::params::RC_MAP_HT_ROLL>)  	    _param_dtrg_h_t_R,		/**< horizontal thrust Roll channel */
+		(ParamInt<px4::params::RC_MAP_HT_PITCH>)  	    _param_dtrg_h_t_P,		/**< horizontal thrust Pitch channel */
 		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
 		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
 		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max,	/**< horizontal thrust pitch angle Limit */
-		(ParamInt<px4::params::DTRG_HT_MASK>)       _param_dtrg_ht_mask		/**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::DTRG_HT_MASK>)
+		_param_dtrg_ht_mask		/**< HT gmask for pitching and rolling using HT thrust*/
 
 	)
 };

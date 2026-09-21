@@ -47,56 +47,56 @@
 class MavlinkStreamDTRGOffboard : public MavlinkStream
 {
 public:
-    static MavlinkStream *new_instance(Mavlink *mavlink)
-    {
-        return new MavlinkStreamBMavlinkStreamDTRGOffboard(mavlink);
-    }
-    const char *get_name() const
-    {
-        return MavlinkMavlinkStreamDTRGOffboard::get_name_static();
-    }
-    static const char *get_name_static()
-    {
-        return "DTRG_OFFBOARD";
-    }
-    static uint16_t get_id_static()
-    {
-        return MAVLINK_MSG_ID_DTRG_OFFBOARD;
-    }
-    uint16_t get_id()
-    {
-        return get_id_static();
-    }
-    unsigned get_size()
-    {
-        return MAVLINK_MSG_ID_DTRG_OFFBOARD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
-    }
+	static MavlinkStream *new_instance(Mavlink *mavlink)
+	{
+		return new MavlinkStreamBMavlinkStreamDTRGOffboard(mavlink);
+	}
+	const char *get_name() const
+	{
+		return MavlinkMavlinkStreamDTRGOffboard::get_name_static();
+	}
+	static const char *get_name_static()
+	{
+		return "DTRG_OFFBOARD";
+	}
+	static uint16_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_DTRG_OFFBOARD;
+	}
+	uint16_t get_id()
+	{
+		return get_id_static();
+	}
+	unsigned get_size()
+	{
+		return MAVLINK_MSG_ID_DTRG_OFFBOARD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+	}
 
 private:
-    uORB::Subscription _dtrg_offboard_sub{ORB_ID::dtrg_custom};
+	uORB::Subscription _dtrg_offboard_sub{ORB_ID::dtrg_custom};
 
-    /* do not allow top copying this class */
-    MavlinkStreamDTRGOffboard(MavlinkStreamDTRGOffboard &);
-    MavlinkStreamDTRGOffboard& operator = (const MavlinkStreamDTRGOffboard &);
+	/* do not allow top copying this class */
+	MavlinkStreamDTRGOffboard(MavlinkStreamDTRGOffboard &);
+	MavlinkStreamDTRGOffboard &operator = (const MavlinkStreamDTRGOffboard &);
 
 protected:
-    explicit MavlinkStreamDTRGOffboard(Mavlink *mavlink) : MavlinkStream(mavlink)
-    {}
+	explicit MavlinkStreamDTRGOffboard(Mavlink *mavlink) : MavlinkStream(mavlink)
+	{}
 
 	bool send() override
 	{
 		bool updated = false;
-			offboard_sp_s offboard_sp;
+		offboard_sp_s offboard_sp;
 
-			if (_dtrg_offboard_sub.update(&offboard_sp)) {
-                		// mavlink_battery_status_demo_t is the MAVLink message object
-				mavlink_dtrg_offboard_t offboard_msg{};
+		if (_dtrg_offboard_sub.update(&offboard_sp)) {
+			// mavlink_battery_status_demo_t is the MAVLink message object
+			mavlink_dtrg_offboard_t offboard_msg{};
 
-				offboard_msg.offboard_sp = offboard_sp.offboard_sp;
+			offboard_msg.offboard_sp = offboard_sp.offboard_sp;
 
-				mavlink_msg_dtrg_offboard_send_struct(_mavlink->get_channel(), &offboard_msg);
-				updated = true;
-			}
+			mavlink_msg_dtrg_offboard_send_struct(_mavlink->get_channel(), &offboard_msg);
+			updated = true;
+		}
 
 		return updated;
 	}

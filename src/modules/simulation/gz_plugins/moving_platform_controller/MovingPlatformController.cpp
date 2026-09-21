@@ -234,12 +234,12 @@ void MovingPlatformController::updateWrenchCommand(
 		const gz::math::Vector3d feedback_force = -pos_gains * platform_pos_error - vel_gains * platform_vel_error;
 
 		// Clip horizontal force to avoid large accelerations, which might cause the drone to slip off the platform.
-		const float max_accel = 2.; // [m/s^2]
+		const double max_accel = 2.; // [m/s^2]
 		const gz::math::Vector2d _force_xy = gz::math::Vector2d(feedback_force.X(), feedback_force.Y());
-		const float accel_xy = _force_xy.Length() / _platform_mass;
+		const double accel_xy = _force_xy.Length() / _platform_mass;
 
 		if (accel_xy > max_accel) {
-			const float scaling = max_accel / accel_xy;
+			const double scaling = max_accel / accel_xy;
 			_force += feedback_force * gz::math::Vector3d(scaling, scaling, 1.);
 
 		} else {
