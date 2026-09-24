@@ -213,7 +213,7 @@ TEST_F(DtrgMixerCsv, ExtraRowsAreIgnored)
 // ~20 characters per cell, so a 6 column row is longer than the 100 byte line
 // buffer. The rest of the line is read as the next actuator's row, shifting
 // every following row.
-TEST_F(DtrgMixerCsv, DISABLED_FullPrecisionRowsAreNotSplit)
+TEST_F(DtrgMixerCsv, FullPrecisionRowsAreNotSplit)
 {
 	const char *row = "-0.35355339059327373,0.35355339059327373,-0.12500000000000000,"
 			  "0.00000000000000000,0.00000000000000000,-0.12500000000000000\n";
@@ -226,7 +226,7 @@ TEST_F(DtrgMixerCsv, DISABLED_FullPrecisionRowsAreNotSplit)
 
 // strtok() merges consecutive delimiters, so an empty cell shifts the rest of
 // the row one column to the left. Spreadsheets write empty cells this way.
-TEST_F(DtrgMixerCsv, DISABLED_EmptyCellKeepsColumnPosition)
+TEST_F(DtrgMixerCsv, EmptyCellKeepsColumnPosition)
 {
 	writeFile("1,,3,4,5,6\n");
 	ASSERT_TRUE(read());
@@ -235,7 +235,7 @@ TEST_F(DtrgMixerCsv, DISABLED_EmptyCellKeepsColumnPosition)
 }
 
 // An empty file is accepted, which leaves the allocator without a mixer.
-TEST_F(DtrgMixerCsv, DISABLED_EmptyFileIsRejected)
+TEST_F(DtrgMixerCsv, EmptyFileIsRejected)
 {
 	writeFile("");
 	EXPECT_FALSE(read());
@@ -243,14 +243,14 @@ TEST_F(DtrgMixerCsv, DISABLED_EmptyFileIsRejected)
 
 // A row with fewer than 6 cells is accepted and the missing axes keep
 // whatever the matrix held before.
-TEST_F(DtrgMixerCsv, DISABLED_ShortRowIsRejected)
+TEST_F(DtrgMixerCsv, ShortRowIsRejected)
 {
 	writeFile("1,2,3\n");
 	EXPECT_FALSE(read());
 }
 
 // A blank line with a Windows line ending is read as a row of zeros.
-TEST_F(DtrgMixerCsv, DISABLED_BlankCrlfLineIsSkipped)
+TEST_F(DtrgMixerCsv, BlankCrlfLineIsSkipped)
 {
 	writeFile("\r\n" + rows(1, "\r\n"));
 	ASSERT_TRUE(read());

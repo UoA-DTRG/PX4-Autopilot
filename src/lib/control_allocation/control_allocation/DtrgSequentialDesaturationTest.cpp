@@ -324,7 +324,7 @@ TEST_F(DtrgSequentialDesaturation, PublishesTopic)
 // does for a one-sided overshoot, the reported gain is 0 even though X was
 // cut. The sign is also lost on the way to SYS_STATUS.errors_count1, which
 // only tests "> 0.01", while cutting positive X gives a negative gain.
-TEST_F(DtrgSequentialDesaturation, DISABLED_TopicReportsHorizontalThrustReduction)
+TEST_F(DtrgSequentialDesaturation, TopicReportsHorizontalThrustReduction)
 {
 	uORB::Subscription sub{ORB_ID(sequential_desaturation)};
 	sub.subscribe();
@@ -347,7 +347,7 @@ TEST_F(DtrgSequentialDesaturation, DISABLED_TopicReportsHorizontalThrustReductio
 // thrust therefore comes out with X thrust and yaw that nobody asked for
 // (about -0.02 X and -0.12 yaw, normalised, for this case), before thrust is
 // reduced. Upstream only ever trades Z and yaw that were demanded.
-TEST_F(DtrgSequentialDesaturation, DISABLED_DesaturationDoesNotAddUnrequestedAxes)
+TEST_F(DtrgSequentialDesaturation, DesaturationDoesNotAddUnrequestedAxes)
 {
 	ControlVector control_sp;
 	control_sp(Axis::THRUST_Z) = 1.8f * _hover_z;
