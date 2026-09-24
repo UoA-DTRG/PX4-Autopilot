@@ -477,3 +477,25 @@ PARAM_DEFINE_INT32(RLS_ROTOR10_GRP, 0);
  * @group RLS Wrench Estimator
  */
 PARAM_DEFINE_INT32(RLS_ROTOR11_GRP, 0);
+
+/**
+ * Rotor drag coefficient [N/((rad/s)*(m/s))]
+ *
+ * In-plane aerodynamic force of a spinning rotor moving through the air
+ * (rotor drag / H-force), per rotor:
+ *
+ *     F_drag = -K_DRAG * |w| * v_perp
+ *
+ * with v_perp the airspeed component perpendicular to that rotor's axis. It
+ * grows with speed and is what a translating vehicle would otherwise report as
+ * an external force, so modelling it keeps fe/me to contact forces.
+ *
+ * 0 disables the term (force model = thrust only). Ground velocity is used in
+ * place of airspeed, so in wind the wind force still shows up in fe.
+ *
+ * @decimal 8
+ * @min 0.0
+ * @max 0.01
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(RLS_EST_K_DRAG, 0.0f);

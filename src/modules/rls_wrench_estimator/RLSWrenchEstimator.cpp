@@ -54,6 +54,8 @@ static constexpr hrt_abstime ESC_STATUS_TIMEOUT = 100_ms;
 static constexpr hrt_abstime ACTUATOR_OUTPUTS_TIMEOUT = 100_ms;
 // How often the actuator_outputs instances are probed while none is selected
 static constexpr hrt_abstime ACTUATOR_OUTPUTS_SCAN_INTERVAL = 1_s;
+// Maximum age of a velocity estimate for the rotor drag term to use it
+static constexpr hrt_abstime VELOCITY_TIMEOUT = 200_ms;
 }
 
 RLSWrenchEstimator::RLSWrenchEstimator() :
@@ -118,6 +120,7 @@ void RLSWrenchEstimator::updateGeometry(VehicleParameters &params)
 {
 	params.mass = _param_rls_mass.get();
 	params.lpf_motor_tau = _param_rls_lpf_motor.get();
+	params.k_drag = _param_rls_k_drag.get();
 	params.n_groups = math::constrain((int)_param_rls_n_grp.get(), 1, RLS_MAX_GROUPS);
 
 	int32_t rotor_count = 0;
@@ -242,7 +245,16 @@ void RLSWrenchEstimator::Run()
 		vehicle_land_detected_s vehicle_land_detected;
 
 		if (_vehicle_land_detected_sub.copy(&vehicle_land_detected)) {
+			const bool touchdown = vehicle_land_detected.landed && !_landed;
 			_landed = vehicle_land_detected.landed;
+
+			// A console stage outlives the flight it was set in, so the next flight
+			// would otherwise skip Identify and run on the initial k_f guess. Cleared
+			// only on touchdown, so a stage set on the ground before takeoff is kept.
+			if (touchdown && (getStageOverride() != STAGE_AUTO)) {
+				setStageOverride(STAGE_AUTO);
+				PX4_INFO("landed: stage back to auto (identify on next flight)");
+			}
 
 			if (_landed) {
 				_in_air = false;
@@ -268,6 +280,12 @@ void RLSWrenchEstimator::Run()
 				if (local_pos.dist_bottom > 0.3f) {
 					_in_air = true;
 				}
+			}
+
+			if (local_pos.v_xy_valid && local_pos.v_z_valid
+			    && PX4_ISFINITE(local_pos.vx) && PX4_ISFINITE(local_pos.vy) && PX4_ISFINITE(local_pos.vz)) {
+				_velocity_ned = Vector3f(local_pos.vx, local_pos.vy, local_pos.vz);
+				_velocity_timestamp = local_pos.timestamp;
 			}
 		}
 	}
@@ -387,7 +405,7 @@ void RLSWrenchEstimator::Run()
 		const matrix::Vector<float, RLS_MAX_ROTORS> output = matrix::Vector<float, RLS_MAX_ROTORS>(speed);
 
 		//RLS Thrust
-		_identification.updateThrust(acc, output, dt, freeze_identification, apply_lpf);
+		_identification.updateThrust(acc, velocityBody(v_att), output, dt, freeze_identification, apply_lpf);
 
 		const Vector3f p_error_t = _identification.getPredictionErrorThrust();
 		// Attitude of the rotor frame rather than of the IMU frame, so the gravity
@@ -433,6 +451,19 @@ void RLSWrenchEstimator::Run()
 	}
 
 	perf_end(_cycle_perf);
+}
+
+matrix::Vector3f RLSWrenchEstimator::velocityBody(const vehicle_attitude_s &v_att)
+{
+	// A stale velocity would make the drag term fight the measurement rather than
+	// explain it, so an old estimate is treated as no estimate: the drag term then
+	// drops out and the force model is thrust-only, as it is with RLS_EST_K_DRAG 0.
+	if ((_velocity_timestamp == 0) || (hrt_elapsed_time(&_velocity_timestamp) > VELOCITY_TIMEOUT)) {
+		return Vector3f();
+	}
+
+	// Into the rotor frame, the frame the drag axes are expressed in.
+	return _R_align * matrix::Dcmf(matrix::Quatf(v_att.q)).transpose() * _velocity_ned;
 }
 
 void RLSWrenchEstimator::publishStatus()
