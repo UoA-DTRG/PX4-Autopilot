@@ -64,6 +64,17 @@ public:
 	void setMetricAllocation(bool metric_allocation) { _metric_allocation = metric_allocation; }
 
 	bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) final;
+
+	/**
+	 * DTRG CSV mixer: read the mixing matrix from a CSV file, one row per actuator and
+	 * one column per control axis (roll, pitch, yaw, thrust x, y, z). Public and static
+	 * so the parser can be tested on its own (DtrgMixerCsvTest.cpp).
+	 *
+	 * @return false if the file cannot be opened, in which case @p mixer is left untouched
+	 */
+	static bool readMixerFromCSV(const char *filename,
+				     matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
+
 protected:
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _mix;
 
@@ -79,8 +90,6 @@ protected:
 	void updateParams() override { ModuleParams::updateParams(); }
 
 private:
-	bool readMixerFromCSV(const char *filename,
-			      matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
 
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();

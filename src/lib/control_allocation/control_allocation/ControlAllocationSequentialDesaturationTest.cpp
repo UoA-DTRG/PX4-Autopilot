@@ -351,7 +351,9 @@ TEST(ControlAllocationSequentialDesaturationTest, AirmodeDisabledThrustAndPitch)
 }
 
 // This tests that a control setpoint for z-thrust + yaw returns the desired actuator setpoint.
-// This test saturates yaw and demonstrates reduction of thrust for yaw.
+// This test saturates yaw. Upstream PX4 reduces thrust by up to MINIMUM_YAW_MARGIN to make room
+// for yaw; the DTRG desaturation order (x, y, yaw, z, roll, pitch) reduces yaw first instead, so
+// thrust is kept and yaw is cut until the motors fit (see DtrgSequentialDesaturationTest.cpp).
 TEST(ControlAllocationSequentialDesaturationTest, AirmodeDisabledReducedThrustAndYaw)
 {
 	ControlAllocationSequentialDesaturation allocator;
@@ -375,13 +377,11 @@ TEST(ControlAllocationSequentialDesaturationTest, AirmodeDisabledReducedThrustAn
 	allocator.allocate();
 
 	const auto &actuator_sp = allocator.getActuatorSetpoint();
-	// In the case of yaw saturation, thrust per motor will be reduced by the hard-coded
-	// magic-number yaw margin of 0.15f.
-	constexpr float YAW_MARGIN{0.15f}; // get this from a centralized source when available.
-	constexpr float YAW_DIFF_PER_MOTOR{1.0f + YAW_MARGIN - DESIRED_THRUST_Z_PER_MOTOR};
+	// Yaw is reduced until the high motors reach the upper limit, the thrust per motor is kept.
+	constexpr float YAW_DIFF_PER_MOTOR{1.0f - DESIRED_THRUST_Z_PER_MOTOR};
 	// At control set point, there will be 2 different actuator values.
-	constexpr float HIGH_THRUST_Z_PER_MOTOR{DESIRED_THRUST_Z_PER_MOTOR + YAW_DIFF_PER_MOTOR - YAW_MARGIN};
-	constexpr float LOW_THRUST_Z_PER_MOTOR{DESIRED_THRUST_Z_PER_MOTOR - YAW_DIFF_PER_MOTOR - YAW_MARGIN};
+	constexpr float HIGH_THRUST_Z_PER_MOTOR{DESIRED_THRUST_Z_PER_MOTOR + YAW_DIFF_PER_MOTOR};
+	constexpr float LOW_THRUST_Z_PER_MOTOR{DESIRED_THRUST_Z_PER_MOTOR - YAW_DIFF_PER_MOTOR};
 	EXPECT_NEAR(actuator_sp(0), HIGH_THRUST_Z_PER_MOTOR, EXPECT_NEAR_TOL);
 	EXPECT_NEAR(actuator_sp(1), HIGH_THRUST_Z_PER_MOTOR, EXPECT_NEAR_TOL);
 	EXPECT_NEAR(actuator_sp(2), LOW_THRUST_Z_PER_MOTOR, EXPECT_NEAR_TOL);

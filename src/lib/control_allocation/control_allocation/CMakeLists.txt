@@ -43,5 +43,10 @@ target_compile_options(ControlAllocation PRIVATE ${MAX_CUSTOM_OPT_LEVEL})
 target_include_directories(ControlAllocation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ControlAllocation PRIVATE mathlib)
 
-px4_add_unit_gtest(SRC ControlAllocationPseudoInverseTest.cpp LINKLIBS ControlAllocation)
+# functional (not unit): the DTRG CSV mixer params make the allocator depend on the parameter system
+px4_add_functional_gtest(SRC ControlAllocationPseudoInverseTest.cpp LINKLIBS ControlAllocation)
 px4_add_functional_gtest(SRC ControlAllocationSequentialDesaturationTest.cpp LINKLIBS ControlAllocation ActuatorEffectiveness)
+
+# DTRG tests (run with: make tests TESTFILTER=Dtrg)
+px4_add_functional_gtest(SRC DtrgSequentialDesaturationTest.cpp DISCOVER LINKLIBS ControlAllocation ActuatorEffectiveness)
+px4_add_functional_gtest(SRC DtrgMixerCsvTest.cpp DISCOVER LINKLIBS ControlAllocation)
