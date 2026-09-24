@@ -59,6 +59,7 @@
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <lib/slew_rate/SlewRate.hpp>
 #include <lib/stick_yaw/StickYaw.hpp>
+#include <lib/dtrg_horizontal_thrust/dtrg_horizontal_thrust.hpp>
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/horizontal_thrust_limit.h>
 
@@ -146,15 +147,6 @@ private:
 	float _ht_r_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Roll angle limit [rad] */
 	float _ht_p_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Pitch angle limit [rad] */
 	int _dtrg_ht_mask{0};
-
-	/**
-	 * Tilt setpoint from a DTRG-assigned RC channel.
-	 *
-	 * @param channel_index 0-based RC channel, or -1 when RC_MAP_HT_ROLL/RC_MAP_HT_PITCH is 0
-	 * @param limit         magnitude limit [rad], from DTRG_HT_R_MAX / DTRG_HT_P_MAX
-	 * @return              0 when the input is disabled, out of range or inside the deadzone
-	 */
-	float dtrgAuxTiltSetpoint(int channel_index, float limit) const;
 
 	/** True when horizontal thrust is enabled and its RC enable switch is held high. */
 	bool htSwitchActive() const;

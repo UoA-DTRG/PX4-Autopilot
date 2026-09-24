@@ -55,18 +55,19 @@ PARAM_DEFINE_INT32(RC_MAP_HT_PITCH, 0);
 /**
  * Horizontal thrust control mask
  *
- * Bitmask to enable horizontal thrust control axes:
- * - 0: Disabled
- * - 1: Roll only
- * - 2: Pitch only
- * - 3: Roll and Pitch
+ * How the vehicle moves along each horizontal axis while horizontal thrust
+ * is switched on (RC_MAP_HT_MODE):
+ * - 0: horizontal thrust on X and Y, the vehicle stays level
+ * - 1: horizontal thrust on X, Y by rolling
+ * - 2: horizontal thrust on Y, X by pitching
+ * - 3: no horizontal thrust, X and Y by pitching and rolling
  *
  * @min 0
  * @max 3
- * @value 0 Disabled
- * @value 1 Roll only
- * @value 2 Pitch only
- * @value 3 Roll and Pitch
+ * @value 0 Horizontal thrust X and Y
+ * @value 1 Horizontal thrust X, roll for Y
+ * @value 2 Horizontal thrust Y, pitch for X
+ * @value 3 Pitch and roll, no horizontal thrust
  * @group DTRG
  */
 PARAM_DEFINE_INT32(DTRG_HT_MASK, 0);

@@ -309,12 +309,10 @@ void MulticopterPositionControl::parameters_update(bool force)
 		_ht_en = _param_dtrg_ht_en.get();
 
 		if (_ht_en) {
-			_ht_rc_en_add = _param_dtrg_ht_rc.get() - 1;
-			// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 means the input is disabled. Keep the
-			// sentinel at -1 rather than letting the -1 offset produce a negative
-			// index into rc_channels.channels[].
-			_ht_r_add = (_param_dtrg_ht_R.get() > 0) ? (_param_dtrg_ht_R.get() - 1) : -1;
-			_ht_p_add = (_param_dtrg_ht_P.get() > 0) ? (_param_dtrg_ht_P.get() - 1) : -1;
+			// RC_MAP_HT_* of 0 means the input is disabled, which maps to index -1
+			_ht_rc_en_add = dtrg_ht::channelIndex(_param_dtrg_ht_rc.get());
+			_ht_r_add = dtrg_ht::channelIndex(_param_dtrg_ht_R.get());
+			_ht_p_add = dtrg_ht::channelIndex(_param_dtrg_ht_P.get());
 			_dtrg_ht_mask = _param_dtrg_ht_mask.get();
 			_ht_limit = _param_dtrg_ht_max.get();
 			_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
@@ -323,27 +321,6 @@ void MulticopterPositionControl::parameters_update(bool force)
 
 
 	}
-}
-
-float MulticopterPositionControl::dtrgAuxTiltSetpoint(int channel_index, float limit) const
-{
-	// A channel parameter of 0 disables that input, which arrives here as -1. The
-	// upper bound is a belt-and-braces check on the channel parameters, which are
-	// not range-checked anywhere else before being used as an array index.
-	const int num_channels = static_cast<int>(sizeof(_rc_channels.channels) / sizeof(_rc_channels.channels[0]));
-
-	if ((channel_index < 0) || (channel_index >= num_channels)) {
-		return 0.f;
-	}
-
-	const float raw = _rc_channels.channels[channel_index];
-
-	// deadzone
-	if (!PX4_ISFINITE(raw) || (fabsf(raw) <= 0.02f)) {
-		return 0.f;
-	}
-
-	return math::constrain(raw * limit, -limit, limit);
 }
 
 PositionControlStates MulticopterPositionControl::set_vehicle_states(const vehicle_local_position_s
@@ -652,20 +629,16 @@ void MulticopterPositionControl::Run()
 
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
-			const bool ht_rc_enabled = (_ht_rc_en_add >= 0)
-						   && (_ht_rc_en_add < static_cast<int>(sizeof(_rc_channels.channels) / sizeof(
-								   _rc_channels.channels[0])))
-						   && (_rc_channels.channels[_ht_rc_en_add] > 0.5f);
 
-			if (_ht_en && ht_rc_enabled) {
+			if (dtrg_ht::switchActive(_rc_channels, _ht_en != 0, _ht_rc_en_add)) {
 
 				if (!_vehicle_control_mode.flag_control_offboard_enabled) {
 					// if offboard is not enabled, use the RC channels to get roll and pitch setpoints
 					// setpoints are constrained to the limits set by the with 0.02f deadzone.
 					// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 disables that axis' stick input, which
 					// leaves the corresponding setpoint at 0 (level).
-					roll_setpoint = dtrgAuxTiltSetpoint(_ht_r_add, _ht_r_limit);
-					pitch_setpoint = dtrgAuxTiltSetpoint(_ht_p_add, _ht_p_limit);
+					roll_setpoint = dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_r_add, _ht_r_limit);
+					pitch_setpoint = dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_p_add, _ht_p_limit);
 
 				} else {
 					if (_debug_array_sub.update(&_debug_array)) {
@@ -685,59 +658,28 @@ void MulticopterPositionControl::Run()
 				float roll_RP = euler_RP.phi();
 				float pitch_RP = euler_RP.theta();
 
-				// Temporary variables for final roll/pitch to use in quaternion
-				float final_roll = 0.f;
-				float final_pitch = 0.f;
-
-				// Pick and Choose the attitude stuff using parameter
-				if (_dtrg_ht_mask == 1) {// Roll for y axis
-					final_roll = roll_RP;
-					final_pitch = pitch_setpoint;
-
-				} else if (_dtrg_ht_mask == 2) { //Pitch for x axis
-					final_pitch = pitch_RP;
-					final_roll = roll_setpoint;
-
-				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
-					final_roll = roll_RP;
-					final_pitch = pitch_RP;
-
-				} else {
-					final_roll = roll_setpoint;
-					final_pitch = pitch_setpoint;
-				}
+				// Pick the HT or the controller tilt per axis using the mask
+				const dtrg_ht::Tilt tilt = dtrg_ht::positionControlTilt(_dtrg_ht_mask, roll_setpoint, pitch_setpoint,
+							   roll_RP, pitch_RP);
 
 				// set the yaw setpoint and complete the qd quaternion
 				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
-				Quatf q_sp = Eulerf(final_roll, final_pitch, local_pos_sp.yaw);
+				Quatf q_sp = Eulerf(tilt.roll, tilt.pitch, local_pos_sp.yaw);
 				q_sp.copyTo(attitude_setpoint.q_d);
 				// convert thrusts from inertial to body frame
 				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0],
 						      local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
 
-				// Pick and Choose the horizontal thrust stuff using parameter
-				if (_dtrg_ht_mask == 1) { //roll for y
-					attitude_setpoint.thrust_body[0] =  thrust_frd(0); //thrust for x
+				// horizontal thrust on the axes selected by the mask, constrained to DTRG_HT_MAX
+				const dtrg_ht::HorizontalThrust ht = dtrg_ht::horizontalThrust(_dtrg_ht_mask, thrust_frd(0), thrust_frd(1),
+								     _ht_limit);
+				attitude_setpoint.thrust_body[0] = ht.x;
+				attitude_setpoint.thrust_body[1] = ht.y;
 
-				} else if (_dtrg_ht_mask == 2) { //pitch for x
-					attitude_setpoint.thrust_body[1] =  thrust_frd(1); //thrust for y
-
-				} else if (_dtrg_ht_mask == 3) { //ROLL AND PITCH AND HT THRUST (WARNING Might be unstable)
-					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
-					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
-
-				} else {
-					attitude_setpoint.thrust_body[0] =  thrust_frd(0);
-					attitude_setpoint.thrust_body[1] =  thrust_frd(1);
-				}
-
-				// check for saturation
 				horizontal_thrust_limit_s hzlim_msg{};
 				hzlim_msg.timestamp = hrt_absolute_time();
-				attitude_setpoint.thrust_body[0] = math::constrain(attitude_setpoint.thrust_body[0], -_ht_limit, _ht_limit);
-				hzlim_msg.x_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[0]) - _ht_limit) < FLT_EPSILON);
-				attitude_setpoint.thrust_body[1] = math::constrain(attitude_setpoint.thrust_body[1], -_ht_limit, _ht_limit);
-				hzlim_msg.y_sat = (fabsf(fabsf(attitude_setpoint.thrust_body[1]) - _ht_limit) < FLT_EPSILON);
+				hzlim_msg.x_sat = ht.x_sat;
+				hzlim_msg.y_sat = ht.y_sat;
 				_horizontal_thrust_limit_pub.publish(hzlim_msg);
 
 				//vertical thrust

@@ -42,6 +42,7 @@
 #include "GotoControl/GotoControl.hpp"
 
 #include <drivers/drv_hrt.h>
+#include <lib/dtrg_horizontal_thrust/dtrg_horizontal_thrust.hpp>
 #include <lib/mathlib/mathlib.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <lib/mathlib/math/filter/NotchFilter.hpp>
@@ -152,15 +153,6 @@ private:
 	// 0-based RC channel indices, -1 when the channel parameter is 0 (input disabled)
 	int _ht_r_add{-1};                     	/**< DTRG horizontal thrust Roll channel */
 	int _ht_p_add{-1}; 	       		/**< DTRG horizontal thrust Pitch channel */
-
-	/**
-	 * Scaled tilt setpoint from a DTRG-assigned RC channel.
-	 *
-	 * @param channel_index 0-based RC channel, or -1 when RC_MAP_HT_ROLL/RC_MAP_HT_PITCH is 0
-	 * @param limit         magnitude limit [rad]
-	 * @return              0 when the input is disabled, out of range or inside the deadzone
-	 */
-	float dtrgAuxTiltSetpoint(int channel_index, float limit) const;
 
 
 	vehicle_land_detected_s _vehicle_land_detected {
