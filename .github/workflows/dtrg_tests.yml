@@ -1,0 +1,137 @@
+name: DTRG Tests
+
+# Automated tests of the DTRG features (Tools/dtrg/SITL_TESTING.md):
+#   tier 1 - unit tests (gtest, no simulator)            -> job "unit"
+#   tier 2 - logic tests on PX4 SITL with SIH (pytest)   -> job "sih"
+#
+# Scoped to dtrg-main like dtrg_build.yml: every push to it and every pull
+# request into it. All jobs are meant to be required checks for dtrg-main.
+
+on:
+  push:
+    branches:
+      - 'dtrg-main'
+    paths-ignore:
+      - 'docs/**'
+      - 'Documentation/**'
+      - '**.md'
+  pull_request:
+    branches:
+      - 'dtrg-main'
+    paths-ignore:
+      - 'docs/**'
+      - 'Documentation/**'
+      - '**.md'
+  workflow_dispatch:
+
+# a new push to the same branch cancels the previous run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests (tier 1)
+    runs-on: ubuntu-latest
+    container: px4io/px4-dev-base-focal:2021-09-08
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # the container runs as a different user than the one that checked out
+      - name: Git ownership workaround
+        run: git config --system --add safe.directory '*'
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: sitl-test-ccache-${{ github.run_id }}
+          restore-keys: sitl-test-ccache-
+
+      - name: Configure ccache
+        run: |
+          mkdir -p ~/.ccache
+          echo "base_dir = ${GITHUB_WORKSPACE}" > ~/.ccache/ccache.conf
+          echo "compression = true" >> ~/.ccache/ccache.conf
+          echo "max_size = 150M" >> ~/.ccache/ccache.conf
+          echo "hash_dir = false" >> ~/.ccache/ccache.conf
+          ccache -z
+
+      # every test named Dtrg*: bench test, horizontal thrust, CSV mixer, desaturation order
+      - name: DTRG unit tests
+        run: make tests TESTFILTER=Dtrg
+
+      # the upstream allocator tests, which the DTRG desaturation order changes
+      - name: Control allocation unit tests
+        run: make tests TESTFILTER=ControlAllocation
+
+      # Informational until it has been seen green on this fork: it also runs the
+      # upstream tests that DTRG does not touch.
+      - name: Full PX4 unit test suite (non-blocking)
+        continue-on-error: true
+        run: make tests
+
+      - name: ccache statistics
+        run: ccache -s
+
+  sih:
+    name: SIH logic tests (tier 2)
+    runs-on: ubuntu-latest
+    container: px4io/px4-dev-base-focal:2021-09-08
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Git ownership workaround
+        run: git config --system --add safe.directory '*'
+
+      # shares the cache of the px4_sitl_default build in dtrg_build.yml
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: sitl-ccache-${{ github.run_id }}
+          restore-keys: sitl-ccache-
+
+      - name: Configure ccache
+        run: |
+          mkdir -p ~/.ccache
+          echo "base_dir = ${GITHUB_WORKSPACE}" > ~/.ccache/ccache.conf
+          echo "compression = true" >> ~/.ccache/ccache.conf
+          echo "max_size = 150M" >> ~/.ccache/ccache.conf
+          echo "hash_dir = false" >> ~/.ccache/ccache.conf
+          ccache -z
+
+      - name: Build px4_sitl_default
+        run: make px4_sitl_default
+
+      - name: Install test requirements
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r test/dtrg/requirements.txt
+
+      - name: Run SIH tests
+        run: >
+          python3 -m pytest test/dtrg -m "sih and not flight" -v
+          --airframe=sihsim_planar_octo
+          --px4-build=build/px4_sitl_default
+          --basetemp=test-out
+          --junitxml=test-out/junit.xml
+
+      # px4.log and the ULogs of every test
+      - name: Upload test output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtrg-sih-test-output
+          path: test-out/
+          if-no-files-found: ignore
+
+      - name: ccache statistics
+        if: always()
+        run: ccache -s

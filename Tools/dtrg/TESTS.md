@@ -8,6 +8,13 @@ are in [SITL_TESTING.md](SITL_TESTING.md).
   - [DtrgMixerCsv](#dtrgmixercsv): CSV mixer parser
   - [DtrgBenchSwitch](#dtrgbenchswitch): bench test direction switch
   - [DtrgBenchProfile](#dtrgbenchprofile): bench test excitation profile
+- [Tier 2: SIH logic tests](#tier-2-sih-logic-tests)
+  - [test_smoke.py](#test_smokepy): harness and DTRG firmware marker
+  - [test_rc_conflict.py](#test_rc_conflictpy): RC channel conflict check
+  - [test_bench_test_safety.py](#test_bench_test_safetypy): entering and arming bench test
+  - [test_bench_test_outputs.py](#test_bench_test_outputspy): bench test setpoints
+  - [test_horizontal_thrust.py](#test_horizontal_thrustpy): horizontal thrust in Stabilized
+  - [test_csv_mixer.py](#test_csv_mixerpy): CSV mixer without a file
 
 ---
 
@@ -181,3 +188,148 @@ freezes. Tests use a margin of 0.05.
 | `NonFiniteOutputsAreIgnored` | A NaN output does not count as saturated |
 | `MarginIsClamped` | A margin above 0.5 behaves as 0.5, a negative margin as 0 (only exactly 0 or 1 counts) |
 | `MotorCountAboveArrayIsBounded` | A motor count of 1000 never reads past the output array |
+
+---
+
+## Tier 2: SIH logic tests
+
+```
+make px4_sitl_default
+pip3 install -r test/dtrg/requirements.txt
+python3 -m pytest test/dtrg -m "sih and not flight" -v
+```
+
+These run the whole PX4 SITL with the SIH simulator on the planarOcto
+(`sihsim_planar_octo`) and talk to it over MAVLink like a ground station. They
+check decisions and setpoints (arming accepted or denied, mode, status texts,
+the published setpoints), not how the vehicle moves: nothing takes off here.
+How to run, options and gotchas are in [test/dtrg/README.md](../../test/dtrg/README.md).
+
+Every test boots a fresh PX4 with a clean rootfs (10-25 s per test). Its
+parameters are set at boot through `PX4_PARAM_*`, and the fixture fails the
+test if one did not boot with the requested value. Tests that need RC stream
+`RC_CHANNELS_OVERRIDE` at 50 Hz with one fixed layout (`test/dtrg/rc_layout.py`):
+
+| Channel | Function |
+|---|---|
+| 1-4 | roll, pitch, throttle, yaw |
+| 5 | flight mode switch: slot 1 Stabilized, slot 4 Position, slot 6 Bench test |
+| 6 | bench test direction switch (`RC_MAP_CMD_SIGN`) |
+| 8 | horizontal thrust on/off (`RC_MAP_HT_MODE`) |
+| 9, 10 | horizontal thrust aux roll / pitch tilt (`RC_MAP_HT_ROLL`, `RC_MAP_HT_PITCH`) |
+
+RC starts safe: sticks centred, throttle low, Stabilized slot, switches off.
+
+Rerun one test, keeping its `px4.log` and ULogs:
+
+```
+python3 -m pytest test/dtrg -k bench_test_rejected_while_armed -v --basetemp=/tmp/dtrg
+```
+
+**Known gap** tests describe bugs that are not fixed yet. They are marked
+`xfail(strict=True)`: they pass while the bug is there and turn red once it is
+fixed, as a reminder to drop the marker.
+
+### test_smoke.py
+
+Checks the harness itself before anything else is blamed.
+
+| Test | Passes when |
+|---|---|
+| `test_boots_dtrg_firmware_and_is_ready_to_arm` | PX4 boots, `SYS_STATUS.errors_count4` is 706 (the DTRG firmware marker, so this is not an upstream build) and the arming checks pass |
+| `test_rc_override_drives_the_flight_mode_switch` | With RC streamed, the mode switch puts the vehicle in Stabilized and `COM_RC_IN_MODE` is 0 (RC only): RC override really reaches the mode logic |
+
+### test_rc_conflict.py
+
+Code under test: commander `rcChannelConflictCheck`
+
+Two `RC_MAP_*` functions on the same raw channel would make one switch do two
+things (e.g. the throttle stick also toggling horizontal thrust). Commander must
+refuse to arm, name both parameters, and allow arming again once the overlap is
+gone. `COM_ARM_RC_CONF=1` turns the failure into a warning. The conflict used is
+`RC_MAP_HT_MODE` moved onto the throttle channel (3).
+
+No RC is streamed: the check only reads the configuration, and
+`COM_RC_IN_MODE=1` keeps a missing RC link from failing arming for another reason.
+
+| Test | Scenario | Passes when |
+|---|---|---|
+| `test_conflict_blocks_arming_and_names_both_parameters` | Conflict created at runtime | Arming is refused, `Preflight Fail: RC_MAP_HT_MODE and RC_MAP_THROTTLE both use RC channel 3` is sent, vehicle stays disarmed |
+| `test_resolving_conflict_allows_arming_again` | Conflict created, then `RC_MAP_HT_MODE` moved back to channel 8 | `RC channel conflict resolved` is sent, the arming checks pass and the vehicle arms |
+| `test_conflict_configured_before_boot_blocks_arming` | Conflict already in the parameters at boot | The failure is printed on the console at boot; with `COM_ARM_RC_CONF=1` arming is allowed, back to 0 it is refused again. Checks the boot-time scan of the parameter table, not only the change handler |
+| `test_com_arm_rc_conf_warns_without_blocking` | `COM_ARM_RC_CONF=1`, conflict created | `RC ch 3: ...` warning is sent and the vehicle still arms |
+| `test_failsafe_channel_may_share_throttle` | `RC_MAP_FAILSAFE` on the throttle channel | Not a conflict: the failsafe channel is documented to sit on throttle |
+| `test_flight_mode_buttons_only_count_without_mode_switch` | `RC_MAP_FLTM_BTN` includes channel 8 (the HT switch) | Not a conflict while `RC_MAP_FLTMODE` is set (the buttons are ignored then); a conflict once `RC_MAP_FLTMODE` is 0 |
+
+### test_bench_test_safety.py
+
+Code under test: commander (mode and arming rules for bench test)
+
+Bench test drives the motors with every control loop off, so it is fenced in:
+only reachable from an RC mode slot, never over MAVLink; never entered while
+armed; only armed with `BT_ARM_ENABLE=1` and the direction switch centred; and it
+may always be disarmed. Tests use a hover thrust of 0.2, far below what lifts
+the vehicle, since SIH does not tie it down like a real rig.
+
+| Plan ID | Test | Passes when |
+|---|---|---|
+| - | `test_rc_slot_selects_bench_test_while_disarmed` | Moving the mode switch to slot 6 while disarmed enters bench test (HEARTBEAT main mode 11). Control case for B1 and B4 |
+| B1 | `test_bench_test_rejected_while_armed` | Armed in Stabilized, switching to slot 6 gives `Bench test mode denied: disarm first`; the vehicle stays armed in Stabilized. Once disarmed, the same switch (moved away and back) enters bench test |
+| B4 | `test_mavlink_cannot_select_bench_test` | `DO_SET_MODE` to main mode 11 leaves the vehicle in Stabilized. Commander ACKs it as accepted (an unknown custom mode is a no-op), so the test checks the mode, not the ACK |
+| B2 | `test_arming_needs_bt_arm_enable` | In bench test with `BT_ARM_ENABLE=0`, arming is refused with `Arming denied: bench test not enabled`; after setting it to 1 the same request arms |
+| B3 | `test_arming_needs_centred_direction_switch[switch_up/switch_down]` | Direction switch up or down: arming is refused with `Arming denied: centre the bench test direction switch`; once centred, it arms. Otherwise the excitation would start the moment the motors spin up |
+| B3b | `test_off_centre_switch_allowed_when_it_cannot_excite[hover_only_profile/no_switch_assigned]` | With `BT_MODE=0` (hover only) or no switch assigned (`RC_MAP_CMD_SIGN=0`), an off-centre switch cannot excite anything, so arming is allowed |
+| B6 | `test_disarm_allowed_in_bench_test` | Armed in bench test, disarm is honoured. On a real rig the land detector reports "in air" once the motors spin and bench test allows disarming anyway; SIH stays landed, so this only checks a normal disarm (the in-air case needs a rig) |
+| - | `test_rc_layout_has_no_conflicts` | No two functions in `rc_layout.RC_PARAMS` share a channel. Guards every RC test against failing on the conflict check instead of what it tests. Does not boot PX4 |
+
+### test_bench_test_outputs.py
+
+Code under test: `bench_test` module wiring (the maths is unit tested in
+[DtrgBenchProfile](#dtrgbenchprofile))
+
+Each test arms in bench test, waits for the spin-up, moves the direction switch
+for a while, centres it, disarms, then reads `vehicle_thrust_setpoint` and
+`vehicle_torque_setpoint` back from the ULog. The excited axis is thrust Z
+(`BT_AXIS=2`), hover 0.2, spin-up 1 s. Setpoints are NED body frame: -Z is up.
+
+| Plan ID | Test | Profile | Passes when |
+|---|---|---|---|
+| B5 | `test_step_profile[up/down]` | Step: delay 1 s, magnitude 0.1, duration 1 s | Hover baseline -0.2 is reached after the spin-up; exactly one step of 1 s (+-0.1 s) to -0.3 (switch up) or -0.1 (switch down); back to -0.2 afterwards; thrust X/Y and all torques stay 0; thrust Z is 0 whenever bench test is disarmed |
+| B5 | `test_spinup_ramps_hover_thrust` | Hover only | Thrust Z starts near 0 when arming, never jumps, and follows a linear ramp to -0.2 over `BT_SPINUP_T` (+-0.03) |
+| B5 | `test_ramp_profile_stops_at_max_value` | Ramp: 0.1 per second, `BT_MAX_VAL` 0.05 | The excitation never exceeds 0.05, is held there for over 1 s, and drops back to 0 once the switch is centred |
+
+### test_horizontal_thrust.py
+
+Code under test: mc_att_control horizontal thrust (HT) in Stabilized
+
+HT lets a fully actuated vehicle move sideways without tilting: with the HT
+switch on, the roll and pitch sticks command body X/Y thrust instead of
+attitude, and the aux channels 9 and 10 command a tilt. These tests check the
+wiring from RC to the `vehicle_attitude_setpoint` that mc_att_control publishes
+(`thrust_body` and the roll / pitch of `q_d`), disarmed, 1.5 s after each RC
+change. Parameters: `DTRG_HT_MAX` 0.5, `DTRG_HT_R_MAX` and `DTRG_HT_P_MAX` 10 deg.
+"Half stick" is 1750 us, which the RC deadzone turns into 0.49.
+
+| Test | RC | Passes when |
+|---|---|---|
+| `test_switch_off_is_standard_stabilized` | HT off, full pitch stick, aux roll full | No X/Y thrust, pitch below -5 deg (normal nose down), aux roll does nothing, `horizontal_thrust_limit` not published |
+| `test_switch_on_sticks_command_thrust_and_vehicle_stays_level` | HT on, full pitch stick, half roll stick | Thrust X = 0.5 (`DTRG_HT_MAX`), Y = 0.49 x 0.5, roll and pitch 0 (+-0.5 deg), `horizontal_thrust_limit` published |
+| `test_switch_toggles_ht_at_runtime` | Full pitch stick, HT switch off, on, off | Setpoint follows each change: tilt, then level with X thrust, then tilt again |
+| `test_switch_ignored_when_ht_disabled` | `DTRG_HT_EN=0`, HT on, full pitch stick | The switch is ignored: no X thrust, normal tilt, `horizontal_thrust_limit` not published |
+| `test_aux_channels_command_tilt_up_to_limit` | HT on, aux roll full, then aux pitch full | Roll +10 deg with pitch 0, then pitch -10 deg (nose down, like the pitch stick) with roll 0 |
+| `test_aux_channel_deadzone[1505/1515]` | HT on, aux roll at 1505 or 1515 us | 1505 us (0.01) is inside the 0.02 aux deadzone: roll 0. 1515 us (0.03) tilts by 0.03 x 10 deg |
+| `test_mask_selects_thrust_axes[mask0/1/2]` | `DTRG_HT_MASK` 0-2, HT on, full pitch, half roll | 0: X and Y by thrust; 1: X only; 2: Y only |
+| `test_mask_selects_thrust_axes[mask3]` | **Known gap (G6).** `DTRG_HT_MASK=3` | Should give no X/Y thrust (move by tilting only). Fails: HT is applied on both axes. Fixed on branch `salz167/DTRG_HT_refactor` |
+| `test_full_stick_reports_ht_saturation` | **Known gap (G3).** HT on, full pitch stick | Should set `horizontal_thrust_limit.x_sat` and `SYS_STATUS.errors_count3` bit 0. Fails: the demand is `stick * DTRG_HT_MAX`, and RC scaling gives 0.9999999, so X is 0.49999994 and never reaches the limit |
+
+### test_csv_mixer.py
+
+Code under test: control allocation with `DTRG_MIXER_CSV` (the parser is unit
+tested in [DtrgMixerCsv](#dtrgmixercsv))
+
+The mixer file path is hardcoded to `/fs/microsd/etc/mixer.csv`, which does not
+exist in SITL, so only the "no file" case can run here.
+
+| Plan ID | Test | Passes when |
+|---|---|---|
+| D2 | `test_csv_mixer_without_file_refuses_to_arm` | **Known gap (G4).** Should refuse to arm with `DTRG_MIXER_CSV=1` and no file. Fails: the allocator keeps an all-zero mixer and nothing stops arming, so the motors would not respond. Decide the behaviour (refuse to arm, or fall back to the geometry) before fixing |

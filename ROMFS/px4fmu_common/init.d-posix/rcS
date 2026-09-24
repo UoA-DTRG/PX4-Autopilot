@@ -236,6 +236,16 @@ then
 	exit 1
 fi
 
+# Apply the PX4_PARAM_{name} overrides again: a value equal to the firmware default
+# does not count as set, so the airframe's param set-default would otherwise win
+env | while IFS='=' read -r line; do
+  value=${line#*=}
+  name=${line%%=*}
+  case $name in
+    "PX4_PARAM_"*) param set "${name#PX4_PARAM_}" "$value" ;;
+  esac
+done
+
 dataman start
 
 # only start the simulator if not in replay mode, as both control the lockstep time
