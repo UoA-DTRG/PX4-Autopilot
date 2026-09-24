@@ -134,7 +134,8 @@ private:
 	uORB::Subscription _actuator_out_sub{ORB_ID(actuator_outputs)};
 
 	// hard constants
-	static constexpr uint16_t NUM_ACTUATORS_MAX = 9;
+	static constexpr uint16_t NUM_ACTUATORS_MAX = 16;
+	static constexpr int NUM_ROTORS_MAX = 12;           // as many as control allocation supports (CA_ROTOR_COUNT)
 	static constexpr float T1_C = 15.0f;                        // ground temperature in Celsius
 	static constexpr float T1_K = T1_C - atmosphere::kAbsoluteNullCelsius;   // ground temperature in Kelvin
 	static constexpr float TEMP_GRADIENT = -6.5f / 1000.0f;    // temperature gradient in degrees per metre
@@ -152,6 +153,10 @@ private:
 
 	// generate the motors thrust and torque in the body frame
 	void generate_force_and_torques();
+
+	// load the rotor geometry of the generic multirotor from the CA_ROTOR* parameters
+	void update_rotor_geometry();
+	void generate_rotor_force_and_torques();
 
 	// apply the equations of motion of a rigid body and integrate one step
 	void equations_of_motion(const float dt);
@@ -220,9 +225,20 @@ private:
 
 	float       _u[NUM_ACTUATORS_MAX] {};         // thruster signals
 
-	enum class VehicleType {Multicopter, FixedWing, TailsitterVTOL, StandardVTOL};
+	enum class VehicleType {Multicopter, FixedWing, TailsitterVTOL, StandardVTOL, GenericMultirotor};
 
 	VehicleType _vehicle = VehicleType::Multicopter;
+
+	// generic multirotor: one rotor per motor output, geometry from CA_ROTOR*
+	struct Rotor {
+		matrix::Vector3f position;      // position relative to the centre of mass, body frame [m]
+		matrix::Vector3f axis;          // unit thrust direction, body frame
+		float thrust_max;               // thrust at full output [N]
+		float km;                       // drag torque per thrust [m], positive for CCW rotation
+	};
+
+	Rotor _rotors[NUM_ROTORS_MAX] {};
+	int _num_rotors{0};
 
 	// aerodynamic segments for the fixedwing
 	AeroSeg _wing_l = AeroSeg(SPAN / 2.0f, MAC, -4.0f, matrix::Vector3f(0.0f, -SPAN / 4.0f, 0.0f), 3.0f,
@@ -271,7 +287,7 @@ private:
 	// parameters
 	MapProjection _lpos_ref{};
 	float _lpos_ref_alt;
-	float _MASS, _T_MAX, _Q_MAX, _L_ROLL, _L_PITCH, _KDV, _KDW, _T_TAU;
+	float _MASS, _T_MAX, _Q_MAX, _L_ROLL, _L_PITCH, _KDV, _KDW, _T_TAU, _THR_MDL_FAC;
 	matrix::Matrix3f _I;    // vehicle inertia matrix
 	matrix::Matrix3f _Im1;  // inverse of the inertia matrix
 
@@ -301,6 +317,7 @@ private:
 		(ParamFloat<px4::params::SIH_DISTSNSR_MAX>) _sih_distance_snsr_max,
 		(ParamFloat<px4::params::SIH_DISTSNSR_OVR>) _sih_distance_snsr_override,
 		(ParamFloat<px4::params::SIH_T_TAU>) _sih_thrust_tau,
+		(ParamFloat<px4::params::SIH_THR_MDL_FAC>) _sih_thr_mdl_fac,
 		(ParamInt<px4::params::SIH_VEHICLE_TYPE>) _sih_vtype
 	)
 };

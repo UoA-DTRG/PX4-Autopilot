@@ -52,6 +52,13 @@ if(CONFIG_MODULES_SIMULATION_PWM_OUT_SIM)
 	)
 endif()
 
+if(CONFIG_MODULES_SIMULATION_SIMULATOR_SIH AND CONFIG_MODULES_MC_RATE_CONTROL)
+	px4_add_romfs_files(
+		# planarOcto flying in SIH on the flight controller
+		12017_dtrg_planar_octo_sih.hil
+	)
+endif()
+
 if(CONFIG_MODULES_MC_RATE_CONTROL)
 	px4_add_romfs_files(
 		# [4000, 4999] Quadrotor x

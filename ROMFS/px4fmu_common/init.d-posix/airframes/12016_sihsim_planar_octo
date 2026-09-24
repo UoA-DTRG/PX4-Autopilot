@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# @name SIH DTRG planarOcto
+#
+# @type Octorotor x
+# @class Copter
+#
+# @desc The planarOcto (12013_dtrg_planar_octo) in SITL with SIH as the
+# simulator. SIH builds the vehicle from the same CA_ROTOR* geometry as control
+# allocation (SIH_VEHICLE_TYPE 4), so the tilted rotors make horizontal thrust
+# like on the real vehicle. Used by the DTRG flight tests (test/dtrg).
+#
+
+# skips the hardware output mapping of 12013 (HIL_ACT_FUNCx, PWM_AUX_FUNCx)
+PLANAR_OCTO_NATIVE_GZ_SITL=1
+. ${R}etc/init.d/airframes/12013_dtrg_planar_octo
+
+PX4_SIMULATOR=${PX4_SIMULATOR:=sihsim}
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=planar_octo}
+
+param set-default SENS_EN_GPSSIM 1
+param set-default SENS_EN_BAROSIM 1
+param set-default SENS_EN_MAGSIM 1
+
+param set-default EKF2_GPS_DELAY 0
+
+# SIH drives rotor n from output n, so Motors 1-8 go to outputs 1-8 in order
+param set-default PWM_MAIN_FUNC1 101
+param set-default PWM_MAIN_FUNC2 102
+param set-default PWM_MAIN_FUNC3 103
+param set-default PWM_MAIN_FUNC4 104
+param set-default PWM_MAIN_FUNC5 105
+param set-default PWM_MAIN_FUNC6 106
+param set-default PWM_MAIN_FUNC7 107
+param set-default PWM_MAIN_FUNC8 108
+
+# Vehicle model. Keep in sync with 12017_dtrg_planar_octo_sih.hil.
+# Geometry comes from CA_ROTOR* in 12013. Mass, inertia and propulsion are the
+# values of the Gazebo model (Tools/simulation/gz/models/planar_octo), which are
+# assumed or inherited from the FT-X8, not measured on the planarOcto:
+# - mass 1.46 kg body + 8 x 0.005 kg rotors
+# - inertia of the body plus the rotors as point masses at their CA_ROTOR positions
+# - T_MAX = motorConstant * maxRotVelocity^2 = 1.2138e-6 * 1774^2
+# - thrust curve: the THR_MDL_FAC fitted to the Gazebo motor model
+# - KDV about 8 x rotorDragCoefficient x hover rotor speed
+param set SIH_VEHICLE_TYPE 4
+param set-default SIH_MASS 1.5
+param set-default SIH_IXX 0.0254
+param set-default SIH_IYY 0.0254
+param set-default SIH_IZZ 0.0420
+param set-default SIH_T_MAX 3.82
+param set-default SIH_THR_MDL_FAC 0.670433
+param set-default SIH_T_TAU 0.03
+param set-default SIH_KDV 0.7
+
+# DTRG mapping for the keyboard/RC-override scripts, as in 12014_gz_planar_octo
+param set-default RC_MAP_HT_ROLL 9
+param set-default RC_MAP_HT_PITCH 10

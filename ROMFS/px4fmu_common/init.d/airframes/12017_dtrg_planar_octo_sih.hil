@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# @name DTRG planarOcto SIH
+#
+# @type Simulation
+# @class Copter
+#
+# @output Motor1 rotor 1
+# @output Motor2 rotor 2
+# @output Motor3 rotor 3
+# @output Motor4 rotor 4
+# @output Motor5 rotor 5
+# @output Motor6 rotor 6
+# @output Motor7 rotor 7
+# @output Motor8 rotor 8
+#
+# @desc The planarOcto flight stack on the real flight controller, flying a
+# vehicle simulated on the flight controller itself (Simulation-In-Hardware).
+# No PC or simulator is needed: SIH builds the vehicle from the CA_ROTOR*
+# geometry of 12013_dtrg_planar_octo (SIH_VEHICLE_TYPE 4). The real outputs
+# stay off (SYS_HITL 2), but remove the propellers anyway.
+#
+# @board px4_fmu-v2 exclude
+#
+
+. ${R}etc/init.d/airframes/12013_dtrg_planar_octo
+
+param set UAVCAN_ENABLE 0
+
+# set SYS_HITL to 2 to start the SIH and avoid sensors startup
+param set SYS_HITL 2
+
+# disable some checks to allow to fly:
+# - without real battery
+param set-default CBRK_SUPPLY_CHK 894281
+
+# Vehicle model. Keep in sync with init.d-posix/airframes/12016_sihsim_planar_octo,
+# which documents where the values come from.
+param set SIH_VEHICLE_TYPE 4
+param set-default SIH_MASS 1.5
+param set-default SIH_IXX 0.0254
+param set-default SIH_IYY 0.0254
+param set-default SIH_IZZ 0.0420
+param set-default SIH_T_MAX 3.82
+param set-default SIH_THR_MDL_FAC 0.670433
+param set-default SIH_T_TAU 0.03
+param set-default SIH_KDV 0.7
