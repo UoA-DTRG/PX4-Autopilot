@@ -113,7 +113,9 @@ void GZMixingInterfaceESC::motorSpeedCallback(const gz::msgs::Actuators &actuato
 
 	for (int i = 0; i < actuators.velocity_size(); i++) {
 		esc_status.esc[i].timestamp = hrt_absolute_time();
-		esc_status.esc[i].esc_rpm = actuators.velocity(i);
+		// Gazebo motor speeds are in rad/s; esc_rpm consumers (dynamic notch
+		// filter, rls_wrench_estimator) expect revolutions per minute.
+		esc_status.esc[i].esc_rpm = (int32_t)round(actuators.velocity(i) * 60.0 / (2.0 * M_PI));
 		esc_status.esc_online_flags |= 1 << i;
 
 		if (actuators.velocity(i) > 0) {
