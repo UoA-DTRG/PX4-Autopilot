@@ -26,7 +26,7 @@ are in [SITL_TESTING.md](SITL_TESTING.md).
 make tests TESTFILTER=Dtrg
 ```
 
-58 tests in 4 groups. They exercise PX4 code directly: there is no simulator, no
+65 tests in 4 groups. They exercise PX4 code directly: there is no simulator, no
 airframe and no running PX4. Each test is listed by name (`Group.Test`).
 Rerun one with:
 
@@ -60,10 +60,11 @@ thrust Z that puts every rotor at 0.5.
 Each saturation test first checks its own premise: the plain pseudo-inverse
 allocation of the demand really pushes a rotor outside [0, 1] (or does not,
 for the reference case). Otherwise a test could pass without anything being
-desaturated.
+desaturated. Each one also checks that desaturation leaves every rotor within
+[0, 1], i.e. that nothing is still saturated.
 
 | Test | Scenario | Passes when |
-|---|---|---|
+| --- | --- | --- |
 | `GeometryIsFullyActuated` | At hover, +0.2 on one axis at a time (roll, pitch, yaw, X, Y) | Every case is delivered exactly on all 6 axes. Checks the test vehicle, not the allocator: without the rotor tilt, X and Y would come out as 0. Guards the tests below against a broken setup. Nothing saturates, so the desaturation order is not exercised |
 | `UnsaturatedDemandIsAllocatedExactly` | Small demand on all 6 axes at once, within the rotor limits | Delivered exactly: desaturation leaves a feasible demand alone |
 | `HorizontalThrustIsReducedFirst` | Hover plus far more X thrust than the rotors can give | X is reduced but still forward; Z, Y, roll, pitch and yaw are untouched. The vehicle keeps altitude and attitude and pushes as hard forward as it can |
@@ -73,8 +74,15 @@ desaturated.
 | `ThrustIsReducedBeforeRoll` | Rotors at 0.9 plus roll 0.6, which pushes the upper rotors past 1 | Roll is kept exactly, thrust Z is lowered, no rotor ends above 1 |
 | `ThrustIsNeverIncreasedToDesaturate` | Rotors at 0.1 plus roll 1, which pushes the lower rotors below 0 | Thrust Z is not raised to make room (airmode off), roll is reduced instead |
 | `PublishesTopic` | One allocation at hover | The `sequential_desaturation` uORB topic is published, all six `*_sat` gains 0 |
-| `TopicReportsHorizontalThrustReduction` | **Known gap.** Impossible X demand at hover | Should report `x_sat` > 0.01 and roll / pitch near 0. Fails: `desaturateActuators()` returns only the gain of its second, half strength pass, so when the first pass already fixes the saturation the reported gain is 0 although X was cut. The sign is also lost on the way to `SYS_STATUS.errors_count1` |
-| `DesaturationDoesNotAddUnrequestedAxes` | **Known gap.** Rotors at 0.9 plus roll 1 | Should add no X, Y, yaw or pitch. Fails: the X, Y and yaw steps slide along their axis to reduce any saturation, so the output contains X thrust (about -0.02) and yaw (about -0.12) that nobody asked for |
+| `TopicReportsHorizontalThrustReduction` | Impossible X demand at hover | Reports `x_sat` > 0.01 and roll / pitch near 0. Regression test for G1: `desaturateActuators()` used to return only the gain of its second, half strength pass, which is 0 when the first pass already fixes the saturation |
+| `HorizontalThrustIsUsedToKeepRollAndPitch` | Rotors at 0.1 and 0.9 plus roll or pitch +-0.36, just past the rotor limits | Roll or pitch and thrust Z are delivered exactly: X (for roll) or Y (for pitch) is moved, even with no X / Y demand, to absorb the saturation. The other horizontal axis and yaw stay 0 (X / Y absorb it all before the yaw step), all rotors end within [0, 1]. G2, by design: the X, Y and yaw steps slide freely to keep roll and pitch |
+| `UnsaturatedNegativeDemandIsAllocatedExactly` | Small negative demand on all axes, within the rotor limits | Delivered exactly. Mirror of `UnsaturatedDemandIsAllocatedExactly`: a clamp that gets the sign wrong doubles negative demands even when nothing saturates |
+| `ImpossibleDemandIsReducedButKeepsItsSign` | Hover plus +-5 on X, Y and yaw, one at a time | The demanded axis is cut but keeps its sign, every other axis is kept exactly, and all rotors end within [0, 1] |
+| `OppositeHorizontalDemandsAreNotFlipped` | Hover plus X +5 and Y -5 | X may drop to 0 but never turns negative, Y is cut but never turns positive; Z, roll, pitch and yaw are kept |
+| `RollAndPitchAreReducedButKeepTheirSign` | Rotors at 0.1 plus roll or pitch +-1 | Thrust Z is kept (airmode off), the attitude axis is cut towards zero but keeps its sign |
+| `YawIsUsedOnceHorizontalThrustRunsOut` | Rotors at 0.1 and 0.9, roll or pitch +-1 | X or Y is used (about -+0.017) but is not enough, so yaw is used too (about +-0.12). The other of roll and pitch is not added: the vehicle does not tilt sideways |
+| `TopicReportsOnlyTheAxesThatWereUsed` | Rotors at 0.9 plus roll 1 | `z_sat` > 0.01, and `x_sat` and `yaw_sat` equal the X and yaw that were added to keep roll; `y_sat` and `pitch_sat` are 0: axes that were left alone report no gain |
+| `TopicGainIsTheAmountRemoved` | Hover plus X +-5 | `x_sat` has the opposite sign to the demand, and allocated X equals the demand plus `x_sat` |
 
 ### DtrgMixerCsv
 
@@ -90,7 +98,7 @@ Before each test the matrix is filled with 99 ("untouched"), and the file cells
 hold `row + 0.1 * (column + 1)`, so a value in the wrong place is obvious.
 
 | Test | File | Passes when |
-|---|---|---|
+| --- | --- | --- |
 | `MissingFileIsRejectedAndMixerUntouched` | Does not exist | Rejected, the matrix is left as it was |
 | `ReadsOctoMatrix` | 8 rows of 6 values | All 48 values land in the right row and column |
 | `RowsBeyondTheFileAreUntouched` | 8 rows | Rows 9 onwards keep their previous values: the parser does not clear them |
@@ -119,7 +127,7 @@ check, so a bug here affects both the excitation and the arming gate. Every
 doubtful case must decode as centre, the safe position.
 
 | Test | Input | Passes when |
-|---|---|---|
+| --- | --- | --- |
 | `PulseThresholds` | 1, 1000, 1299, 1300, 1500, 1700, 1701, 2000 us | 1701 and up is +1, 1299 and down is -1, 1300 to 1700 inclusive is centre: the thresholds themselves are centre |
 | `ZeroPulseIsCentre` | 0 us (unpopulated channel) | Centre, not "switch down" |
 | `InputRcUsesOneBasedChannel` | Channel 6 high, channel 7 low | `RC_MAP_CMD_SIGN = 6` reads `values[5]`: channel numbers start at 1 |
@@ -141,7 +149,7 @@ parameters that drive it.
 1 s duration, magnitude 0.1.
 
 | Test | Passes when |
-|---|---|
+| --- | --- |
 | `StepIsZeroBeforeDelay` | Output is 0 up to the end of the delay |
 | `StepIsActiveForDuration` | Output is 0.1 from 2 s up to (not including) 3 s, then 0 for good |
 | `StepFollowsSign` | Switch down gives -0.1, centre gives 0 |
@@ -150,7 +158,7 @@ parameters that drive it.
 **Ramp** (`BT_RAMP_RATE`, `BT_MAX_VAL`). Tests use 0.1 per second, clamp 0.5.
 
 | Test | Passes when |
-|---|---|
+| --- | --- |
 | `RampIncreasesLinearly` | 0, 0.1, 0.2 at 0, 1, 2 s, not frozen |
 | `RampNegativeSign` | Switch down gives -0.2 at 2 s |
 | `RampStopsAtMaxValAndFreezes` | Clamped to 0.5 and frozen, still 0.5 later |
@@ -162,7 +170,7 @@ parameters that drive it.
 come on.
 
 | Test | Passes when |
-|---|---|
+| --- | --- |
 | `SpinupRampsToOne` | Over 2 s the factor goes 0, 0.5, 1, and stays 1 |
 | `SpinupDisabled` | A spin-up time of 0 or less gives 1 straight away |
 
@@ -170,7 +178,7 @@ come on.
 excitation become thrust and torque setpoints. Body frame, NED, so -Z is up.
 
 | Test | Passes when |
-|---|---|
+| --- | --- |
 | `HoverBaselineIsUpwardThrustOnly` | Hover 0.4 at half spin-up, no excitation: thrust Z is -0.2 and everything else 0 |
 | `EachAxisDrivesOnlyItsSetpoint` | X, Y, roll, pitch and yaw each drive only their own setpoint; thrust Z keeps the hover baseline |
 | `ThrustZExcitationAddsUpwardThrust` | Excitation on Z adds lift: hover 0.2 plus 0.1 gives thrust Z -0.3 |
@@ -180,7 +188,7 @@ excitation become thrust and torque setpoints. Body frame, NED, so -Z is up.
 freezes. Tests use a margin of 0.05.
 
 | Test | Passes when |
-|---|---|
+| --- | --- |
 | `CountFiniteMotors` | Counts the outputs that are not NaN (0, 4, 8). Used when `BT_NUM_MOTORS` is 0 (auto-detect) |
 | `MidRangeIsNotSaturated` | All motors at 0.5: not saturated |
 | `UpperMarginSaturates` | One motor at 0.95 is saturated, at 0.94 it is not |
@@ -213,7 +221,7 @@ test if one did not boot with the requested value. Tests that need RC stream
 `RC_CHANNELS_OVERRIDE` at 50 Hz with one fixed layout (`test/dtrg/rc_layout.py`):
 
 | Channel | Function |
-|---|---|
+| --- | --- |
 | 1-4 | roll, pitch, throttle, yaw |
 | 5 | flight mode switch: slot 1 Stabilized, slot 4 Position, slot 6 Bench test |
 | 6 | bench test direction switch (`RC_MAP_CMD_SIGN`) |
@@ -237,7 +245,7 @@ fixed, as a reminder to drop the marker.
 Checks the harness itself before anything else is blamed.
 
 | Test | Passes when |
-|---|---|
+| --- | --- |
 | `test_boots_dtrg_firmware_and_is_ready_to_arm` | PX4 boots, `SYS_STATUS.errors_count4` is 706 (the DTRG firmware marker, so this is not an upstream build) and the arming checks pass |
 | `test_rc_override_drives_the_flight_mode_switch` | With RC streamed, the mode switch puts the vehicle in Stabilized and `COM_RC_IN_MODE` is 0 (RC only): RC override really reaches the mode logic |
 
@@ -255,7 +263,7 @@ No RC is streamed: the check only reads the configuration, and
 `COM_RC_IN_MODE=1` keeps a missing RC link from failing arming for another reason.
 
 | Test | Scenario | Passes when |
-|---|---|---|
+| --- | --- | --- |
 | `test_conflict_blocks_arming_and_names_both_parameters` | Conflict created at runtime | Arming is refused, `Preflight Fail: RC_MAP_HT_MODE and RC_MAP_THROTTLE both use RC channel 3` is sent, vehicle stays disarmed |
 | `test_resolving_conflict_allows_arming_again` | Conflict created, then `RC_MAP_HT_MODE` moved back to channel 8 | `RC channel conflict resolved` is sent, the arming checks pass and the vehicle arms |
 | `test_conflict_configured_before_boot_blocks_arming` | Conflict already in the parameters at boot | The failure is printed on the console at boot; with `COM_ARM_RC_CONF=1` arming is allowed, back to 0 it is refused again. Checks the boot-time scan of the parameter table, not only the change handler |
@@ -274,7 +282,7 @@ may always be disarmed. Tests use a hover thrust of 0.2, far below what lifts
 the vehicle, since SIH does not tie it down like a real rig.
 
 | Plan ID | Test | Passes when |
-|---|---|---|
+| --- | --- | --- |
 | - | `test_rc_slot_selects_bench_test_while_disarmed` | Moving the mode switch to slot 6 while disarmed enters bench test (HEARTBEAT main mode 11). Control case for B1 and B4 |
 | B1 | `test_bench_test_rejected_while_armed` | Armed in Stabilized, switching to slot 6 gives `Bench test mode denied: disarm first`; the vehicle stays armed in Stabilized. Once disarmed, the same switch (moved away and back) enters bench test |
 | B4 | `test_mavlink_cannot_select_bench_test` | `DO_SET_MODE` to main mode 11 leaves the vehicle in Stabilized. Commander ACKs it as accepted (an unknown custom mode is a no-op), so the test checks the mode, not the ACK |
@@ -295,7 +303,7 @@ for a while, centres it, disarms, then reads `vehicle_thrust_setpoint` and
 (`BT_AXIS=2`), hover 0.2, spin-up 1 s. Setpoints are NED body frame: -Z is up.
 
 | Plan ID | Test | Profile | Passes when |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | B5 | `test_step_profile[up/down]` | Step: delay 1 s, magnitude 0.1, duration 1 s | Hover baseline -0.2 is reached after the spin-up; exactly one step of 1 s (+-0.1 s) to -0.3 (switch up) or -0.1 (switch down); back to -0.2 afterwards; thrust X/Y and all torques stay 0; thrust Z is 0 whenever bench test is disarmed |
 | B5 | `test_spinup_ramps_hover_thrust` | Hover only | Thrust Z starts near 0 when arming, never jumps, and follows a linear ramp to -0.2 over `BT_SPINUP_T` (+-0.03) |
 | B5 | `test_ramp_profile_stops_at_max_value` | Ramp: 0.1 per second, `BT_MAX_VAL` 0.05 | The excitation never exceeds 0.05, is held there for over 1 s, and drops back to 0 once the switch is centred |
@@ -313,7 +321,7 @@ change. Parameters: `DTRG_HT_MAX` 0.5, `DTRG_HT_R_MAX` and `DTRG_HT_P_MAX` 10 de
 "Half stick" is 1750 us, which the RC deadzone turns into 0.49.
 
 | Test | RC | Passes when |
-|---|---|---|
+| --- | --- | --- |
 | `test_switch_off_is_standard_stabilized` | HT off, full pitch stick, aux roll full | No X/Y thrust, pitch below -5 deg (normal nose down), aux roll does nothing, `horizontal_thrust_limit` not published |
 | `test_switch_on_sticks_command_thrust_and_vehicle_stays_level` | HT on, full pitch stick, half roll stick | Thrust X = 0.5 (`DTRG_HT_MAX`), Y = 0.49 x 0.5, roll and pitch 0 (+-0.5 deg), `horizontal_thrust_limit` published |
 | `test_switch_toggles_ht_at_runtime` | Full pitch stick, HT switch off, on, off | Setpoint follows each change: tilt, then level with X thrust, then tilt again |
@@ -333,7 +341,7 @@ The mixer file path is hardcoded to `/fs/microsd/etc/mixer.csv`, which does not
 exist in SITL, so only the "no file" case can run here.
 
 | Plan ID | Test | Passes when |
-|---|---|---|
+| --- | --- | --- |
 | D2 | `test_csv_mixer_without_file_refuses_to_arm` | **Known gap (G4).** Should refuse to arm with `DTRG_MIXER_CSV=1` and no file. Fails: the allocator keeps an all-zero mixer and nothing stops arming, so the motors would not respond. Decide the behaviour (refuse to arm, or fall back to the geometry) before fixing |
 
 ---
@@ -379,7 +387,7 @@ Code under test: mc_pos_control and mc_att_control horizontal thrust, and
 commander, in flight
 
 | Plan ID | Test | Manoeuvre | Passes when |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | A1 | `test_a1_take_off_hold_and_land` | Take off, hold 10 s, Land | Altitude within 0.5 m of its setpoint and drift < 1 m during the hold; lands and disarms within 30 s. Baseline: if this fails, nothing below means anything |
 | A2 | `test_a2_ht_moves_the_vehicle_level` | HT on, Offboard position setpoint 5 m north | Moves 5 m (+-0.5) north and the true tilt stays below 3 deg throughout: HT moves the vehicle without tilting it |
 | A3 | `test_a3_without_ht_the_vehicle_tilts_to_move` | Same move with HT off | Moves 5 m (+-0.5) and pitches nose down past -5 deg. Control case for A2: shows A2's tilt limit would catch a vehicle that moves by tilting |

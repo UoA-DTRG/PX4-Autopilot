@@ -41,6 +41,7 @@
 #include "ControlAllocationSequentialDesaturation.hpp"
 
 
+
 void
 ControlAllocationSequentialDesaturation::allocate()
 {
@@ -68,24 +69,26 @@ float ControlAllocationSequentialDesaturation::desaturateActuators(
 	ActuatorVector &actuator_sp,
 	const ActuatorVector &desaturation_vector, bool increase_only)
 {
-	float gain = computeDesaturationGain(desaturation_vector, actuator_sp);
+	float gain_first = computeDesaturationGain(desaturation_vector, actuator_sp);
 
-	if (increase_only && gain < 0.f) {
+	if (increase_only && gain_first < 0.f) {
 		return 0.0f;
 	}
 
 	for (int i = 0; i < _num_actuators; i++) {
-		actuator_sp(i) += gain * desaturation_vector(i);
+		actuator_sp(i) += gain_first * desaturation_vector(i);
 	}
 
-	gain = 0.5f * computeDesaturationGain(desaturation_vector, actuator_sp);
+	float gain_second = 0.5f * computeDesaturationGain(desaturation_vector, actuator_sp);
 
 	for (int i = 0; i < _num_actuators; i++) {
-		actuator_sp(i) += gain * desaturation_vector(i);
+		actuator_sp(i) += gain_second * desaturation_vector(i);
 	}
 
-	return gain;
+	return gain_first + gain_second;
 }
+
+
 
 float ControlAllocationSequentialDesaturation::computeDesaturationGain(const ActuatorVector &desaturation_vector,
 		const ActuatorVector &actuator_sp)
@@ -201,11 +204,12 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 		yaw(i) = _mix(i, ControlAxis::YAW);
 	}
 
-	// First reduce foward thrust, then sideways thrust
+
+	// First reduce foward thrust, then sideways thrust, then yaw. These three may slide either way,
+	// even past zero, to relieve any saturation: X/Y thrust and yaw are given up (or added) so that
+	// roll and pitch are kept
 	float x_sat = desaturateActuators(_actuator_sp, thrust_x);
 	float y_sat = desaturateActuators(_actuator_sp, thrust_y);
-
-	// Desaturate yaw
 	float yaw_sat = desaturateActuators(_actuator_sp, yaw);
 
 	// only reduce thrust
