@@ -15,6 +15,8 @@ are in [SITL_TESTING.md](SITL_TESTING.md).
   - [test_bench_test_outputs.py](#test_bench_test_outputspy): bench test setpoints
   - [test_horizontal_thrust.py](#test_horizontal_thrustpy): horizontal thrust in Stabilized
   - [test_csv_mixer.py](#test_csv_mixerpy): CSV mixer without a file
+- [Tier 3: SIH flight tests](#tier-3-sih-flight-tests)
+  - [test_flight_ht.py](#test_flight_htpy): horizontal thrust in flight
 
 ---
 
@@ -333,3 +335,63 @@ exist in SITL, so only the "no file" case can run here.
 | Plan ID | Test | Passes when |
 |---|---|---|
 | D2 | `test_csv_mixer_without_file_refuses_to_arm` | **Known gap (G4).** Should refuse to arm with `DTRG_MIXER_CSV=1` and no file. Fails: the allocator keeps an all-zero mixer and nothing stops arming, so the motors would not respond. Decide the behaviour (refuse to arm, or fall back to the geometry) before fixing |
+
+---
+
+## Tier 3: SIH flight tests
+
+```
+python3 -m pytest test/dtrg -m flight -v
+```
+
+About 10 flights, ~10 minutes. Same harness, RC layout and known gap
+convention as [tier 2](#tier-2-sih-logic-tests), but here the planarOcto really
+flies: `SIH_VEHICLE_TYPE 4` builds the vehicle from the airframe's `CA_ROTOR*`
+geometry (the same one control allocation uses), so the eight tilted rotors can
+push sideways without tilting the body. These tests are marked `flight` and
+`fully_actuated`, so they are skipped on `--airframe=sihsim_quadx`.
+
+Each test takes off in Takeoff mode to 3 m (`MIS_TAKEOFF_ALT`), waits until the
+vehicle holds there, and then does its manoeuvre. Afterwards it reads two
+things back from the ULog:
+
+- **SIH ground truth** (`vehicle_*_groundtruth`), for how the vehicle really
+  moved and tilted.
+- **The estimate against its setpoint**, for "holds altitude / position"
+  (called drift below). With SIH's simulated baro and GPS, the estimate wanders
+  0.3-0.5 m in altitude and up to ~1 m horizontally from the truth. That is
+  estimator error, not the behaviour under test, so holding is judged the way
+  the controller sees it.
+
+HT parameters: `DTRG_HT_MAX` 0.5, `DTRG_HT_R_MAX` and `DTRG_HT_P_MAX` 10 deg.
+"Tilt" is max(|roll|, |pitch|). The tolerances are first guesses: in a plain
+hover with HT off the vehicle tilts ~3 deg (std, up to ~9 deg) while the
+position controller corrects the simulated GPS/IMU noise. Tighten them after
+~20 green CI runs.
+
+Known gap tests here use `xfail(strict=True, raises=...)`: only the assertion
+that describes the gap counts as the expected failure, so a timeout or crash
+in the same test still fails it.
+
+### test_flight_ht.py
+
+Code under test: mc_pos_control and mc_att_control horizontal thrust, and
+commander, in flight
+
+| Plan ID | Test | Manoeuvre | Passes when |
+|---|---|---|---|
+| A1 | `test_a1_take_off_hold_and_land` | Take off, hold 10 s, Land | Altitude within 0.5 m of its setpoint and drift < 1 m during the hold; lands and disarms within 30 s. Baseline: if this fails, nothing below means anything |
+| A2 | `test_a2_ht_moves_the_vehicle_level` | HT on, Offboard position setpoint 5 m north | Moves 5 m (+-0.5) north and the true tilt stays below 3 deg throughout: HT moves the vehicle without tilting it |
+| A3 | `test_a3_without_ht_the_vehicle_tilts_to_move` | Same move with HT off | Moves 5 m (+-0.5) and pitches nose down past -5 deg. Control case for A2: shows A2's tilt limit would catch a vehicle that moves by tilting |
+| A4 | `test_a4_aux_tilt_in_hover_holds_position[roll/pitch]` | **Known gap (G11).** HT on, Hold, aux roll or pitch channel full for 8 s | Should tilt to 10 deg (+-3.5, true) and drift < 0.5 m. Fails on the drift: HT delivers only 41% of the horizontal force the position controller asks for, so it cannot hold against the tilt and slides ~0.5 m/s |
+| A4b | `test_a4b_aux_tilt_reaches_the_limit[roll]` | HT on, Hold, aux roll full | The attitude half of A4, independent of G11: roll +10 deg (estimate +-2, truth +-3.5), pitch below 3 deg |
+| A4b | `test_a4b_aux_tilt_reaches_the_limit[pitch]` | **Known gap (G13).** HT on, Hold, aux pitch full | Should pitch -10 deg (nose down, as the same channel does in Stabilized, see `test_aux_channels_command_tilt_up_to_limit`). Fails: in Position / Hold / Offboard the channel pitches nose up. Which sign is intended still needs deciding |
+| A5 | `test_a5_offboard_tilt_setpoint_in_hover` | HT on, Offboard hold, `DEBUG_FLOAT_ARRAY` roll 0.1 rad (5.7 deg) at 10 Hz for 8 s | Estimated roll 5.7 deg (+-2), true roll +-3.5 (the estimate drifts ~2 deg from the truth while tilted, G14), drift < 0.5 m, still in Offboard |
+| A5b | `test_a5_offboard_tilt_is_limited` | **Known gap (G8).** Same, roll setpoint 20 deg (twice `DTRG_HT_R_MAX`) | Should stay within 10 deg (+2). Fails: the Offboard HT tilt is neither limited nor checked for NaN, so any MAVLink source can command any tilt |
+| A7 | `test_a7_toggling_ht_in_hover_is_smooth` | Hold 8 s as a reference, then HT switch on / off 5 times, 2 s each | Altitude within 0.7 m of its setpoint, drift < 1 m, and tilt below max(8 deg, the reference hover's tilt + 2 deg): switching HT does not kick the vehicle |
+| A8 | `test_a8_stabilized_ht_stick_moves_the_vehicle_level` | Take off to 6 m, HT on, Stabilized, full pitch stick for 3 s | Forward speed (true, along the heading) above 1 m/s and tilt below 3 deg. The manual counterpart of A2 |
+| B1b | `test_b1b_bench_test_rejected_in_flight` | Hovering in Hold, mode switch to the bench test slot | `Bench test mode denied: disarm first`; still armed and in Hold, and stays above 1.5 m. The in-air case of tier 2's B1 |
+
+A6 (allocator cuts X/Y before roll/pitch in flight) is not written: it needs
+the allocator's per-axis output in the log, which the desaturation topic cannot
+give yet (G1).

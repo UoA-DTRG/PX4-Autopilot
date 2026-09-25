@@ -230,6 +230,19 @@ void	hrt_init()
 	memset(&_hrt_work, 0, sizeof(_hrt_work));
 }
 
+static bool
+hrt_call_queued(struct hrt_call *entry)
+{
+	for (struct hrt_call *call = (struct hrt_call *)sq_peek(&callout_queue); call != nullptr;
+	     call = (struct hrt_call *)sq_next(&call->link)) {
+		if (call == entry) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static void
 hrt_call_enter(struct hrt_call *entry)
 {
@@ -449,8 +462,16 @@ hrt_call_invoke()
 			hrt_lock();
 		}
 
-		/* if the callout has a non-zero period, it has to be re-entered */
-		if (call->period != 0) {
+		/* if the callout has a non-zero period, it has to be re-entered
+		 *
+		 * Unlike the NuttX ISR, the callout runs unlocked here, and the work item it
+		 * schedules runs on another thread. If that thread re-registered this entry
+		 * meanwhile (e.g. ScheduleOnInterval() with a new interval, as GyroCalibration
+		 * does on arming), the entry is already queued: entering it a second time
+		 * links it twice and drops every call queued between the two positions,
+		 * which silently stops all other periodic work items.
+		 */
+		if (call->period != 0 && !hrt_call_queued(call)) {
 			// re-check call->deadline to allow for
 			// callouts to re-schedule themselves
 			// using hrt_call_delay()

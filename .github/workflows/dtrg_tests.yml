@@ -3,6 +3,7 @@ name: DTRG Tests
 # Automated tests of the DTRG features (Tools/dtrg/SITL_TESTING.md):
 #   tier 1 - unit tests (gtest, no simulator)            -> job "unit"
 #   tier 2 - logic tests on PX4 SITL with SIH (pytest)   -> job "sih"
+#   tier 3 - flight tests, planarOcto flying in SIH       -> job "flight"
 #
 # Scoped to dtrg-main like dtrg_build.yml: every push to it and every pull
 # request into it. All jobs are meant to be required checks for dtrg-main.
@@ -129,6 +130,63 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dtrg-sih-test-output
+          path: test-out/
+          if-no-files-found: ignore
+
+      - name: ccache statistics
+        if: always()
+        run: ccache -s
+
+  flight:
+    name: SIH flight tests (tier 3)
+    runs-on: ubuntu-latest
+    container: px4io/px4-dev-base-focal:2021-09-08
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Git ownership workaround
+        run: git config --system --add safe.directory '*'
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: sitl-ccache-${{ github.run_id }}
+          restore-keys: sitl-ccache-
+
+      - name: Configure ccache
+        run: |
+          mkdir -p ~/.ccache
+          echo "base_dir = ${GITHUB_WORKSPACE}" > ~/.ccache/ccache.conf
+          echo "compression = true" >> ~/.ccache/ccache.conf
+          echo "max_size = 150M" >> ~/.ccache/ccache.conf
+          echo "hash_dir = false" >> ~/.ccache/ccache.conf
+          ccache -z
+
+      - name: Build px4_sitl_default
+        run: make px4_sitl_default
+
+      - name: Install test requirements
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r test/dtrg/requirements.txt
+
+      # the fully actuated planarOcto (12016_sihsim_planar_octo), flying in SIH
+      - name: Run flight tests
+        run: >
+          python3 -m pytest test/dtrg -m flight -v
+          --airframe=sihsim_planar_octo
+          --basetemp=test-out
+          --junitxml=test-out/junit.xml
+
+      - name: Upload test output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtrg-flight-test-output
           path: test-out/
           if-no-files-found: ignore
 
