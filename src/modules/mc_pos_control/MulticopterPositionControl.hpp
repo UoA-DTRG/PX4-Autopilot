@@ -162,6 +162,15 @@ private:
 	 */
 	float dtrgAuxTiltSetpoint(int channel_index, float limit) const;
 
+	/**
+	 * Tilt setpoint from Offboard (DEBUG_FLOAT_ARRAY), limited to DTRG_HT_R_MAX / DTRG_HT_P_MAX.
+	 *
+	 * @param setpoint      commanded tilt [rad]
+	 * @param limit         magnitude limit [rad]
+	 * @return              the setpoint constrained to +-limit, 0 when it is not finite
+	 */
+	static float dtrgOffboardTiltSetpoint(float setpoint, float limit);
+
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,

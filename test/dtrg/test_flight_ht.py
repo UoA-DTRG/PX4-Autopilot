@@ -20,12 +20,15 @@ from vehicle import AUTO_LAND, AUTO_LOITER, MAIN_AUTO, MAIN_OFFBOARD, MAIN_POSCT
 pytestmark = [pytest.mark.sih, pytest.mark.flight, pytest.mark.fully_actuated]
 
 HT_MAX = 0.5
-TILT_MAX_DEG = 10.0
+TILT_MAX_DEG = 5.0
 
 HT_PARAMS = {**FLIGHT_PARAMS, "DTRG_HT_EN": 1, "DTRG_HT_MAX": HT_MAX, "DTRG_HT_R_MAX": TILT_MAX_DEG,
              "DTRG_HT_P_MAX": TILT_MAX_DEG}
 
 MOVE_NORTH = 5.0
+
+# HT tilt limit for A4: high enough that the position controller cannot make up for G11
+G11_TILT_DEG = 10.0
 
 # Holding a tilt with horizontal thrust, the true attitude is ~2 deg off the estimate (G14), so
 # commanded tilts are checked tightly against the estimate and loosely against the truth.
@@ -39,10 +42,6 @@ class G11DriftWhileTilted(AssertionError):
 
 class G13PitchSign(AssertionError):
     """Known gap G13. The xfail only accepts this, so a timeout or crash still fails the test."""
-
-
-class G8TiltNotLimited(AssertionError):
-    """Known gap G8. The xfail only accepts this, so a timeout or crash still fails the test."""
 
 
 def fly(sitl, params=None, rc=None):
@@ -131,7 +130,8 @@ def hold_sending_tilt(vehicle, roll, pitch, seconds):
                    "so it cannot hold position while tilted")
 @pytest.mark.parametrize("channel, axis", [(CH_HT_ROLL, "roll"), (CH_HT_PITCH, "pitch")], ids=["roll", "pitch"])
 def test_a4_aux_tilt_in_hover_holds_position(sitl, channel, axis):
-    vehicle, px4 = fly(sitl)
+    # G11 only shows above ~7 deg of HT tilt with MPC_TILTMAX_AIR 10; at the 5 deg default it holds
+    vehicle, px4 = fly(sitl, params={"DTRG_HT_R_MAX": G11_TILT_DEG, "DTRG_HT_P_MAX": G11_TILT_DEG})
 
     vehicle.set_rc(CH_HT_MODE, PWM_MAX)
     vehicle.hold(2.0)
@@ -143,7 +143,7 @@ def test_a4_aux_tilt_in_hover_holds_position(sitl, channel, axis):
     log = read_log(px4)
     settled = truth(log, start, end).last(3.0)
     angle = getattr(settled, axis)
-    assert abs(angle.mean()) == pytest.approx(TILT_MAX_DEG, abs=TRUE_TILT_TOL_DEG)  # its sign is checked in A4b
+    assert abs(angle.mean()) == pytest.approx(G11_TILT_DEG, abs=TRUE_TILT_TOL_DEG)  # its sign is checked in A4b
     error = horizontal_error(log, start, end)
     if error >= 0.5:
         raise G11DriftWhileTilted(f"{error:.2f} m off position holding {axis} at the HT limit")
@@ -200,20 +200,29 @@ def test_a5_offboard_tilt_setpoint_in_hover(sitl):
     assert vehicle.main_mode() == MAIN_OFFBOARD
 
 
-@pytest.mark.xfail(strict=True, raises=G8TiltNotLimited,
-                   reason="G8: the Offboard HT tilt is not limited to DTRG_HT_R_MAX")
 def test_a5_offboard_tilt_is_limited(sitl):
+    # G8: DEBUG_FLOAT_ARRAY is accepted from any MAVLink source, so its tilt is limited to
+    # DTRG_HT_R_MAX, and a NaN levels the vehicle
     vehicle, px4 = fly(sitl)
 
     vehicle.set_rc(CH_HT_MODE, PWM_MAX)
     offboard_hold(vehicle)
     start = vehicle.boot_time()
     hold_sending_tilt(vehicle, math.radians(2 * TILT_MAX_DEG), 0.0, 5.0)
+    tilted = vehicle.boot_time()
+    hold_sending_tilt(vehicle, math.nan, math.nan, 5.0)
     end = vehicle.boot_time()
 
-    tr = truth(read_log(px4), start, end)
-    if tr.roll.max() >= TILT_MAX_DEG + 2.0:
-        raise G8TiltNotLimited(f"rolled {tr.roll.max():.1f} deg, limit {TILT_MAX_DEG} deg")
+    log = read_log(px4)
+    tr = truth(log, start, tilted)
+    estimated_roll, _ = estimated_attitude(log, tilted - 2.0, tilted)
+    assert estimated_roll.mean() == pytest.approx(TILT_MAX_DEG, abs=EST_TILT_TOL_DEG)
+    assert tr.roll.max() < TILT_MAX_DEG + TRUE_TILT_TOL_DEG, \
+        f"rolled {tr.roll.max():.1f} deg, limit {TILT_MAX_DEG} deg"
+
+    level = truth(log, tilted, end).last(2.0)
+    assert level.tilt.max() < 2.0, f"still tilted {level.tilt.max():.1f} deg after a NaN tilt setpoint"
+    assert vehicle.main_mode() == MAIN_OFFBOARD
 
 
 def test_a7_toggling_ht_in_hover_is_smooth(sitl):
