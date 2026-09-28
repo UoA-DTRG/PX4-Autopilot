@@ -46,8 +46,8 @@
  *      roll stick). Pitch comes from the aux/offboard tilt.
  * - 2: horizontal thrust on Y; X movement by pitching (normal controller or
  *      pitch stick). Roll comes from the aux/offboard tilt.
- * - 3: no horizontal thrust; X and Y movement by pitching and rolling, as
- *      without HT.
+ * - 3: horizontal thrust on X and Y, and X and Y movement by pitching and
+ *      rolling as well. Not selectable yet: selectableMask() turns it into 0.
  *
  * Header-only so the unit tests (DtrgHorizontalThrustTest.cpp) can run it
  * without either module.
@@ -125,16 +125,28 @@ static inline float auxTiltSetpoint(const rc_channels_s &rc, int index, float li
 	return math::constrain(raw * limit, -limit, limit);
 }
 
-/// @return whether DTRG_HT_MASK moves along body X with horizontal thrust (masks 0 and 1)
-static inline bool maskUsesX(int32_t mask)
+/// highest DTRG_HT_MASK the modules act on; mask 3 (tilt and horizontal thrust) is not enabled yet
+static constexpr int32_t kMaxSelectableMask = 2;
+
+/**
+ * DTRG_HT_MASK as used by the modules.
+ * @return @p mask_param, or 0 (horizontal thrust X and Y) when it is outside 0..kMaxSelectableMask
+ */
+static inline int32_t selectableMask(int32_t mask_param)
 {
-	return (mask != 2) && (mask != 3);
+	return ((mask_param >= 0) && (mask_param <= kMaxSelectableMask)) ? mask_param : 0;
 }
 
-/// @return whether DTRG_HT_MASK moves along body Y with horizontal thrust (masks 0 and 2)
+/// @return whether DTRG_HT_MASK moves along body X with horizontal thrust (masks 0, 1 and 3)
+static inline bool maskUsesX(int32_t mask)
+{
+	return mask != 2;
+}
+
+/// @return whether DTRG_HT_MASK moves along body Y with horizontal thrust (masks 0, 2 and 3)
 static inline bool maskUsesY(int32_t mask)
 {
-	return (mask != 1) && (mask != 3);
+	return mask != 1;
 }
 
 struct HorizontalThrust {
@@ -146,7 +158,7 @@ struct HorizontalThrust {
 
 /**
  * Body frame horizontal thrust for the given mask. On an axis the mask moves by tilting
- * instead (Y for mask 1, X for mask 2, both for mask 3) the horizontal thrust is 0.
+ * only (Y for mask 1, X for mask 2) the horizontal thrust is 0.
  *
  * @param mask     DTRG_HT_MASK
  * @param x_demand demanded body X thrust (normalised)
@@ -177,7 +189,8 @@ struct Tilt {
 
 /**
  * Roll and pitch for the position controller with HT active: the controller's tilt on
- * an axis moved by tilting, the HT tilt (normally level) on an axis moved by horizontal thrust.
+ * an axis moved by tilting (both axes for mask 3), the HT tilt (normally level) on an axis
+ * moved by horizontal thrust only.
  *
  * @param mask       DTRG_HT_MASK
  * @param ht_roll    roll from the aux channel, or from the offboard HT attitude

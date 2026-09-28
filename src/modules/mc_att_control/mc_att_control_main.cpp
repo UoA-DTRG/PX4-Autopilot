@@ -115,7 +115,8 @@ MulticopterAttitudeControl::parameters_updated()
 		_ht_p_add = dtrg_ht::channelIndex(_param_dtrg_h_t_P.get());
 		_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
 		_ht_p_limit = math::radians(_param_dtrg_ht_p_max.get());
-		_dtrg_ht_mask = _param_dtrg_ht_mask.get();
+		// mask 3 (tilt and horizontal thrust) is not selectable yet and falls back to 0
+		_dtrg_ht_mask = dtrg_ht::selectableMask(_param_dtrg_ht_mask.get());
 	}
 
 }
@@ -189,23 +190,44 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 	_man_roll_input_filter.setParameters(dt, _param_mc_man_tilt_tau.get());
 	_man_pitch_input_filter.setParameters(dt, _param_mc_man_tilt_tau.get());
 
-	// we want to fly towards the direction of (roll, pitch)
+	const  float  roll_stick = _manual_control_setpoint.roll * _man_tilt_max;
+	const  float  pitch_stick = _manual_control_setpoint.pitch * _man_tilt_max;
 
-	Vector2f v = Vector2f();
+	const  float  roll_knob = dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_r_add, _ht_r_limit);
+	const  float  pitch_knob = dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_p_add, _ht_p_limit);
 
 
+	float  roll;
+	float  pitch;
 
 	if (htSwitchActive()) {
-		// Roll/pitch come from the assigned aux channels, scaled by the DTRG angle
-		// limits (DTRG_HT_R_MAX / DTRG_HT_P_MAX) rather than the manual tilt max.
-		// A channel parameter of 0 disables that axis, leaving its tilt at 0.
-		v = Vector2f(_man_roll_input_filter.update(dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_r_add, _ht_r_limit)),
-			     -_man_pitch_input_filter.update(dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_p_add, _ht_p_limit)));
+
+		// Pick and Choose the roll/pitch inputs using parameter mask
+		if (_dtrg_ht_mask == 1) { // roll for y, HT for x - use stick roll for attitude, RC pitch
+			roll = roll_stick;
+			pitch = pitch_knob;
+
+		} else if (_dtrg_ht_mask == 2) { // pitch for x, HT for y - use RC roll, stick pitch for attitude
+			roll = roll_knob;
+			pitch = pitch_stick;
+
+		} else if (_dtrg_ht_mask == 3) { // tilt and HT on both axes - stick roll and pitch
+			// forward stick: nose down (negative pitch) and +X thrust; right stick: positive roll and +Y thrust
+			roll = roll_stick;
+			pitch = pitch_stick;
+
+		} else { //standard HT (mask 0)
+			roll = roll_knob;
+			pitch = pitch_knob;
+		}
 
 	} else {
-		v = Vector2f(_man_roll_input_filter.update(_manual_control_setpoint.roll * _man_tilt_max),
-			     -_man_pitch_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max));
+		// Roll/pitch come from the manual control stick inputs, scaled by the manual tilt max.
+		roll = roll_stick;
+		pitch = pitch_stick;
 	}
+
+	Vector2f v = Vector2f(_man_roll_input_filter.update(roll), -_man_pitch_input_filter.update(pitch));
 
 	float v_norm = v.norm(); // the norm of v defines the tilt angle
 
@@ -231,47 +253,10 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 		AttitudeControlMath::correctTiltSetpointForYawError(q_sp_rp, q, q_sp_yaw);
 	}
 
-	// DTRG horizontal thrust: override roll/pitch quaternion and thrust when HT is active
-	if (htSwitchActive()) {
-		// Recalculate quaternion based on HT mask mode
-		Vector2f v_ht;
+	// Align the desired tilt with the yaw setpoint
+	Quatf q_sp = q_sp_yaw * q_sp_rp;
+	q_sp.copyTo(attitude_setpoint.q_d);
 
-		// Pick and Choose the roll/pitch inputs using parameter mask
-		if (_dtrg_ht_mask == 1) { //roll for y, HT for x - use stick roll for attitude, RC pitch
-			v_ht = Vector2f(_man_roll_input_filter.update(_manual_control_setpoint.roll * _man_tilt_max),
-					-_man_pitch_input_filter.getState()); // Use RC pitch from earlier
-
-		} else if (_dtrg_ht_mask == 2) { //pitch for x, HT for y - use RC roll, stick pitch for attitude
-			v_ht = Vector2f(_man_roll_input_filter.getState(), // Use RC roll from earlier
-					-_man_pitch_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max));
-
-		} else if (_dtrg_ht_mask == 3) { // tilt on both axes, no horizontal thrust
-			// Use stick inputs for attitude (swapped)
-			v_ht = Vector2f(_man_roll_input_filter.update(_manual_control_setpoint.pitch * _man_tilt_max),
-					-_man_pitch_input_filter.update(_manual_control_setpoint.roll * _man_tilt_max));
-
-		} else { //standard HT (mask 0) - attitude already set from RC channels above
-			v_ht = Vector2f(_man_roll_input_filter.getState(),
-					-_man_pitch_input_filter.getState());
-		}
-
-		// Regenerate quaternion with HT roll/pitch
-		float v_ht_norm = v_ht.norm();
-
-		if (v_ht_norm > _man_tilt_max) {
-			v_ht *= _man_tilt_max / v_ht_norm;
-		}
-
-		Quatf q_sp_rp_ht = AxisAnglef(v_ht(0), v_ht(1), 0.f);
-		Quatf q_sp_ht = q_sp_yaw * q_sp_rp_ht;
-		q_sp_ht.copyTo(attitude_setpoint.q_d);
-
-	} else {
-		// Normal operation - use original quaternion
-		// Align the desired tilt with the yaw setpoint
-		Quatf q_sp = q_sp_yaw * q_sp_rp;
-		q_sp.copyTo(attitude_setpoint.q_d);
-	}
 
 	attitude_setpoint.thrust_body[2] = -throttle_curve(_manual_control_setpoint.throttle);
 

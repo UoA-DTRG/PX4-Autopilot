@@ -199,8 +199,20 @@ TEST(DtrgHorizontalThrust, MaskAxes)
 	EXPECT_FALSE(maskUsesX(2));
 	EXPECT_TRUE(maskUsesY(2));
 
-	EXPECT_FALSE(maskUsesX(3));
-	EXPECT_FALSE(maskUsesY(3));
+	EXPECT_TRUE(maskUsesX(3));
+	EXPECT_TRUE(maskUsesY(3));
+}
+
+TEST(DtrgHorizontalThrust, SelectableMask)
+{
+	EXPECT_EQ(selectableMask(0), 0);
+	EXPECT_EQ(selectableMask(1), 1);
+	EXPECT_EQ(selectableMask(2), 2);
+
+	// mask 3 is not selectable yet, nor is anything out of range
+	EXPECT_EQ(selectableMask(3), 0);
+	EXPECT_EQ(selectableMask(7), 0);
+	EXPECT_EQ(selectableMask(-1), 0);
 }
 
 TEST(DtrgHorizontalThrust, MaskZeroUsesBothAxes)
@@ -226,14 +238,20 @@ TEST(DtrgHorizontalThrust, MaskTwoIsYOnly)
 	EXPECT_FLOAT_EQ(ht.y, -0.1f);
 }
 
-TEST(DtrgHorizontalThrust, MaskThreeHasNoHorizontalThrust)
+TEST(DtrgHorizontalThrust, MaskThreeUsesBothAxes)
 {
-	// both axes move by tilting: even a saturating demand gives no horizontal force
-	const HorizontalThrust ht = horizontalThrust(3, 0.8f, -0.9f, 0.5f);
-	EXPECT_FLOAT_EQ(ht.x, 0.f);
-	EXPECT_FLOAT_EQ(ht.y, 0.f);
+	// horizontal thrust on both axes, on top of the tilt
+	HorizontalThrust ht = horizontalThrust(3, 0.2f, -0.1f, 0.5f);
+	EXPECT_FLOAT_EQ(ht.x, 0.2f);
+	EXPECT_FLOAT_EQ(ht.y, -0.1f);
 	EXPECT_FALSE(ht.x_sat);
 	EXPECT_FALSE(ht.y_sat);
+
+	ht = horizontalThrust(3, 0.8f, -0.9f, 0.5f);
+	EXPECT_FLOAT_EQ(ht.x, 0.5f);
+	EXPECT_FLOAT_EQ(ht.y, -0.5f);
+	EXPECT_TRUE(ht.x_sat);
+	EXPECT_TRUE(ht.y_sat);
 }
 
 TEST(DtrgHorizontalThrust, ThrustIsClampedAndFlaggedSaturated)
@@ -294,6 +312,7 @@ TEST(DtrgHorizontalThrust, PositionControlTiltPerMask)
 	EXPECT_FLOAT_EQ(t.roll, ht_roll);
 	EXPECT_FLOAT_EQ(t.pitch, ctrl_pitch);
 
+	// X and Y by HT and by tilting: roll and pitch from the controller
 	t = positionControlTilt(3, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
 	EXPECT_FLOAT_EQ(t.roll, ctrl_roll);
 	EXPECT_FLOAT_EQ(t.pitch, ctrl_pitch);
@@ -301,7 +320,7 @@ TEST(DtrgHorizontalThrust, PositionControlTiltPerMask)
 
 TEST(DtrgHorizontalThrust, UnknownMaskBehavesAsFullHt)
 {
-	// DTRG_HT_MASK is bounded to 0..3, but an out of range value must not tilt with the controller
+	// DTRG_HT_MASK is bounded to 0..2, but an out of range value must not tilt with the controller
 	const Tilt t = positionControlTilt(7, 0.1f, 0.2f, 0.3f, 0.4f);
 	EXPECT_FLOAT_EQ(t.roll, 0.1f);
 	EXPECT_FLOAT_EQ(t.pitch, 0.2f);

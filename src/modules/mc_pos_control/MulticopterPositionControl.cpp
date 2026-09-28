@@ -313,7 +313,8 @@ void MulticopterPositionControl::parameters_update(bool force)
 			_ht_rc_en_add = dtrg_ht::channelIndex(_param_dtrg_ht_rc.get());
 			_ht_r_add = dtrg_ht::channelIndex(_param_dtrg_ht_R.get());
 			_ht_p_add = dtrg_ht::channelIndex(_param_dtrg_ht_P.get());
-			_dtrg_ht_mask = _param_dtrg_ht_mask.get();
+			// mask 3 (tilt and horizontal thrust) is not selectable yet and falls back to 0
+			_dtrg_ht_mask = dtrg_ht::selectableMask(_param_dtrg_ht_mask.get());
 			_ht_limit = _param_dtrg_ht_max.get();
 			_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
 			_ht_p_limit = math::radians(_param_dtrg_ht_p_max.get());

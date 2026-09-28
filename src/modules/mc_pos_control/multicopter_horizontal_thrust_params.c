@@ -60,14 +60,15 @@ PARAM_DEFINE_INT32(RC_MAP_HT_PITCH, 0);
  * - 0: horizontal thrust on X and Y, the vehicle stays level
  * - 1: horizontal thrust on X, Y by rolling
  * - 2: horizontal thrust on Y, X by pitching
- * - 3: no horizontal thrust, X and Y by pitching and rolling
+ *
+ * Mode 3 (horizontal thrust on X and Y together with pitching and rolling)
+ * is not available yet; a value of 3 is treated as 0.
  *
  * @min 0
- * @max 3
+ * @max 2
  * @value 0 Horizontal thrust X and Y
  * @value 1 Horizontal thrust X, roll for Y
  * @value 2 Horizontal thrust Y, pitch for X
- * @value 3 Pitch and roll, no horizontal thrust
  * @group DTRG
  */
 PARAM_DEFINE_INT32(DTRG_HT_MASK, 0);
