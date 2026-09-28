@@ -189,6 +189,10 @@ void LoggedTopics::add_default_topics()
 	// dtrg
 	add_topic("debug_vect");
 	add_topic("dtrg_custom");
+	// SITL interaction rod force/torque; absent on hardware and on models
+	// without a rod, hence optional. Full 250 Hz sensor rate: contact
+	// transients are the point of the measurement.
+	add_optional_topic("interaction_wrench", 4);
 
 	// log all raw sensors at minimal rate (at least 1 Hz)
 	add_topic_multi("battery_status", 200, 2);

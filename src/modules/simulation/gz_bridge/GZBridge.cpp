@@ -144,6 +144,17 @@ int GZBridge::init()
 		return PX4_ERROR;
 	}
 
+	// Interaction rod force/torque (planar_octo_rod and any other model carrying
+	// an interaction rod). Absent on every other model, in which case the
+	// subscription simply never fires.
+	std::string interaction_wrench_topic = "/world/" + _world_name + "/model/" + _model_name +
+					       "/joint/interaction_rod_joint/sensor/interaction_force/forcetorque";
+
+	if (!_node.Subscribe(interaction_wrench_topic, &GZBridge::interactionWrenchCallback, this)) {
+		PX4_ERR("failed to subscribe to %s", interaction_wrench_topic.c_str());
+		return PX4_ERROR;
+	}
+
 	std::string flow_topic = "/world/" + _world_name + "/model/" + _model_name +
 				 "/link/flow_link/sensor/optical_flow/optical_flow";
 
@@ -293,6 +304,29 @@ void GZBridge::airspeedCallback(const gz::msgs::AirSpeed &msg)
 	_differential_pressure_pub.publish(report);
 
 	this->_temperature = report.temperature;
+}
+
+void GZBridge::interactionWrenchCallback(const gz::msgs::Wrench &msg)
+{
+	const uint64_t timestamp = hrt_absolute_time();
+
+	interaction_wrench_s report{};
+	report.timestamp_sample = (msg.has_header() && msg.header().has_stamp())
+				  ? (static_cast<uint64_t>(msg.header().stamp().sec()) * 1000000ULL)
+				  + (static_cast<uint64_t>(msg.header().stamp().nsec()) / 1000ULL)
+				  : timestamp;
+
+	// The sensor reports in the parent link frame, which is body FLU; PX4 works
+	// in body FRD, so y and z flip sign.
+	report.force[0] = static_cast<float>(msg.force().x());
+	report.force[1] = -static_cast<float>(msg.force().y());
+	report.force[2] = -static_cast<float>(msg.force().z());
+	report.torque[0] = static_cast<float>(msg.torque().x());
+	report.torque[1] = -static_cast<float>(msg.torque().y());
+	report.torque[2] = -static_cast<float>(msg.torque().z());
+
+	report.timestamp = timestamp;
+	_interaction_wrench_pub.publish(report);
 }
 
 void GZBridge::imuCallback(const gz::msgs::IMU &msg)

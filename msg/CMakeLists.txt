@@ -265,6 +265,7 @@ set(msg_files
 	versioned/VtolVehicleStatus.msg
 	DtrgCustom.msg
 	HorizontalThrustLimit.msg
+	InteractionWrench.msg
 	SequentialDesaturation.msg
 )
 list(SORT msg_files)
