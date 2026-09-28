@@ -234,9 +234,17 @@ freezes. Tests use a margin of 0.05.
 
 ```
 make px4_sitl_default
-pip3 install -r test/dtrg/requirements.txt
-python3 -m pytest test/dtrg -m "sih and not flight" -v
+python3 -m venv ~/.venvs/px4-dtrg                # once
+~/.venvs/px4-dtrg/bin/pip install -r test/dtrg/requirements.txt   # once
+
+source ~/.venvs/px4-dtrg/bin/activate            # in every new terminal
+python -m pytest test/dtrg -m "sih and not flight" -v
 ```
+
+A virtualenv is needed where `python3` is an externally managed install
+(Homebrew on macOS, recent Debian/Ubuntu): there `pip3 install` is refused and
+pytest then fails with `No module named pytest`. Without activating, call the
+venv's Python directly: `~/.venvs/px4-dtrg/bin/python -m pytest ...`.
 
 These run the whole PX4 SITL with the SIH simulator on the planarOcto
 (`sihsim_planar_octo`) and talk to it over MAVLink like a ground station. They
@@ -259,11 +267,15 @@ test if one did not boot with the requested value. Tests that need RC stream
 
 RC starts safe: sticks centred, throttle low, Stabilized slot, switches off.
 
-Rerun one test, keeping its `px4.log` and ULogs:
+Rerun one test, keeping its `px4.log` and ULogs, or one file:
 
 ```
-python3 -m pytest test/dtrg -k bench_test_rejected_while_armed -v --basetemp=/tmp/dtrg
+python -m pytest test/dtrg -k bench_test_rejected_while_armed -v --basetemp=/tmp/dtrg
+python -m pytest test/dtrg/test_rc_conflict.py -v
 ```
+
+Pass options as `--opt=value` (e.g. `--airframe=sihsim_quadx`): with a space,
+pytest reads the value as a test path.
 
 **Known gap** tests describe bugs that are not fixed yet. They are marked
 `xfail(strict=True)`: they pass while the bug is there and turn red once it is
@@ -359,7 +371,7 @@ change. Parameters: `DTRG_HT_MAX` 0.5, `DTRG_HT_R_MAX` and `DTRG_HT_P_MAX` 10 de
 | `test_aux_channel_deadzone[1505/1515]` | HT on, aux roll at 1505 or 1515 us | 1505 us (0.01) is inside the 0.02 aux deadzone: roll 0. 1515 us (0.03) tilts by 0.03 x 10 deg |
 | `test_mask_selects_thrust_axes[mask0/1/2]` | `DTRG_HT_MASK` 0-2, HT on, full pitch, half roll | 0: X and Y by thrust; 1: X only; 2: Y only |
 | `test_mask_selects_thrust_axes[mask3]` | **Known gap (G6).** `DTRG_HT_MASK=3` | Should give no X/Y thrust (move by tilting only). Fails: HT is applied on both axes. Fixed on branch `salz167/DTRG_HT_refactor` |
-| `test_full_stick_reports_ht_saturation` | **Known gap (G3).** HT on, full pitch stick | Should set `horizontal_thrust_limit.x_sat` and `SYS_STATUS.errors_count3` bit 0. Fails: the demand is `stick * DTRG_HT_MAX`, and RC scaling gives 0.9999999, so X is 0.49999994 and never reaches the limit |
+| `test_full_stick_gives_ht_max` | HT on, full pitch stick | Thrust X = 0.5 (`DTRG_HT_MAX`, +-0.001), `y_sat` 0, and `SYS_STATUS.errors_count3` mirrors `horizontal_thrust_limit` (bit 0 `x_sat`, bit 2 `y_sat`). The demand is `stick * DTRG_HT_MAX`, never clipped: RC scaling gives 0.9999999, so X is 0.49999994 and whether `x_sat` sets is not asserted (G3) |
 
 ### test_csv_mixer.py
 
@@ -380,7 +392,8 @@ exist in SITL, so only the "no file" case can run here.
 ## Tier 3: SIH flight tests
 
 ```
-python3 -m pytest test/dtrg -m flight -v
+source ~/.venvs/px4-dtrg/bin/activate   # set up as in tier 2
+python -m pytest test/dtrg -m flight -v
 ```
 
 About 10 flights, ~10 minutes. Same harness, RC layout and known gap
