@@ -94,6 +94,27 @@ public:
 	};
 
 	/**
+	 * DTRG CSV mixer (DTRG_MIXER_CSV): outcome of loading the mixer file.
+	 * Values match dtrg_mixer_status_s::STATUS_*.
+	 */
+	enum class CsvMixerStatus : uint8_t {
+		DISABLED = 0,           ///< DTRG_MIXER_CSV is off, or the allocation method has no mixer
+		LOADED = 1,             ///< mixer file loaded
+		FILE_NOT_FOUND = 2,     ///< the file cannot be opened (missing, or no SD card)
+		EMPTY = 3,              ///< the file holds no rows
+		SHORT_ROW = 4,          ///< a row has fewer values than NUM_AXES
+		INVALID_VALUE = 5,      ///< a value is not a finite number
+		ROW_COUNT_MISMATCH = 6, ///< the number of rows differs from the number of configured actuators
+		ALL_ZERO = 7,           ///< every coefficient is 0
+	};
+
+	struct CsvMixerResult {
+		CsvMixerStatus status{CsvMixerStatus::DISABLED};
+		int line{0};     ///< 1-based line of the file with the error (SHORT_ROW, INVALID_VALUE)
+		int num_rows{0}; ///< rows read from the file
+	};
+
+	/**
 	 * Allocate control setpoint to actuators
 	 */
 	virtual void allocate() = 0;
@@ -230,6 +251,12 @@ public:
 
 	//used by print status to get actual used mixer
 	virtual bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) = 0;
+
+	/**
+	 * DTRG CSV mixer: result of the last attempt to load the mixer file. The mixer is
+	 * only (re)loaded when it is needed, i.e. on allocate() or getMixer().
+	 */
+	virtual CsvMixerResult getCsvMixerResult() const { return CsvMixerResult{}; }
 
 protected:
 	friend class ControlAllocator; // for _actuator_sp

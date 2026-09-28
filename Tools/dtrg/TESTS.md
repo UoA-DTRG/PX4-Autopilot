@@ -5,7 +5,7 @@ are in [SITL_TESTING.md](SITL_TESTING.md).
 
 - [Tier 1: unit tests](#tier-1-unit-tests)
   - [DtrgSequentialDesaturation](#dtrgsequentialdesaturation): desaturation order
-  - [DtrgMixerCsv](#dtrgmixercsv): CSV mixer parser
+  - [DtrgMixerCsv](#dtrgmixercsv): CSV mixer parser and loading
   - [DtrgBenchSwitch](#dtrgbenchswitch): bench test direction switch
   - [DtrgBenchProfile](#dtrgbenchprofile): bench test excitation profile
 - [Tier 2: SIH logic tests](#tier-2-sih-logic-tests)
@@ -14,7 +14,7 @@ are in [SITL_TESTING.md](SITL_TESTING.md).
   - [test_bench_test_safety.py](#test_bench_test_safetypy): entering and arming bench test
   - [test_bench_test_outputs.py](#test_bench_test_outputspy): bench test setpoints
   - [test_horizontal_thrust.py](#test_horizontal_thrustpy): horizontal thrust in Stabilized
-  - [test_csv_mixer.py](#test_csv_mixerpy): CSV mixer without a file
+  - [test_csv_mixer.py](#test_csv_mixerpy): CSV mixer arming check
 - [Tier 3: SIH flight tests](#tier-3-sih-flight-tests)
   - [test_flight_ht.py](#test_flight_htpy): horizontal thrust in flight
 
@@ -87,7 +87,7 @@ desaturated. Each one also checks that desaturation leaves every rotor within
 ### DtrgMixerCsv
 
 File: `src/lib/control_allocation/control_allocation/DtrgMixerCsvTest.cpp`
-Code under test: `ControlAllocationPseudoInverse::readMixerFromCSV()`
+Code under test: `ControlAllocationPseudoInverse::readMixerFromCSV()` and `loadCsvMixer()`
 
 With `DTRG_MIXER_CSV` set, the allocator replaces the pseudo-inverse of the
 effectiveness matrix with a matrix read from `/fs/microsd/etc/mixer.csv`: one row
@@ -109,11 +109,40 @@ hold `row + 0.1 * (column + 1)`, so a value in the wrong place is obvious.
 | `NegativeAndScientificValues` | `-0.5,1e-1,-2.5E-2,0,+1,-1` | Every notation parsed to the right value |
 | `ExtraColumnsAreIgnored` | 8 values on a row | First 6 used, the extra ones do not spill into the next row |
 | `ExtraRowsAreIgnored` | More rows than the allocator has actuators | Stops at the last actuator, no overflow |
-| `FullPrecisionRowsAreNotSplit` | **Known gap.** Full precision export (e.g. MATLAB `writematrix`, ~20 characters per cell) | Should read 2 rows. Fails: a row is longer than the 100 byte line buffer, the rest of the line becomes the next actuator's row and every following row shifts |
-| `EmptyCellKeepsColumnPosition` | **Known gap.** `1,,3,4,5,6` (how spreadsheets write an empty cell) | Should keep 3 in column 3. Fails: `strtok()` merges the two commas and the rest of the row shifts one column left |
-| `EmptyFileIsRejected` | **Known gap.** Empty | Should be rejected. Fails: accepted, leaving the allocator without a mixer |
-| `ShortRowIsRejected` | **Known gap.** `1,2,3` | Should be rejected. Fails: accepted, and the missing axes keep whatever the matrix held before |
-| `BlankCrlfLineIsSkipped` | **Known gap.** Blank Windows line before the data | Should be skipped. Fails: read as a row of zeros, shifting the real rows down |
+| `FullPrecisionRowsAreNotSplit` | Full precision export (e.g. MATLAB `writematrix`, ~20 characters per cell) | 2 rows read. Regression test for G5: a row longer than the 100 byte line buffer was split in two, the rest of the line became the next actuator's row and every following row shifted. The parser now reads one character at a time, so line length is unlimited |
+| `OverlongCellIsRejected` | A 43 character cell | Rejected, the matrix is left as it was: only one cell has to fit in the parser's 32 byte buffer, and a longer one is not a number worth cutting short |
+| `EmptyCellKeepsColumnPosition` | `1,,3,4,5,6` (how spreadsheets write an empty cell) | 3 stays in column 3 and the empty cell reads as 0. Regression test for G5: `strtok()` merged the two commas and the rest of the row shifted one column left |
+| `EmptyFileIsRejected` | Empty | Rejected. Regression test for G5: it was accepted, leaving the allocator without a mixer |
+| `ShortRowIsRejected` | `1,2,3` | Rejected, the matrix is left as it was. Regression test for G5: it was accepted and the missing axes kept whatever the matrix held before |
+| `BlankCrlfLineIsSkipped` | Blank Windows line before the data | Skipped. Regression test for G5: it was read as a row of zeros, shifting the real rows down |
+
+The parser also reports why a file was rejected and on which line (the commander
+arming check turns this into the "Arming denied" message, see G4):
+
+| Test | File | Passes when |
+| --- | --- | --- |
+| `ResultOfValidFile` | 8 rows | Status `LOADED`, 8 rows, no error line |
+| `ResultOfMissingFile` | Does not exist | Status `FILE_NOT_FOUND` |
+| `ResultOfEmptyFile` | Only blank lines | Status `EMPTY` |
+| `ShortRowReportsItsLine` | Blank line, a row, `1,2,3`, a row | Status `SHORT_ROW` on line 3: blank lines are counted, so the line matches what an editor shows |
+| `HeaderRowIsRejected` | `roll,pitch,yaw,x,y,z` then 8 rows | Status `INVALID_VALUE` on line 1, the matrix is left as it was. A header used to read as a row of zeros |
+| `NonNumericCellReportsItsLine` | `3x` on line 3 (CRLF) | Status `INVALID_VALUE` on line 3 |
+| `NanAndInfAreRejected` | `nan` or `inf` | Rejected |
+| `OverlongCellIsAnInvalidValue` | A 43 character cell | Status `INVALID_VALUE` on line 1 |
+
+`DtrgMixerCsvLoad` runs the whole allocator (`DTRG_MIXER_CSV=1`, `DTRG_MIXER_NORM=0`)
+on a quad X geometry with the file path pointed at a temporary file:
+
+| Test | Setup | Passes when |
+| --- | --- | --- |
+| `ValidFileIsUsed` | 4 rows, 4 actuators | Status `LOADED`, the mixer holds the file values |
+| `DisabledReportsDisabled` | `DTRG_MIXER_CSV=0` | Status `DISABLED`, the mixer is the pseudo-inverse |
+| `MissingFileGivesEmptyMixer` | Pseudo-inverse first, then CSV on with no file | Status `FILE_NOT_FOUND`, the mixer is all zero (not the previous pseudo-inverse) |
+| `InvalidFileGivesEmptyMixer` | Header row | Status `INVALID_VALUE` on line 1, all-zero mixer |
+| `FewerRowsThanActuatorsIsRejected` | 4 rows, 8 actuators | Status `ROW_COUNT_MISMATCH` (4 rows), all-zero mixer. The missing rows used to keep a previous mixer |
+| `MoreRowsThanActuatorsIsRejected` | 8 rows, 4 actuators | Status `ROW_COUNT_MISMATCH` (8 rows) |
+| `AllZeroFileIsRejected` | 4 rows of zeros | Status `ALL_ZERO` |
+| `FailedReloadKeepsLastValidMixer` | Valid file, then deleted, then fixed | Deleted: status `FILE_NOT_FOUND` but the last valid mixer is kept; the file is re-read whenever the effectiveness is updated (e.g. a parameter change in flight), and that must not cut the motors. Fixed: the new values are used |
 
 ### DtrgBenchSwitch
 
@@ -334,15 +363,17 @@ change. Parameters: `DTRG_HT_MAX` 0.5, `DTRG_HT_R_MAX` and `DTRG_HT_P_MAX` 10 de
 
 ### test_csv_mixer.py
 
-Code under test: control allocation with `DTRG_MIXER_CSV` (the parser is unit
-tested in [DtrgMixerCsv](#dtrgmixercsv))
+Code under test: `dtrg_mixer_status` from control_allocator and the commander
+arming check `dtrgMixerCheck` (the parser and the other rejection reasons are
+unit tested in [DtrgMixerCsv](#dtrgmixercsv))
 
 The mixer file path is hardcoded to `/fs/microsd/etc/mixer.csv`, which does not
 exist in SITL, so only the "no file" case can run here.
 
 | Plan ID | Test | Passes when |
 | --- | --- | --- |
-| D2 | `test_csv_mixer_without_file_refuses_to_arm` | **Known gap (G4).** Should refuse to arm with `DTRG_MIXER_CSV=1` and no file. Fails: the allocator keeps an all-zero mixer and nothing stops arming, so the motors would not respond. Decide the behaviour (refuse to arm, or fall back to the geometry) before fixing |
+| D2 | `test_csv_mixer_without_file_refuses_to_arm` | `DTRG_MIXER_CSV=1`, no file: `dtrg_mixer_status` reports `FILE_NOT_FOUND`, prearm fails, and two arm attempts are both refused with "Arming denied: DTRG mixer file not found" (the reason is given on every attempt, not only when the failure first appears). Regression test for G4: the allocator kept an all-zero mixer and nothing stopped arming |
+| D3 | `test_csv_mixer_disabled_does_not_block_arming` | `DTRG_MIXER_CSV=0`: status `DISABLED`, arms |
 
 ---
 

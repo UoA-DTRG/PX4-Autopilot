@@ -5,7 +5,7 @@ channel conflict check, CSV mixer, sequential desaturation) that run locally and
 on GitHub Actions on every push and pull request to `dtrg-main`.
 
 | Tier | Covers | Runs on | CI | Status |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | 1. Unit | Pure logic: desaturation order, CSV parser, bench test switch and profile, HT switch / aux tilt / mask | gtest, no simulator (`make tests TESTFILTER=Dtrg`) | job `unit` | done |
 | 2. SIH logic | Arming and mode rules, bench test outputs, HT wiring from RC to setpoints | PX4 SITL + SIH on the planarOcto (`pytest test/dtrg -m "sih and not flight"`) | job `sih` | done |
 | 3. SIH flight | HT behaviour in flight: take-off and hold, moving level with HT, tilt while holding position, HT toggling, bench test in the air | SIH with the fully actuated planarOcto (`pytest test/dtrg -m flight`) | job `flight` | done (section 6) |
@@ -33,7 +33,7 @@ tests:
    11th entry of `px4_custom_mode.h`; 9 is `SIMPLE`. B1's `custom_mode()[0] != 9`
    would always pass and B4 tested the wrong mode. Three numbers are involved:
    HEARTBEAT main mode 11, `COM_FLTMODEx` value 16, nav state 16.
-2. **DO_SET_MODE to bench test is ACKed as accepted.** Commander ignores an
+2. **DO&#95;SET&#95;MODE to bench test is ACKed as accepted.** Commander ignores an
    unknown custom main mode and still ACKs `ACCEPTED`. B4 must check the mode,
    not the ACK.
 3. **RC override needs `RC_CHAN_CNT > 0`.** Without it rc_update never marks
@@ -74,11 +74,11 @@ Makefile's shell quoting, so run one filter at a time.
 What each test checks: [TESTS.md](TESTS.md).
 
 | Test binary | File | Covers |
-|---|---|---|
+| --- | --- | --- |
 | `unit-DtrgBenchSwitch` | `src/modules/bench_test/DtrgBenchSwitchTest.cpp` | direction switch thresholds (1300/1700 us, exclusive), unpopulated channel, RC loss, out of range channel |
 | `unit-DtrgBenchProfile` | `src/modules/bench_test/DtrgBenchProfileTest.cpp` | step timing and sign, ramp clamp and freeze on motor saturation, spin-up, axis mapping, saturation margin, reversible motors |
 | `functional-DtrgSequentialDesaturation` | `src/lib/control_allocation/control_allocation/DtrgSequentialDesaturationTest.cpp` | on a planar octo with +-31 deg tangential tilt: X and Y given up before roll and yaw, yaw before thrust, thrust before roll, thrust never increased |
-| `functional-DtrgMixerCsv` | `src/lib/control_allocation/control_allocation/DtrgMixerCsvTest.cpp` | CSV parser: full matrix, BOM, CRLF, blank lines, missing file, extra rows and columns |
+| `functional-DtrgMixerCsv` | `src/lib/control_allocation/control_allocation/DtrgMixerCsvTest.cpp` | CSV parser: full matrix, BOM, CRLF, blank lines, missing file, extra rows and columns, full-precision rows, empty cells, empty file, short rows, overlong cells; rejection reason and line; loading in the allocator (row count, all zeros, empty mixer on error, last valid mixer kept on a failed re-read) |
 
 To make this testable, the bench test profile maths was moved into the
 header-only `bench_test_profile.h` (used by `BenchTest.cpp`, no behaviour
@@ -100,7 +100,7 @@ RC layout (`test/dtrg/rc_layout.py`), and shuts PX4 down again. A test takes
 10-25 s. On failure CI uploads each test's `px4.log` and ULogs.
 
 | Plan ID | Test | Checks |
-|---|---|---|
+| --- | --- | --- |
 | - | `test_smoke.py` | boots, DTRG marker `SYS_STATUS.errors_count4 == 706`, RC override drives the mode slot |
 | B1 | `test_bench_test_rejected_while_armed` | "Bench test mode denied: disarm first", mode and arming unchanged; then reachable once disarmed |
 | B2 | `test_arming_needs_bt_arm_enable` | "Arming denied: bench test not enabled", arms once enabled |
@@ -112,7 +112,8 @@ RC layout (`test/dtrg/rc_layout.py`), and shuts PX4 down again. A test takes
 | - | `test_rc_slot_selects_bench_test_while_disarmed` | control case for B1/B4 |
 | C1 | `test_rc_conflict.py` | runtime and boot-time conflict blocks arming and names both parameters; resolving re-allows; `COM_ARM_RC_CONF=1` warns only; `RC_MAP_FAILSAFE` exempt; `RC_MAP_FLTM_BTN` only counts without `RC_MAP_FLTMODE` |
 | HT | `test_horizontal_thrust.py` | Stabilized: switch off = normal; on = sticks to X/Y thrust at `DTRG_HT_MAX` with level attitude; runtime toggle; `DTRG_HT_EN=0`; aux tilt to `DTRG_HT_R/P_MAX`; aux deadzone; thrust axes per mask (mask 3 xfail, G6) |
-| D2 | `test_csv_mixer_without_file_refuses_to_arm` | strict xfail, gap G4 |
+| D2 | `test_csv_mixer_without_file_refuses_to_arm` | refused on every arm attempt with "Arming denied: DTRG mixer file not found" (G4 fixed) |
+| D3 | `test_csv_mixer_disabled_does_not_block_arming` | `DTRG_MIXER_CSV=0` arms |
 
 ---
 
@@ -121,13 +122,13 @@ RC layout (`test/dtrg/rc_layout.py`), and shuts PX4 down again. A test takes
 Each one is pinned by a test that turns red (xfail strict) or can be enabled
 (`DISABLED_`) once it is fixed.
 
-| | Gap | Tracked by |
-|---|---|---|
+|  | Gap | Tracked by |
+| --- | --- | --- |
 | G1 | Partly fixed. `sequential_desaturation.*_sat` reported only the gain of the second, half-strength desaturation pass, which is ~0 whenever the first pass succeeds (X cut from 5.0 reported 1.7e-8); it now reports the sum of both passes. Still open here: `SYS_STATUS.errors_count1` tests `> 0.01`, which drops every negative gain, and cutting a positive demand gives a negative gain. Fixed on branch `salz167/fix_sys_status` (compares `fabsf`) | `TopicReportsHorizontalThrustReduction`, `TopicGainIsTheAmountRemoved` |
 | G2 | By design. The X, Y and yaw desaturation steps slide along their axis to relieve *any* saturation, not only to shrink their own demand: a pure roll demand near full thrust comes out with X thrust (-0.02) and yaw (-0.12) that were not asked for. This is intended: horizontal thrust, then yaw, is traded so that roll and pitch are kept (roll against X, pitch against Y on the planarOcto). Thrust Z is only ever reduced (airmode off); roll and pitch keep their sign (`RollAndPitchAreReducedButKeepTheirSign`) | `HorizontalThrustIsUsedToKeepRollAndPitch`, `YawIsUsedOnceHorizontalThrustRunsOut` |
 | G3 | In Stabilized, HT X/Y is `stick * DTRG_HT_MAX`, which RC scaling keeps just below the limit (0.49999994), so `horizontal_thrust_limit.x_sat` and `errors_count3` never set | xfail `test_full_stick_reports_ht_saturation` |
-| G4 | `DTRG_MIXER_CSV=1` without a file leaves an all-zero mixer and nothing stops arming. The path `/fs/microsd/etc/mixer.csv` is hardcoded (the parameter description says `/etc/mixer.csv`) and does not exist in SITL | xfail `test_csv_mixer_without_file_refuses_to_arm` |
-| G5 | CSV parser: a full-precision row (~20 chars per cell) overflows the 100 byte line buffer and is split into two rows; an empty cell shifts the row left (`strtok`); an empty file, a short row and a blank CRLF line are accepted | `DISABLED_*` in `DtrgMixerCsvTest.cpp` |
+| G4 | Fixed. `DTRG_MIXER_CSV=1` without a file left an all-zero mixer and nothing stopped arming. control_allocator now publishes `dtrg_mixer_status` (loaded, file not found, empty, short row, bad value, row count differs from the actuators, all zeros, with the line), and the commander check `dtrgMixerCheck` refuses to arm on any of them with a specific message, repeated on every arm attempt. A rejected file gives an all-zero mixer, unless a valid one was loaded before (a failed re-read in flight keeps it). `DTRG_MIXER_CSV` is now marked reboot required, as the allocator only reads it at boot. Still open: the path `/fs/microsd/etc/mixer.csv` is hardcoded and does not exist in SITL | `test_csv_mixer.py`, `DtrgMixerCsvLoad` and `Result*` tests in `DtrgMixerCsvTest.cpp` |
+| G5 | Fixed. CSV parser: a full-precision row (~20 chars per cell) overflowed the 100 byte line buffer and was split into two rows; an empty cell shifted the row left (`strtok`); an empty file, a short row and a blank CRLF line were accepted. The parser now reads one character at a time (no line length limit), and a rejected file leaves the mixer untouched | `FullPrecisionRowsAreNotSplit`, `EmptyCellKeepsColumnPosition`, `EmptyFileIsRejected`, `ShortRowIsRejected`, `BlankCrlfLineIsSkipped` in `DtrgMixerCsvTest.cpp` |
 | G6 | `DTRG_HT_MASK` docs say 0 = disabled, 1 = roll only, ...; and mask 3 applies horizontal thrust on top of tilting. Intended: 0 HT on X and Y, 1 HT on X / roll for Y, 2 HT on Y / pitch for X, 3 no HT, pitch and roll only. Fixed on branch `salz167/DTRG_HT_refactor`, which also moves the HT logic of mc_att_control and mc_pos_control into a shared, unit tested helper | xfail `test_mask_selects_thrust_axes[mask3]` |
 | G7 | In Stabilized, mask 3 swaps the sticks: the pitch stick commands roll and the roll stick pitch (marked "swapped" in the code, so possibly intended). Position control's mask 3 does not swap. Masks 1-3 update a tilt filter a second time in the same cycle, with a different input | not covered |
 | G8 | Offboard HT roll/pitch from `DEBUG_FLOAT_ARRAY` are neither limited to `DTRG_HT_R/P_MAX` nor checked for NaN; any MAVLink source can command any tilt | not covered, needs an armed Offboard test |
@@ -182,8 +183,8 @@ sums per rotor `F = T * axis` and `M = r x F - KM * T * axis`, with
 multirotor that control allocation can describe flies without code changes.
 Output n drives rotor n, so map Motor 1..N to outputs 1..N in order.
 
-| Airframe | Where | |
-|---|---|---|
+| Airframe | Where |  |
+| --- | --- | --- |
 | `12016_sihsim_planar_octo` | SITL (`make px4_sitl sihsim_planar_octo`) | CI and local runs |
 | `12017_dtrg_planar_octo_sih.hil` | the real flight controller (`SYS_HITL 2`) | the planarOcto flight stack flying on the actual hardware, against a vehicle simulated on the board; real outputs stay off (remove the props anyway) |
 
@@ -194,11 +195,11 @@ no saturation, so the saturation seen in Gazebo comes from that model, not from
 the geometry or allocation.
 
 ### Tests
-
+test_a5_offboard_tilt_is_limited
 | ID | Test | Pass criteria (ground truth) | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | A1 | `test_a1_take_off_hold_and_land` | altitude within 0.5 m of its setpoint over a 10 s hold, drift < 1 m; lands and disarms within 30 s | pass |
-| A2 | `test_a2_ht_moves_the_vehicle_level` | HT on, Offboard 5 m north: moves 5 +-0.5 m, `max(|roll|, |pitch|) < 3 deg` throughout | pass |
+| A2 | `test_a2_ht_moves_the_vehicle_level` | HT on, Offboard 5 m north: moves 5 +-0.5 m, `max( | roll | , | pitch | ) < 3 deg` throughout | pass |
 | A3 | `test_a3_without_ht_the_vehicle_tilts_to_move` | control case for A2: pitch < -5 deg | pass |
 | A4 | `test_a4_aux_tilt_in_hover_holds_position[roll/pitch]` | HT on, Hold, aux channel full: tilt of `DTRG_HT_R/P_MAX` +-2 deg, drift < 0.5 m | strict xfail, G11 |
 | A4b | `test_a4b_aux_tilt_reaches_the_limit[roll/pitch]` | the attitude half of A4: aux up gives roll `+DTRG_HT_R_MAX` / pitch `-DTRG_HT_P_MAX` (as in Stabilized) +-2 deg, other axis < 3 deg | roll pass; pitch strict xfail, G13 |
