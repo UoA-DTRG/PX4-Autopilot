@@ -147,6 +147,8 @@ private:
 	float _ht_r_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Roll angle limit [rad] */
 	float _ht_p_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Pitch angle limit [rad] */
 	int _dtrg_ht_mask{0};
+	bool _ht_split_en{false};			/**< DTRG_HT_SPLIT_EN, HT axes also move by tilting */
+	float _ht_split{dtrg_ht::kDefaultSplit};	/**< DTRG_HT_SPLIT, horizontal thrust share on the HT axes */
 
 	/** True when horizontal thrust is enabled and its RC enable switch is held high. */
 	bool htSwitchActive() const;
@@ -202,8 +204,9 @@ private:
 		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
 		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
 		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max,	/**< horizontal thrust pitch angle Limit */
-		(ParamInt<px4::params::DTRG_HT_MASK>)
-		_param_dtrg_ht_mask		/**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::DTRG_HT_MASK>)	    _param_dtrg_ht_mask,		/**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::DTRG_HT_SPLIT_EN>)   _param_dtrg_ht_split_en,	/**< split the HT axes between HT and tilt */
+		(ParamFloat<px4::params::DTRG_HT_SPLIT>)    _param_dtrg_ht_split	/**< horizontal thrust share on the HT axes */
 
 	)
 };

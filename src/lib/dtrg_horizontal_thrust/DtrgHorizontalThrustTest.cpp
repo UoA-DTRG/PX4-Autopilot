@@ -198,9 +198,6 @@ TEST(DtrgHorizontalThrust, MaskAxes)
 
 	EXPECT_FALSE(maskUsesX(2));
 	EXPECT_TRUE(maskUsesY(2));
-
-	EXPECT_TRUE(maskUsesX(3));
-	EXPECT_TRUE(maskUsesY(3));
 }
 
 TEST(DtrgHorizontalThrust, SelectableMask)
@@ -209,7 +206,7 @@ TEST(DtrgHorizontalThrust, SelectableMask)
 	EXPECT_EQ(selectableMask(1), 1);
 	EXPECT_EQ(selectableMask(2), 2);
 
-	// mask 3 is not selectable yet, nor is anything out of range
+	// out of range, including the old mask 3, falls back to 0
 	EXPECT_EQ(selectableMask(3), 0);
 	EXPECT_EQ(selectableMask(7), 0);
 	EXPECT_EQ(selectableMask(-1), 0);
@@ -238,20 +235,76 @@ TEST(DtrgHorizontalThrust, MaskTwoIsYOnly)
 	EXPECT_FLOAT_EQ(ht.y, -0.1f);
 }
 
-TEST(DtrgHorizontalThrust, MaskThreeUsesBothAxes)
-{
-	// horizontal thrust on both axes, on top of the tilt
-	HorizontalThrust ht = horizontalThrust(3, 0.2f, -0.1f, 0.5f);
-	EXPECT_FLOAT_EQ(ht.x, 0.2f);
-	EXPECT_FLOAT_EQ(ht.y, -0.1f);
-	EXPECT_FALSE(ht.x_sat);
-	EXPECT_FALSE(ht.y_sat);
+// Split between horizontal thrust and tilt on the HT axes ---------------------
 
-	ht = horizontalThrust(3, 0.8f, -0.9f, 0.5f);
-	EXPECT_FLOAT_EQ(ht.x, 0.5f);
-	EXPECT_FLOAT_EQ(ht.y, -0.5f);
-	EXPECT_TRUE(ht.x_sat);
-	EXPECT_TRUE(ht.y_sat);
+TEST(DtrgHorizontalThrust, SplitShares)
+{
+	EXPECT_FLOAT_EQ(thrustShare(true, 0.5f), 0.5f);
+	EXPECT_FLOAT_EQ(tiltShare(true, 0.5f), 0.5f);
+
+	EXPECT_FLOAT_EQ(thrustShare(true, 0.25f), 0.25f);
+	EXPECT_FLOAT_EQ(tiltShare(true, 0.25f), 0.75f);
+
+	// 0: tilt only, 1: horizontal thrust only
+	EXPECT_FLOAT_EQ(thrustShare(true, 0.f), 0.f);
+	EXPECT_FLOAT_EQ(tiltShare(true, 0.f), 1.f);
+	EXPECT_FLOAT_EQ(thrustShare(true, 1.f), 1.f);
+	EXPECT_FLOAT_EQ(tiltShare(true, 1.f), 0.f);
+}
+
+TEST(DtrgHorizontalThrust, SplitDisabledIsHorizontalThrustOnly)
+{
+	// the HT axes move by horizontal thrust only, whatever DTRG_HT_SPLIT is
+	EXPECT_FLOAT_EQ(thrustShare(false, 0.2f), 1.f);
+	EXPECT_FLOAT_EQ(tiltShare(false, 0.2f), 0.f);
+}
+
+TEST(DtrgHorizontalThrust, SplitIsClamped)
+{
+	EXPECT_FLOAT_EQ(thrustShare(true, 1.5f), 1.f);
+	EXPECT_FLOAT_EQ(tiltShare(true, 1.5f), 0.f);
+	EXPECT_FLOAT_EQ(thrustShare(true, -0.5f), 0.f);
+	EXPECT_FLOAT_EQ(tiltShare(true, -0.5f), 1.f);
+
+	EXPECT_FLOAT_EQ(thrustShare(true, NAN), kDefaultSplit);
+	EXPECT_FLOAT_EQ(tiltShare(true, NAN), 1.f - kDefaultSplit);
+}
+
+TEST(DtrgHorizontalThrust, TiltThrustScalesHtAxesOnly)
+{
+	// yaw 0: heading X is north, heading Y is east
+	NorthEast t = tiltThrust(0, true, 0.25f, 0.2f, -0.4f, 0.f);
+	EXPECT_NEAR(t.north, 0.15f, 1e-6f);
+	EXPECT_NEAR(t.east, -0.3f, 1e-6f);
+
+	// mask 1: only X is an HT axis, Y keeps the full thrust for rolling
+	t = tiltThrust(1, true, 0.25f, 0.2f, -0.4f, 0.f);
+	EXPECT_NEAR(t.north, 0.15f, 1e-6f);
+	EXPECT_NEAR(t.east, -0.4f, 1e-6f);
+
+	// mask 2: only Y is an HT axis
+	t = tiltThrust(2, true, 0.25f, 0.2f, -0.4f, 0.f);
+	EXPECT_NEAR(t.north, 0.2f, 1e-6f);
+	EXPECT_NEAR(t.east, -0.3f, 1e-6f);
+}
+
+TEST(DtrgHorizontalThrust, TiltThrustFollowsHeading)
+{
+	// yaw 90 deg: heading X is east, heading Y is south
+	const float yaw = M_PI_F / 2.f;
+
+	// mask 1 scales the thrust along the heading (east) only
+	const NorthEast t = tiltThrust(1, true, 0.5f, 0.2f, 0.4f, yaw);
+	EXPECT_NEAR(t.north, 0.2f, 1e-6f);
+	EXPECT_NEAR(t.east, 0.2f, 1e-6f);
+}
+
+TEST(DtrgHorizontalThrust, TiltThrustSplitZeroIsUnchanged)
+{
+	// split 0 tilts for all of the thrust, as without horizontal thrust
+	const NorthEast t = tiltThrust(0, true, 0.f, 0.2f, -0.4f, 0.7f);
+	EXPECT_NEAR(t.north, 0.2f, 1e-6f);
+	EXPECT_NEAR(t.east, -0.4f, 1e-6f);
 }
 
 TEST(DtrgHorizontalThrust, ThrustIsClampedAndFlaggedSaturated)
@@ -298,30 +351,35 @@ TEST(DtrgHorizontalThrust, PositionControlTiltPerMask)
 	const float ctrl_roll = 0.3f;
 	const float ctrl_pitch = 0.4f;
 
-	Tilt t = positionControlTilt(0, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
+	Tilt t = positionControlTilt(0, false, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
 	EXPECT_FLOAT_EQ(t.roll, ht_roll);
 	EXPECT_FLOAT_EQ(t.pitch, ht_pitch);
 
 	// X by HT: pitch from HT, roll from the controller
-	t = positionControlTilt(1, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
+	t = positionControlTilt(1, false, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
 	EXPECT_FLOAT_EQ(t.roll, ctrl_roll);
 	EXPECT_FLOAT_EQ(t.pitch, ht_pitch);
 
 	// Y by HT: roll from HT, pitch from the controller
-	t = positionControlTilt(2, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
+	t = positionControlTilt(2, false, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
 	EXPECT_FLOAT_EQ(t.roll, ht_roll);
 	EXPECT_FLOAT_EQ(t.pitch, ctrl_pitch);
+}
 
-	// X and Y by HT and by tilting: roll and pitch from the controller
-	t = positionControlTilt(3, ht_roll, ht_pitch, ctrl_roll, ctrl_pitch);
-	EXPECT_FLOAT_EQ(t.roll, ctrl_roll);
-	EXPECT_FLOAT_EQ(t.pitch, ctrl_pitch);
+TEST(DtrgHorizontalThrust, PositionControlTiltWithSplit)
+{
+	// with the split the HT axes tilt with the (scaled) controller too, for every mask
+	for (int32_t mask = 0; mask <= 2; mask++) {
+		const Tilt t = positionControlTilt(mask, true, 0.1f, 0.2f, 0.3f, 0.4f);
+		EXPECT_FLOAT_EQ(t.roll, 0.3f);
+		EXPECT_FLOAT_EQ(t.pitch, 0.4f);
+	}
 }
 
 TEST(DtrgHorizontalThrust, UnknownMaskBehavesAsFullHt)
 {
 	// DTRG_HT_MASK is bounded to 0..2, but an out of range value must not tilt with the controller
-	const Tilt t = positionControlTilt(7, 0.1f, 0.2f, 0.3f, 0.4f);
+	const Tilt t = positionControlTilt(7, false, 0.1f, 0.2f, 0.3f, 0.4f);
 	EXPECT_FLOAT_EQ(t.roll, 0.1f);
 	EXPECT_FLOAT_EQ(t.pitch, 0.2f);
 

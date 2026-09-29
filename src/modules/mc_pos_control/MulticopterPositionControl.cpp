@@ -313,8 +313,10 @@ void MulticopterPositionControl::parameters_update(bool force)
 			_ht_rc_en_add = dtrg_ht::channelIndex(_param_dtrg_ht_rc.get());
 			_ht_r_add = dtrg_ht::channelIndex(_param_dtrg_ht_R.get());
 			_ht_p_add = dtrg_ht::channelIndex(_param_dtrg_ht_P.get());
-			// mask 3 (tilt and horizontal thrust) is not selectable yet and falls back to 0
+			// an out of range mask falls back to 0
 			_dtrg_ht_mask = dtrg_ht::selectableMask(_param_dtrg_ht_mask.get());
+			_ht_split_en = _param_dtrg_ht_split_en.get();
+			_ht_split = _param_dtrg_ht_split.get();
 			_ht_limit = _param_dtrg_ht_max.get();
 			_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
 			_ht_p_limit = math::radians(_param_dtrg_ht_p_max.get());
@@ -652,7 +654,18 @@ void MulticopterPositionControl::Run()
 
 				// Get standard attitude setpoint for mixed actuation
 				vehicle_attitude_setpoint_s attitude_RP{};
-				_control.getAttitudeSetpoint(attitude_RP);
+
+				if (_ht_split_en) {
+					// on the HT axes tilt for only (1 - DTRG_HT_SPLIT) of the thrust; the full thrust is
+					// still converted to the body frame below, so horizontal thrust produces the rest
+					const dtrg_ht::NorthEast thrust_tilt = dtrg_ht::tiltThrust(_dtrg_ht_mask, _ht_split_en, _ht_split,
+									       local_pos_sp.thrust[0], local_pos_sp.thrust[1], local_pos_sp.yaw);
+					ControlMath::thrustToAttitude(Vector3f(thrust_tilt.north, thrust_tilt.east, local_pos_sp.thrust[2]),
+								      local_pos_sp.yaw, attitude_RP);
+
+				} else {
+					_control.getAttitudeSetpoint(attitude_RP);
+				}
 
 				// Extract roll/pitch from standard attitude setpoint quaternion
 				Eulerf euler_RP(Quatf(attitude_RP.q_d));
@@ -660,8 +673,8 @@ void MulticopterPositionControl::Run()
 				float pitch_RP = euler_RP.theta();
 
 				// Pick the HT or the controller tilt per axis using the mask
-				const dtrg_ht::Tilt tilt = dtrg_ht::positionControlTilt(_dtrg_ht_mask, roll_setpoint, pitch_setpoint,
-							   roll_RP, pitch_RP);
+				const dtrg_ht::Tilt tilt = dtrg_ht::positionControlTilt(_dtrg_ht_mask, _ht_split_en, roll_setpoint,
+							   pitch_setpoint, roll_RP, pitch_RP);
 
 				// set the yaw setpoint and complete the qd quaternion
 				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;

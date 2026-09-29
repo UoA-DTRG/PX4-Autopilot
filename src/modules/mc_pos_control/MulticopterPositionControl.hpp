@@ -150,6 +150,8 @@ private:
 	int _ht_en{0}; 				/**< DTRG horizontal thrust Enabled*/
 	int _ht_rc_en_add{-1};			/**< DTRF HT RC enable channel */
 	int _dtrg_ht_mask = 0;
+	bool _ht_split_en{false};			/**< DTRG_HT_SPLIT_EN, HT axes also move by tilting */
+	float _ht_split{dtrg_ht::kDefaultSplit};	/**< DTRG_HT_SPLIT, horizontal thrust share on the HT axes */
 	// 0-based RC channel indices, -1 when the channel parameter is 0 (input disabled)
 	int _ht_r_add{-1};                     	/**< DTRG horizontal thrust Roll channel */
 	int _ht_p_add{-1}; 	       		/**< DTRG horizontal thrust Pitch channel */
@@ -232,7 +234,9 @@ private:
 		(ParamInt<px4::params::RC_MAP_HT_PITCH>)  	    _param_dtrg_ht_P,		/**< horizontal thrust Pitch channel */
 		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
 		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
-		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max
+		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max,
+		(ParamInt<px4::params::DTRG_HT_SPLIT_EN>)   _param_dtrg_ht_split_en,	/**< split the HT axes between HT and tilt */
+		(ParamFloat<px4::params::DTRG_HT_SPLIT>)    _param_dtrg_ht_split	/**< horizontal thrust share on the HT axes */
 	);
 
 	math::WelfordMean<float> _sample_interval_s{};

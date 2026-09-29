@@ -39,15 +39,17 @@
  * channels, and deciding per DTRG_HT_MASK which body axes are driven by
  * horizontal thrust and which by tilting.
  *
- * DTRG_HT_MASK selects how the vehicle moves along each horizontal axis:
- * - 0: horizontal thrust on both X and Y; the vehicle stays level (roll and
- *      pitch come from the aux tilt channels or the offboard HT attitude).
- * - 1: horizontal thrust on X; Y movement by rolling (normal controller or
- *      roll stick). Pitch comes from the aux/offboard tilt.
- * - 2: horizontal thrust on Y; X movement by pitching (normal controller or
- *      pitch stick). Roll comes from the aux/offboard tilt.
- * - 3: horizontal thrust on X and Y, and X and Y movement by pitching and
- *      rolling as well. Not selectable yet: selectableMask() turns it into 0.
+ * DTRG_HT_MASK selects the axes moved by horizontal thrust (HT axes):
+ * - 0: X and Y
+ * - 1: X; Y movement by rolling (normal controller or roll stick)
+ * - 2: Y; X movement by pitching (normal controller or pitch stick)
+ *
+ * DTRG_HT_SPLIT_EN selects how the HT axes move:
+ * - 0: by horizontal thrust only. Their tilt comes from the aux tilt channels
+ *      or the offboard HT attitude (level when unassigned).
+ * - 1: by horizontal thrust and by tilting. DTRG_HT_SPLIT is the share
+ *      produced by horizontal thrust, the rest is produced by tilting with the
+ *      normal controller or the sticks.
  *
  * Header-only so the unit tests (DtrgHorizontalThrustTest.cpp) can run it
  * without either module.
@@ -125,7 +127,7 @@ static inline float auxTiltSetpoint(const rc_channels_s &rc, int index, float li
 	return math::constrain(raw * limit, -limit, limit);
 }
 
-/// highest DTRG_HT_MASK the modules act on; mask 3 (tilt and horizontal thrust) is not enabled yet
+/// highest DTRG_HT_MASK the modules act on
 static constexpr int32_t kMaxSelectableMask = 2;
 
 /**
@@ -137,16 +139,48 @@ static inline int32_t selectableMask(int32_t mask_param)
 	return ((mask_param >= 0) && (mask_param <= kMaxSelectableMask)) ? mask_param : 0;
 }
 
-/// @return whether DTRG_HT_MASK moves along body X with horizontal thrust (masks 0, 1 and 3)
+/// @return whether DTRG_HT_MASK moves along body X with horizontal thrust (masks 0 and 1)
 static inline bool maskUsesX(int32_t mask)
 {
 	return mask != 2;
 }
 
-/// @return whether DTRG_HT_MASK moves along body Y with horizontal thrust (masks 0, 2 and 3)
+/// @return whether DTRG_HT_MASK moves along body Y with horizontal thrust (masks 0 and 2)
 static inline bool maskUsesY(int32_t mask)
 {
 	return mask != 1;
+}
+
+/// DTRG_HT_SPLIT default, also used for a non-finite value
+static constexpr float kDefaultSplit = 0.5f;
+
+/**
+ * Share of the movement on an HT axis produced by horizontal thrust.
+ *
+ * @param split_en DTRG_HT_SPLIT_EN
+ * @param split    DTRG_HT_SPLIT
+ * @return @p split constrained to [0, 1] with the split enabled, otherwise 1 (horizontal thrust only)
+ */
+static inline float thrustShare(bool split_en, float split)
+{
+	if (!split_en) {
+		return 1.f;
+	}
+
+	return PX4_ISFINITE(split) ? math::constrain(split, 0.f, 1.f) : kDefaultSplit;
+}
+
+/**
+ * Share of the movement on an HT axis produced by tilting with the normal controller or the sticks.
+ *
+ * @param split_en DTRG_HT_SPLIT_EN
+ * @param split    DTRG_HT_SPLIT
+ * @return 1 - thrustShare() with the split enabled, otherwise 0 (the tilt comes from the
+ *         aux channel or the offboard HT attitude instead)
+ */
+static inline float tiltShare(bool split_en, float split)
+{
+	return split_en ? (1.f - thrustShare(split_en, split)) : 0.f;
 }
 
 struct HorizontalThrust {
@@ -182,37 +216,62 @@ static inline HorizontalThrust horizontalThrust(int32_t mask, float x_demand, fl
 	return ht;
 }
 
+struct NorthEast {
+	float north{0.f};
+	float east{0.f};
+};
+
+/**
+ * Horizontal NED thrust the position controller tilts for with the split enabled: the
+ * thrust along the heading (body X) and across it (body Y) scaled by tiltShare() on an
+ * HT axis, unchanged on the other axis. Horizontal thrust produces the rest.
+ *
+ * @param mask     DTRG_HT_MASK
+ * @param split_en DTRG_HT_SPLIT_EN
+ * @param split    DTRG_HT_SPLIT
+ * @param north    controller thrust north
+ * @param east     controller thrust east
+ * @param yaw      yaw setpoint [rad]
+ */
+static inline NorthEast tiltThrust(int32_t mask, bool split_en, float split, float north, float east, float yaw)
+{
+	const float tilt_share = tiltShare(split_en, split);
+	const float x_scale = maskUsesX(mask) ? tilt_share : 1.f;
+	const float y_scale = maskUsesY(mask) ? tilt_share : 1.f;
+
+	const float cos_yaw = cosf(yaw);
+	const float sin_yaw = sinf(yaw);
+
+	// into the heading frame (x forward, y right), scale, and back to north/east
+	const float forward = (cos_yaw * north + sin_yaw * east) * x_scale;
+	const float right = (-sin_yaw * north + cos_yaw * east) * y_scale;
+
+	return NorthEast{cos_yaw *forward - sin_yaw * right, sin_yaw *forward + cos_yaw * right};
+}
+
 struct Tilt {
 	float roll{0.f};
 	float pitch{0.f};
 };
 
 /**
- * Roll and pitch for the position controller with HT active: the controller's tilt on
- * an axis moved by tilting (both axes for mask 3), the HT tilt (normally level) on an axis
- * moved by horizontal thrust only.
+ * Roll and pitch for the position controller with HT active: the HT tilt (normally level)
+ * on an axis moved by horizontal thrust only, the controller's tilt on every other axis.
  *
  * @param mask       DTRG_HT_MASK
+ * @param split_en   DTRG_HT_SPLIT_EN; with the split enabled the HT axes tilt with the controller too
  * @param ht_roll    roll from the aux channel, or from the offboard HT attitude
  * @param ht_pitch   pitch from the aux channel, or from the offboard HT attitude
  * @param ctrl_roll  roll the position controller asked for
  * @param ctrl_pitch pitch the position controller asked for
  */
-static inline Tilt positionControlTilt(int32_t mask, float ht_roll, float ht_pitch, float ctrl_roll, float ctrl_pitch)
+static inline Tilt positionControlTilt(int32_t mask, bool split_en, float ht_roll, float ht_pitch, float ctrl_roll,
+				       float ctrl_pitch)
 {
-	switch (mask) {
-	case 1:
-		return Tilt{ctrl_roll, ht_pitch};
+	const bool roll_from_ht = maskUsesY(mask) && !split_en;
+	const bool pitch_from_ht = maskUsesX(mask) && !split_en;
 
-	case 2:
-		return Tilt{ht_roll, ctrl_pitch};
-
-	case 3:
-		return Tilt{ctrl_roll, ctrl_pitch};
-
-	default:
-		return Tilt{ht_roll, ht_pitch};
-	}
+	return Tilt{roll_from_ht ? ht_roll : ctrl_roll, pitch_from_ht ? ht_pitch : ctrl_pitch};
 }
 
 } // namespace dtrg_ht
