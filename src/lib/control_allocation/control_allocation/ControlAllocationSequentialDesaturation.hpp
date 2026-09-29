@@ -51,6 +51,7 @@
 #include <uORB/uORB.h>
 #include <uORB/Publication.hpp>
 #include <uORB/topics/sequential_desaturation.h>
+#include <uORB/topics/dtrg_desaturated_control.h>
 
 class ControlAllocationSequentialDesaturation: public ControlAllocationPseudoInverse
 {
@@ -60,6 +61,7 @@ public:
 	virtual ~ControlAllocationSequentialDesaturation() = default;
 
 	uORB::Publication<sequential_desaturation_s>	     _sequential_desaturation_pub{ORB_ID(sequential_desaturation)};
+	uORB::Publication<dtrg_desaturated_control_s>	     _dtrg_desaturated_control_pub{ORB_ID(dtrg_desaturated_control)};
 
 	void allocate() override;
 

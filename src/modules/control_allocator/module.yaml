@@ -5,7 +5,7 @@ __max_num_tilts: &max_num_tilts 4
 module_name: Control Allocation
 
 parameters:
-    - group: DTRG
+    - group: DTRG Mixer
       definitions:
         DTRG_WINDUP_EN:
             description:
