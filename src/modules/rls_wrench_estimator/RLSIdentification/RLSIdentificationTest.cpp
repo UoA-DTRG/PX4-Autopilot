@@ -95,7 +95,7 @@ TEST_F(RLSIdentificationBasicTest, Test1)
 	Vector3f fi;
 
 	for (size_t i = 0; i < 100000; i++) {
-		_rls_identification.updateThrust(_acc * 1.04f, _speeds, _dt, false, true);
+		_rls_identification.updateThrust(_acc * 1.04f, Vector3f(), _speeds, _dt, false, true);
 		_rls_identification.updateOffset(_q, false);
 		x = _rls_identification.getEstimationThrust();
 		fi = _rls_identification.getActuatorForceVector();

@@ -49,6 +49,7 @@ void RLSIdentification::initialize(const float (&x_init)[3], const float (&x_con
 	_num_rotors = math::constrain(params.num_rotors, 0, RLS_MAX_ROTORS);
 	_n_groups = math::constrain(params.n_groups, 1, RLS_MAX_GROUPS);
 	_lpf_motor_tau = params.lpf_motor_tau;
+	_k_drag = math::max(params.k_drag, 0.f);
 
 	for (int i = 0; i < RLS_MAX_ROTORS; i++) {
 		_position[i] = params.position[i];
@@ -60,6 +61,8 @@ void RLSIdentification::initialize(const float (&x_init)[3], const float (&x_con
 
 	//RLS Thrust
 	_force_vector.setAll(0.f);
+	_drag_force.setAll(0.f);
+	_drag_moment.setAll(0.f);
 	_K_thrust.setAll(0.f);
 	_H_thrust.setAll(0.f);
 	_prediction_error_thrust.setAll(0.f);
@@ -111,7 +114,8 @@ void RLSIdentification::initialize(const float (&x_init)[3], const float (&x_con
 	_xp_offset(2) = 0.f;  // Results for z offset not accurate, thus setting to 0
 }
 
-void RLSIdentification::updateThrust(const Vector3f &y, const Vector<float, RLS_MAX_ROTORS> &speeds, const float &dt,
+void RLSIdentification::updateThrust(const Vector3f &y, const Vector3f &vel,
+				     const Vector<float, RLS_MAX_ROTORS> &speeds, const float &dt,
 				     const bool &interaction_flag, const bool &apply_lpf)
 {
 	//x[k] = x[k-1] + K[k]*(y[k]-H[k]*x[k-1])
@@ -124,10 +128,15 @@ void RLSIdentification::updateThrust(const Vector3f &y, const Vector<float, RLS_
 		_w_lpf = speeds;
 	}
 
+	_computeDrag(vel);
 	_createHThrust();
 	_computeKThrust(interaction_flag);
 
-	_computePredictionErrorThrust(y * _mass);
+	// The rotor drag is a known force rather than something the RLS identifies, so
+	// it belongs on the measurement side: what is left for the thrust model to
+	// explain is the acceleration the rotors' axial thrust produced. This also
+	// keeps it out of the prediction error that becomes the external force.
+	_computePredictionErrorThrust((y * _mass) - _drag_force);
 	Vector<float, RLS_MAX_GROUPS> x_thrust = _xp_thrust + _K_thrust * _prediction_error_thrust;
 
 	_computePThrust();
@@ -155,6 +164,30 @@ inline void RLSIdentification::_updateLpf(const Vector<float, RLS_MAX_ROTORS> &u
 	// alpha = dt/(tau + dt)
 	const float alpha = _dt / (_lpf_motor_tau + _dt);
 	_w_lpf = alpha * u + (1.f - alpha) * _w_lpf ;
+}
+
+inline void RLSIdentification::_computeDrag(const Vector3f &vel)
+{
+	// Per rotor, the in-plane aerodynamic force of a spinning rotor translating
+	// through the air (rotor drag / H-force):
+	//
+	//     F_r = -k_drag * |w_r| * (v - (v . axis_r) axis_r)
+	//
+	// matching the form used by the Gazebo multicopter motor model. Summed over the
+	// rotors, with the moment each one makes about the body origin.
+	_drag_force.setAll(0.f);
+	_drag_moment.setAll(0.f);
+
+	if ((_k_drag <= 0.f) || !vel.isAllFinite()) {
+		return;
+	}
+
+	for (int r = 0; r < _num_rotors; r++) {
+		const Vector3f v_perp = vel - (vel.dot(_axis[r]) * _axis[r]);
+		const Vector3f F_r = (-_k_drag * fabsf(_w_lpf(r))) * v_perp;
+		_drag_force += F_r;
+		_drag_moment += _position[r].cross(F_r);
+	}
 }
 
 inline void RLSIdentification::_createHThrust()
@@ -286,6 +319,8 @@ inline void RLSIdentification::_createMomentVector()
 		Qi += _position[r].cross(Fi) - (_moment_ratio[r] * u) * _axis[r];
 	}
 
-	_moment_vector = Qi;
+	// Drag enters the moment the same way it enters the force: as a known
+	// contribution, so that what is left in the prediction error is external.
+	_moment_vector = Qi + _drag_moment;
 	_force_vector = Ft;
 }

@@ -90,6 +90,7 @@ struct VehicleParameters {
 	float thrust_coef[RLS_MAX_ROTORS];    //< per-rotor relative thrust coefficient (CT)
 	float moment_ratio[RLS_MAX_ROTORS];   //< per-rotor moment/thrust ratio (KM, sign = spin)
 	int motor_group[RLS_MAX_ROTORS];      //< thrust-coefficient group index of each rotor
+	float k_drag;                         //< rotor drag coefficient [N/((rad/s)*(m/s))], 0 disables
 };
 
 class RLSIdentification
@@ -104,6 +105,7 @@ public:
 
 	/**
 	 * @param y      body-frame acceleration [m/s^2]
+	 * @param vel    body-frame velocity [m/s], used for the rotor drag term
 	 * @param speeds per-rotor speed [rad/s]
 	 * @param dt     sampling time [s]
 	 * @param interaction_flag  freeze the RLS gains during interaction
@@ -111,8 +113,8 @@ public:
 	 *                   (PWM-derived speeds); set false when speeds are measured
 	 *                   directly (ESC RPM).
 	 */
-	void updateThrust(const Vector3f &y, const Vector<float, RLS_MAX_ROTORS> &speeds, const float &dt,
-			  const bool &interaction_flag, const bool &apply_lpf);
+	void updateThrust(const Vector3f &y, const Vector3f &vel, const Vector<float, RLS_MAX_ROTORS> &speeds,
+			  const float &dt, const bool &interaction_flag, const bool &apply_lpf);
 	void updateOffset(const Quatf &q, const bool &interaction_flag);
 
 	Vector<float, RLS_MAX_ROTORS> getFilteredSpeeds() const { return _w_lpf; }
@@ -120,6 +122,8 @@ public:
 	Vector3f getPredictionErrorThrust() const { return _prediction_error_thrust; }
 	Vector<float, RLS_MAX_GROUPS> getEstimationThrust() const { return _xp_thrust; }
 	Vector3f getActuatorForceVector() const { return _force_vector; }
+	/** Modelled rotor drag force, body frame [N] (zero when RLS_EST_K_DRAG is 0) */
+	Vector3f getDragForce() const { return _drag_force; }
 	int getNumGroups() const { return _n_groups; }
 
 	Vector3f getPredictionErrorOffset() const { return _prediction_error_offset; }
@@ -142,12 +146,14 @@ private:
 	void _computePredictionErrorOffset();
 	void _computePOffset();
 	void _createMomentVector();
+	void _computeDrag(const Vector3f &vel);
 
 	float _mass{0.8f}; //< Vehicle Mass
 	int _num_rotors{4}; //< Number of rotors
 	int _n_groups{1}; //< Number of thrust-coefficient groups
 	float _dt{0.004f}; //< Sampling Time
 	float _lpf_motor_tau{0.1f};  //< Motor Dynamics Time Constant
+	float _k_drag{0.f}; //< Rotor drag coefficient, 0 disables the term
 
 	// Per-rotor geometry (from the control allocator)
 	Vector3f _position[RLS_MAX_ROTORS]{};
@@ -176,6 +182,8 @@ private:
 	Vector3f _prediction_error_offset{};
 	Vector3f _moment_vector{};
 	Vector3f _force_vector{};
+	Vector3f _drag_force{};   //< rotor drag force, body frame [N]
+	Vector3f _drag_moment{};  //< moment of the rotor drag about the origin [N m]
 
 	static constexpr float _GRAVITY = 9.80665f; // m/s^2
 	static constexpr float _kf_multiplier = (1E-6f);

@@ -144,6 +144,9 @@ private:
 
 	void publishStatus();
 	void publishInvalidStatus();
+	/** Body-frame velocity for the rotor drag term; zero when no fresh estimate */
+	matrix::Vector3f velocityBody(const vehicle_attitude_s &v_att);
+
 	bool copyAndCheckAllFinite(vehicle_acceleration_s &accel, actuator_outputs_s &actuator_outputs,
 					vehicle_attitude_s &v_att, vehicle_angular_velocity_s &v_ang_vel, battery_status_s &batt_stat);
 
@@ -198,6 +201,10 @@ private:
 	int _actuator_outputs_instance{-1};
 	hrt_abstime _actuator_outputs_scan_last{0};
 
+	// Latest velocity estimate, NED, kept between local-position updates
+	matrix::Vector3f _velocity_ned{};
+	hrt_abstime _velocity_timestamp{0};
+
 	hrt_abstime _timestamp_last{0};
 	systemlib::Hysteresis _valid_hysteresis{false};
 
@@ -208,6 +215,7 @@ private:
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::RLS_EST_MASS>) _param_rls_mass,
 		(ParamFloat<px4::params::RLS_EST_LPF_M>) _param_rls_lpf_motor,
+		(ParamFloat<px4::params::RLS_EST_K_DRAG>) _param_rls_k_drag,
 		(ParamInt<px4::params::RLS_EST_N_GRP>) _param_rls_n_grp,
 		(ParamInt<px4::params::RLS_EST_SPD_SRC>) _param_rls_spd_src,
 		(ParamFloat<px4::params::RLS_EST_KF_INIT>) _param_rls_kf_init,
