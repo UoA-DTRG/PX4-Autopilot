@@ -152,6 +152,7 @@ void LoggedTopics::add_default_topics()
 	add_topic("wind", 1000);
 
 	add_topic("sequential_desaturation");
+	add_topic("dtrg_desaturated_control");
 	add_topic("horizontal_thrust_limit");
 
 	// multi topics
