@@ -154,6 +154,10 @@ void LoggedTopics::add_default_topics()
 	add_topic("sequential_desaturation");
 	add_topic("horizontal_thrust_limit");
 
+	// RLS wrench estimator. Logged fast enough to resolve contact transients, and
+	// it also carries the identified k_f / x_offset for tuning.
+	add_optional_topic("rls_wrench_estimator", 20);
+
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);

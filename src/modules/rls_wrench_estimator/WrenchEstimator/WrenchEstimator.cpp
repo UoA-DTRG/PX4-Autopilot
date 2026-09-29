@@ -46,6 +46,7 @@ void WrenchEstimator::initialize(const float &tau_f,const float &tau_m, const Ve
 	_Fe.setAll(0.f);
 	_Fe_inertial.setAll(0.f);
 	_Me.setAll(0.f);
+	_integral_moment.setAll(0.f);
 
 	_I.setIdentity();
 	_I(0,0) = inertia_diag(0);
@@ -72,13 +73,19 @@ void WrenchEstimator::updateForce(const Vector3f &prediction_error_force, const 
 void WrenchEstimator::updateMoment(const Vector3f &prediction_error_moment, const Vector3f &omega, const float &dt, const bool &interaction_flag)
 {
 	_dt = dt;
+	_omega = omega;
 
 	Vector3f Iw = (_I*_omega);
 
 	if (interaction_flag) {
+		// Momentum-observer form: the K*I*omega term is part of the output, not of the
+		// integrator state. Applying it to the state ("_Me -= K*Iw") re-applied it on
+		// every cycle, so it accumulated at a rate set by the scheduling rate rather
+		// than acting as the angular-momentum term it stands for.
 		_integrateMoment(- prediction_error_moment + Iw.cross(_omega) - _Me);
-		_Me -= (_K_moment * Iw);
+		_Me = _integral_moment - (_K_moment * Iw);
 	} else {
+		_integral_moment.setAll(0.f);
 		_Me.setAll(0.f);
 	}
 }
@@ -90,5 +97,5 @@ inline void WrenchEstimator::_integrateForce(const Vector3f &u)
 
 inline void WrenchEstimator::_integrateMoment(const Vector3f &u)
 {
-	_Me+= _K_moment * u * _dt;
+	_integral_moment += _K_moment * u * _dt;
 }

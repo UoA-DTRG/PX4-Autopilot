@@ -137,16 +137,11 @@ PARAM_DEFINE_FLOAT(RLS_EST_KF_CONF, 0.001f);
 /**
  * Accelerometer xy-noise for RLS parameter identification
  *
- * @decimal 5
- * @min 0.01
- * @max 100.0
- * @unit m/s^2
- * @group RLS Wrench Estimator
- */
-PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 1.f);
-
-/**
- * Accelerometer z-noise for RLS parameter identification
+ * Measurement covariance of the lateral axes in the thrust-constant RLS. These
+ * axes carry little thrust-constant information but do carry any lateral external
+ * force, so they are deliberately trusted less than z: with a single k_f fitting a
+ * three-axis measurement, weighting them highly makes the fit absorb a steady
+ * lateral disturbance into k_f and leaves a bias on the z estimate instead.
  *
  * @decimal 5
  * @min 0.01
@@ -154,7 +149,22 @@ PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 1.f);
  * @unit m/s^2
  * @group RLS Wrench Estimator
  */
-PARAM_DEFINE_FLOAT(RLS_EST_Z_NOISE, 10.f);
+PARAM_DEFINE_FLOAT(RLS_EST_XY_NOISE, 10.f);
+
+/**
+ * Accelerometer z-noise for RLS parameter identification
+ *
+ * Measurement covariance of the body z-axis in the thrust-constant RLS. This is
+ * the axis the rotor thrust acts along, so it is the one the identification should
+ * trust most. Keep it below RLS_EST_XY_NOISE.
+ *
+ * @decimal 5
+ * @min 0.01
+ * @max 100.0
+ * @unit m/s^2
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(RLS_EST_Z_NOISE, 1.f);
 
 /**
  * PWM to speed (P1)
@@ -283,8 +293,9 @@ PARAM_DEFINE_FLOAT(RLS_EST_YO_CONF, 1000.0f);
 PARAM_DEFINE_FLOAT(RLS_EST_F_NOISE, 1.0f);
 
 /**
- * Vehicle moment of inertia about x-axis [kg m^2]*1e3
+ * Vehicle moment of inertia about x-axis
  *
+ * Given in g m^2, i.e. the SI inertia in kg m^2 multiplied by 1e3.
  *
  * @decimal 5
  * @min 0.1
@@ -294,8 +305,9 @@ PARAM_DEFINE_FLOAT(RLS_EST_F_NOISE, 1.0f);
 PARAM_DEFINE_FLOAT(RLS_EST_IXX, 2.5513f);
 
 /**
- * Vehicle moment of inertia about y-axis [kg m^2]*1e3
+ * Vehicle moment of inertia about y-axis
  *
+ * Given in g m^2, i.e. the SI inertia in kg m^2 multiplied by 1e3.
  *
  * @decimal 5
  * @min 0.1
@@ -305,8 +317,9 @@ PARAM_DEFINE_FLOAT(RLS_EST_IXX, 2.5513f);
 PARAM_DEFINE_FLOAT(RLS_EST_IYY, 2.8425f);
 
 /**
- * Vehicle moment of inertia about z-axis [kg m^2]*1e3
+ * Vehicle moment of inertia about z-axis
  *
+ * Given in g m^2, i.e. the SI inertia in kg m^2 multiplied by 1e3.
  *
  * @decimal 5
  * @min 0.1
