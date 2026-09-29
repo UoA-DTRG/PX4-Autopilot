@@ -12,5 +12,14 @@ float32[3] x_offset     # estimated center-of-mass offset [x, y, z] [m]
 uint8 n_groups          # number of active thrust-coefficient groups
 uint8[16] motor_group   # thrust-coefficient group index for each motor
 
-bool interaction_flag   # external interaction detected (RLS gains frozen)
+uint8 STAGE_IDENTIFY = 0        # k_f and CoM offset adapting
+uint8 STAGE_ALIGN = 1           # identification frozen, sensor alignment being estimated
+uint8 STAGE_INTERACT = 2        # everything frozen, fe/me are the measurement
+
+uint8 stage             # identification stage, see STAGE_*
+float32[2] alignment    # sensor-to-rotor misalignment being estimated [rad] (STAGE_ALIGN)
+float32[2] align_force  # world-fixed force separated from it, NED [N] (STAGE_ALIGN)
+float32 align_coverage  # heading span visited during STAGE_ALIGN [deg]
+
+bool interaction_flag   # in STAGE_INTERACT
 bool valid              # estimation valid

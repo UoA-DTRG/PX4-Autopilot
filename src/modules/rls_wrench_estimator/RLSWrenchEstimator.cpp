@@ -40,6 +40,8 @@
 
 #include "RLSWrenchEstimator.hpp"
 
+#include <string.h>
+
 using matrix::Vector3f;
 
 namespace
@@ -48,11 +50,15 @@ namespace
 static constexpr float RPM_TO_RADS = 0.104719755f;
 // Maximum age of an esc_status message for its RPM to be trusted
 static constexpr hrt_abstime ESC_STATUS_TIMEOUT = 100_ms;
+// Maximum age of an actuator_outputs message for it to be used
+static constexpr hrt_abstime ACTUATOR_OUTPUTS_TIMEOUT = 100_ms;
+// How often the actuator_outputs instances are probed while none is selected
+static constexpr hrt_abstime ACTUATOR_OUTPUTS_SCAN_INTERVAL = 1_s;
 }
 
 RLSWrenchEstimator::RLSWrenchEstimator() :
 	ModuleParams(nullptr),
-	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
+	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::wrench_est)
 {
 	_valid_hysteresis.set_hysteresis_time_from(false, 2_s);
 	initRotorParamHandles();
@@ -66,11 +72,16 @@ RLSWrenchEstimator::~RLSWrenchEstimator()
 
 bool RLSWrenchEstimator::init()
 {
-	// execute Run() on every vehicle_acceleration publication
+	// execute Run() on vehicle_acceleration publications, limited to 100 Hz
 	if (!_vehicle_acceleration_sub.registerCallback()) {
 		PX4_ERR("vehicle_acceleration callback registration failed");
 		return false;
 	}
+
+	// vehicle_acceleration is published at the IMU rate, far faster than this
+	// estimator needs. Running every publication burns CPU that lower-priority work
+	// such as mavlink needs, so the update is limited to 100 Hz.
+	_vehicle_acceleration_sub.set_interval_us(10_ms);
 
 	return true;
 }
@@ -166,6 +177,15 @@ void RLSWrenchEstimator::updateParams()
 {
 	ModuleParams::updateParams();
 
+	// Rotation from the frame the IMU and attitude are reported in to the frame the
+	// rotor geometry (CA_ROTOR*) is defined in. A few degrees here turn a large
+	// vertical thrust into a lateral force the vehicle never feels, so this is
+	// applied to the measurements before the residual that becomes the wrench
+	// estimate is formed. Safe to update in flight: it changes no RLS state.
+	_q_align = matrix::Quatf(matrix::Eulerf(math::radians(_param_rls_align_roll.get()),
+						math::radians(_param_rls_align_pitch.get()), 0.f));
+	_R_align = matrix::Dcmf(_q_align);
+
 	if (!_in_air) {
 		VehicleParameters vehicle_params{};
 		updateGeometry(vehicle_params);
@@ -197,10 +217,12 @@ void RLSWrenchEstimator::updateParams()
 			_param_rls_f_noise.get()
 		};
 
+		// RLS_EST_I** are given in g m^2 (SI inertia x 1e3), while the moment vector
+		// they are combined with is in N m, so they have to be scaled back to SI.
 		const Vector3f inertia_diag = {
-			_param_rls_inertia_x.get() * (1E3f),
-			_param_rls_inertia_y.get() * (1E3f),
-			_param_rls_inertia_z.get() * (1E3f)
+			_param_rls_inertia_x.get() * (1E-3f),
+			_param_rls_inertia_y.get() * (1E-3f),
+			_param_rls_inertia_z.get() * (1E-3f)
 		};
 
 		_identification.initialize(initial_guess, initial_confidence, R_diag, vehicle_params);
@@ -224,6 +246,12 @@ void RLSWrenchEstimator::Run()
 
 			if (_landed) {
 				_in_air = false;
+
+				// An alignment estimate belongs to the flight it was taken in. The
+				// vehicle gets refitted between flights and the misalignment moves with
+				// it, but the coverage gate only knows how far the vehicle turned - a
+				// stale estimate would still pass it and be saved without any warning.
+				resetAlignment();
 			}
 		}
 	}
@@ -276,19 +304,48 @@ void RLSWrenchEstimator::Run()
 	if (_debug_vect_sub.updated()) {
 		debug_vect_s flags_vect;
 		_debug_vect_sub.copy(&flags_vect);
-		_interaction_flag = (flags_vect.x > 0.5f);
+		_interaction_flag_external = (flags_vect.x > 0.5f);
 
 		_debug_timestamp_last = hrt_absolute_time();
 	}
 
 	if (hrt_elapsed_time(&_debug_timestamp_last) > 1_s) {
-		_interaction_flag = false; //timeout case external link lost
+		_interaction_flag_external = false; //timeout case external link lost
 	}
+
+	// A console stage ("rls_wrench_estimator stage ...") wins over the external flag
+	// until it is set back to auto.
+	if (_alignment_reset_request.load()) {
+		_alignment_reset_request.store(false);
+		resetAlignment();
+	}
+
+	const Stage stage_prev = _stage;
+	const int32_t stage_override = getStageOverride();
+
+	if (stage_override >= 0) {
+		_stage = (Stage)stage_override;
+
+	} else {
+		_stage = _interaction_flag_external ? Stage::Interact : Stage::Identify;
+	}
+
+	if ((_stage == Stage::Align) && (stage_prev != Stage::Align)) {
+		resetAlignment(); // each alignment run starts from the parameters, not from the last run
+	}
+
+	_interaction_flag = (_stage == Stage::Interact);
+
+	// The identification is frozen for anything past Identify: from Align onwards the
+	// residual is the measurement, so letting k_f keep adapting would consume it.
+	const bool freeze_identification = (_stage != Stage::Identify);
 
 // Guard against too small (< 0.2ms) and too large (> 20ms) dt's.
 	if (_finite && _armed && _in_air && (dt > 0.0002f) && (dt < 0.02f)) {
 
-		const Vector3f acc = Vector3f(accel.xyz[0], accel.xyz[1], accel.xyz[2]);
+		// Measurements are rotated into the rotor frame, so that the residual against
+		// the actuator model is formed between two vectors in the same frame.
+		const Vector3f acc = _R_align * Vector3f(accel.xyz[0], accel.xyz[1], accel.xyz[2]);
 
 		_voltage = math::constrain(batt_stat.voltage_v, _param_n_cells.get() * 3.0f, _param_n_cells.get() * 4.2f);
 
@@ -308,9 +365,12 @@ void RLSWrenchEstimator::Run()
 		float speed[RLS_MAX_ROTORS] = {};
 
 		for (int i = 0; i < _num_rotors; i++) {
-			// PWM model (also the per-motor fall-back in ESC mode)
-			float s = ((actuator_outputs.output[i] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get())
-				  * voltage_correction;
+			// PWM model (also the per-motor fall-back in ESC mode). The affine model
+			// crosses zero at P2/P1 (~918 us here), so it has to be clamped: the speed
+			// is squared downstream, and an unclamped low/zero PWM would otherwise
+			// model *more* thrust than full throttle.
+			float s = math::max(((actuator_outputs.output[i] * _param_rls_speed_p1.get()) - _param_rls_speed_p2.get())
+					    * voltage_correction, 0.f);
 
 			if (use_esc && esc_fresh && (i < esc_status.esc_count) && (i < esc_status_s::CONNECTED_ESC_MAX)) {
 				const bool online = (esc_status.esc_online_flags & (1 << i));
@@ -327,22 +387,31 @@ void RLSWrenchEstimator::Run()
 		const matrix::Vector<float, RLS_MAX_ROTORS> output = matrix::Vector<float, RLS_MAX_ROTORS>(speed);
 
 		//RLS Thrust
-		_identification.updateThrust(acc, output, dt, _interaction_flag, apply_lpf);
+		_identification.updateThrust(acc, output, dt, freeze_identification, apply_lpf);
 
 		const Vector3f p_error_t = _identification.getPredictionErrorThrust();
-		const matrix::Quatf q{v_att.q};
+		// Attitude of the rotor frame rather than of the IMU frame, so the gravity
+		// direction the offset RLS regresses against is in the rotor frame too.
+		const matrix::Quatf q = matrix::Quatf(v_att.q) * _q_align.inversed();
 
 		//Wrench Estimator Thrust
-		_wrench_estimator.updateForce(p_error_t, dt, _interaction_flag);
+		_wrench_estimator.updateForce(p_error_t, dt, freeze_identification);
 		// --------------------------------------------------------- //
 
 		//RLS Offset
-		_identification.updateOffset(q, _interaction_flag);
+		_identification.updateOffset(q, freeze_identification);
 
 		Vector3f p_error_o = _identification.getPredictionErrorOffset();
 
 		//Wrench Estimator Moment
-		_wrench_estimator.updateMoment(p_error_o, Vector3f(v_ang_vel.xyz), dt, _interaction_flag);
+		_wrench_estimator.updateMoment(p_error_o, _R_align * Vector3f(v_ang_vel.xyz), dt, freeze_identification);
+
+		// Sensor alignment. Fed the raw thrust prediction error rather than the
+		// filtered fe, and run after updateOffset() because that is what computes the
+		// actuator force vector this regresses against.
+		if (_stage == Stage::Align) {
+			_alignment.update(p_error_t, _identification.getActuatorForceVector(), q);
+		}
 
 		// Check validity of results - IMPROVE
 		bool valid = true;
@@ -413,6 +482,15 @@ void RLSWrenchEstimator::publishStatus()
 	status_msg.x_offset[1] = params_offset(1);
 	status_msg.x_offset[2] = params_offset(2);
 
+	status_msg.stage = (uint8_t)_stage;
+	const matrix::Vector2f misalignment = _alignment.getMisalignment();
+	const matrix::Vector2f align_force = _alignment.getExternalForce();
+	status_msg.alignment[0] = misalignment(0);
+	status_msg.alignment[1] = misalignment(1);
+	status_msg.align_force[0] = align_force(0);
+	status_msg.align_force[1] = align_force(1);
+	status_msg.align_coverage = _alignment.getCoverageDeg();
+
 	status_msg.interaction_flag = _interaction_flag;
 	status_msg.valid = _valid;
 
@@ -452,6 +530,7 @@ void RLSWrenchEstimator::publishInvalidStatus()
 	status_msg.x_offset[1] = NAN;
 	status_msg.x_offset[2] = NAN;
 
+	status_msg.stage = (uint8_t)_stage;
 	status_msg.interaction_flag = _interaction_flag;
 	status_msg.valid = false;
 
@@ -491,13 +570,91 @@ bool RLSWrenchEstimator::copyAndCheckAllFinite(vehicle_acceleration_s &accel, ac
 	}
 
 
-	_actuator_outputs_sub.copy(&actuator_outputs);
+	// No usable actuator data means there is nothing to identify against. Bailing
+	// out here marks the sample invalid instead of running the RLS on a stale or
+	// empty struct, which silently produces a plausible-looking but meaningless fit.
+	if (!selectActuatorOutputs(actuator_outputs)) {
+		return false;
+	}
 
 	for (int i = 0; i < _num_rotors; i++) {
 		if (!PX4_ISFINITE(actuator_outputs.output[i])) {return false;}
 	}
 
 	return true;
+}
+
+bool RLSWrenchEstimator::actuatorOutputsDriveRotors(const actuator_outputs_s &outputs, int num_rotors)
+{
+	if ((num_rotors <= 0) || (outputs.noutputs < (uint32_t)num_rotors)) {
+		return false;
+	}
+
+	bool all_equal = true;
+
+	for (int i = 0; i < num_rotors; i++) {
+		// An output bank that is not driving these motors publishes either zeros
+		// (unassigned functions) or a constant disarmed value on every channel.
+		if (!PX4_ISFINITE(outputs.output[i]) || (outputs.output[i] <= 0.f)) {
+			return false;
+		}
+
+		if (fabsf(outputs.output[i] - outputs.output[0]) > FLT_EPSILON) {
+			all_equal = false;
+		}
+	}
+
+	// Bit-identical commands across every rotor do not occur while flying, and are
+	// the signature of the wrong bank: with equal speeds the tilted-rotor geometry
+	// cancels, so the identified force loses its lateral components entirely.
+	return !all_equal;
+}
+
+bool RLSWrenchEstimator::selectActuatorOutputs(actuator_outputs_s &actuator_outputs)
+{
+	// actuator_outputs is a multi-instance topic, one instance per output driver,
+	// numbered in advertise order. Which one carries the motors therefore depends
+	// on the boot order of the output drivers, so it has to be found at run time.
+	if (_actuator_outputs_instance >= 0) {
+		if (_actuator_outputs_sub.copy(&actuator_outputs)
+		    && (hrt_elapsed_time(&actuator_outputs.timestamp) < ACTUATOR_OUTPUTS_TIMEOUT)
+		    && (actuator_outputs.noutputs >= (uint32_t)_num_rotors)) {
+			// Only freshness is re-checked here: the stricter content test below is a
+			// selection criterion, not an invariant (a hovering vehicle may briefly
+			// command identical values).
+			return true;
+		}
+
+		PX4_WARN("actuator_outputs instance %d lost, rescanning", _actuator_outputs_instance);
+		_actuator_outputs_instance = -1;
+	}
+
+	if (hrt_elapsed_time(&_actuator_outputs_scan_last) < ACTUATOR_OUTPUTS_SCAN_INTERVAL) {
+		return false;
+	}
+
+	_actuator_outputs_scan_last = hrt_absolute_time();
+
+	for (uint8_t i = 0; i < ORB_MULTI_MAX_INSTANCES; i++) {
+		if (!_actuator_outputs_sub.ChangeInstance(i)) {
+			continue; // instance does not exist
+		}
+
+		// Probed into the caller's struct rather than a local copy: a rejected candidate
+		// is discarded by the caller anyway because this returns false, so a second
+		// actuator_outputs_s on the stack would buy nothing.
+		if (!_actuator_outputs_sub.copy(&actuator_outputs)
+		    || (hrt_elapsed_time(&actuator_outputs.timestamp) >= ACTUATOR_OUTPUTS_TIMEOUT)
+		    || !actuatorOutputsDriveRotors(actuator_outputs, _num_rotors)) {
+			continue;
+		}
+
+		PX4_INFO("using actuator_outputs instance %d (%d outputs)", i, (int)actuator_outputs.noutputs);
+		_actuator_outputs_instance = i;
+		return true;
+	}
+
+	return false;
 }
 
 int RLSWrenchEstimator::task_spawn(int argc, char *argv[])
@@ -523,15 +680,193 @@ int RLSWrenchEstimator::task_spawn(int argc, char *argv[])
 	return PX4_ERROR;
 }
 
+void RLSWrenchEstimator::resetAlignment()
+{
+	_alignment.reset();
+	_alignment_saved.store(false);
+}
+
+matrix::Vector2f RLSWrenchEstimator::getAlignmentResult() const
+{
+	// The estimator sees residuals that already have the current alignment applied,
+	// so what it produces is an increment on the parameters, not a replacement.
+	const matrix::Vector2f correction = _alignment.getAlignmentCorrection();
+	return matrix::Vector2f(_param_rls_align_roll.get() + math::degrees(correction(0)),
+				_param_rls_align_pitch.get() + math::degrees(correction(1)));
+}
+
 int RLSWrenchEstimator::print_status()
 {
+	static const char *const stage_names[] = {"identify", "align", "interact"};
+	const int stage_idx = math::constrain((int)_stage, 0, 2);
+	const int32_t override_val = getStageOverride();
+
+	PX4_INFO("stage: %s [%s, DEBUG_VECT: %s]", stage_names[stage_idx],
+		 (override_val < 0) ? "auto" : "forced from console",
+		 _interaction_flag_external ? "on" : "off");
+
+	PX4_INFO("alignment applied: roll %.3f deg, pitch %.3f deg",
+		 (double)_param_rls_align_roll.get(), (double)_param_rls_align_pitch.get());
+
+	if (_alignment.getSampleCount() > 0) {
+		const matrix::Vector2f result = getAlignmentResult();
+		const matrix::Vector2f wind = _alignment.getExternalForce();
+		PX4_INFO("alignment estimate: roll %.3f deg, pitch %.3f deg (+/- %.3f deg, %d samples)",
+			 (double)result(0), (double)result(1),
+			 (double)math::degrees(_alignment.getMisalignmentStdDev()), _alignment.getSampleCount());
+		PX4_INFO("  world-fixed force separated out: N %.3f E %.3f N", (double)wind(0), (double)wind(1));
+		PX4_INFO("  heading coverage %.0f deg -> %s", (double)_alignment.getCoverageDeg(),
+			 _alignment_saved.load() ? "already saved"
+			 : (_alignment.isValid() ? "usable, saved on 'stage interact'"
+			    : (_alignment.hasEnoughRotation() ? "still converging" : "NOT usable, yaw the vehicle further")));
+	}
+
+	if (_actuator_outputs_instance < 0) {
+		PX4_WARN("actuator_outputs: no instance driving the %d rotors found", _num_rotors);
+
+	} else {
+		PX4_INFO("actuator_outputs: instance %d", _actuator_outputs_instance);
+	}
+
 	perf_print_counter(_cycle_perf);
 	return 0;
 }
 
+namespace
+{
+/**
+ * Write the pending alignment correction to RLS_EST_ALN_R/P.
+ *
+ * The estimate is an increment on the parameters already in use, so it must be
+ * applied exactly once - hence the saved flag rather than a plain idempotent write.
+ */
+int saveAlignment(RLSWrenchEstimator *instance, bool forced)
+{
+	const AlignmentEstimator &align = instance->getAlignmentEstimator();
+
+	if (instance->isAlignmentSaved()) {
+		PX4_WARN("this alignment estimate was already saved; run 'stage align' again for a new one");
+		return 0;
+	}
+
+	if (!align.isValid() && !forced) {
+		PX4_ERR("alignment estimate not usable: %.0f deg of heading covered (need %.0f), +/- %.2f deg",
+			(double)align.getCoverageDeg(), (double)AlignmentEstimator::MIN_COVERAGE_DEG,
+			(double)math::degrees(align.getMisalignmentStdDev()));
+		PX4_ERR("without rotation a misalignment and a real lateral force are the same thing; use -f to override");
+		return 1;
+	}
+
+	const matrix::Vector2f result = instance->getAlignmentResult();
+	float roll = result(0);
+	float pitch = result(1);
+
+	if (param_set(param_find("RLS_EST_ALN_R"), &roll) != PX4_OK
+	    || param_set(param_find("RLS_EST_ALN_P"), &pitch) != PX4_OK) {
+		PX4_ERR("failed to write alignment parameters");
+		return 1;
+	}
+
+	instance->markAlignmentSaved();
+	PX4_INFO("saved RLS_EST_ALN_R %.3f deg, RLS_EST_ALN_P %.3f deg", (double)roll, (double)pitch);
+	return 0;
+}
+}
+
 int RLSWrenchEstimator::custom_command(int argc, char *argv[])
 {
-	return print_usage("unknown command");
+	if (argc < 1) {
+		return print_usage("missing command");
+	}
+
+	const bool is_stage = (strcmp(argv[0], "stage") == 0);
+	const bool is_interaction = (strcmp(argv[0], "interaction") == 0);
+	const bool is_align = (strcmp(argv[0], "align") == 0);
+
+	if (!is_stage && !is_interaction && !is_align) {
+		return print_usage("unknown command");
+	}
+
+	RLSWrenchEstimator *instance = get_instance();
+
+	if (!is_running() || (instance == nullptr)) {
+		PX4_ERR("module not running");
+		return 1;
+	}
+
+	if (argc < 2) {
+		return instance->print_status();
+	}
+
+	if (is_stage || is_interaction) {
+		// "interaction on|off|auto" is kept as an alias of the stage machine so the
+		// existing DEBUG_VECT-driven workflow and scripts keep working.
+		int32_t stage = STAGE_AUTO;
+
+		if ((strcmp(argv[1], "identify") == 0) || (strcmp(argv[1], "off") == 0)) {
+			stage = (int32_t)Stage::Identify;
+
+		} else if (strcmp(argv[1], "align") == 0) {
+			stage = (int32_t)Stage::Align;
+
+		} else if ((strcmp(argv[1], "interact") == 0) || (strcmp(argv[1], "on") == 0)) {
+			stage = (int32_t)Stage::Interact;
+
+		} else if (strcmp(argv[1], "auto") != 0) {
+			// Deliberately not print_usage(): that dumps the whole module description,
+			// and this is normally typed into a MAVLink shell sharing a link with the
+			// vehicle's position aiding.
+			PX4_ERR("unknown stage '%s' (expected identify|align|interact|auto)", argv[1]);
+			return 1;
+		}
+
+		const bool finishing_align = (stage == (int32_t)Stage::Interact) && (instance->getStage() == Stage::Align);
+
+		instance->setStageOverride(stage);
+
+		if (finishing_align) {
+			// Let the work queue observe the stage change before the estimate is read,
+			// so it cannot still be updating while the console snapshots it.
+			px4_usleep(30000);
+
+			if (instance->getAlignmentEstimator().isValid()) {
+				saveAlignment(instance, false);
+
+			} else {
+				PX4_WARN("alignment run was not usable (%.0f deg of heading covered); nothing saved",
+					 (double)instance->getAlignmentEstimator().getCoverageDeg());
+			}
+		}
+
+		if (stage == STAGE_AUTO) {
+			PX4_INFO("stage following MAVLink DEBUG_VECT");
+
+		} else {
+			static const char *const stage_names[] = {"identify", "align", "interact"};
+			PX4_INFO("stage forced to %s", stage_names[stage]);
+
+			if (stage == (int32_t)Stage::Align) {
+				PX4_INFO("yaw the vehicle through at least %.0f deg, then 'align save'",
+					 (double)AlignmentEstimator::MIN_COVERAGE_DEG);
+			}
+		}
+
+		return 0;
+	}
+
+	// align save | align reset
+	if (strcmp(argv[1], "reset") == 0) {
+		instance->requestAlignmentReset();
+		PX4_INFO("alignment estimate reset");
+		return 0;
+	}
+
+	if (strcmp(argv[1], "save") != 0) {
+		PX4_ERR("unknown align argument '%s' (expected save|reset)", argv[1]);
+		return 1;
+	}
+
+	return saveAlignment(instance, (argc >= 3) && (strcmp(argv[2], "-f") == 0));
 }
 
 int RLSWrenchEstimator::print_usage(const char *reason)
@@ -545,10 +880,39 @@ int RLSWrenchEstimator::print_usage(const char *reason)
 ### Description
 RLS parameter identification and external wrench estimator.
 
+Identification runs in stages, advanced from the console (e.g. over the MAVLink shell).
+Each stage freezes what the previous one identified, so that nothing is still adapting
+when the external wrench becomes the measurement:
+
+  identify   k_f and the CoM offset adapt. Free flight in still air only - the RLS
+             cannot tell a steady external force from a parameter error.
+  align      identification frozen, the sensor-to-rotor misalignment is estimated.
+             The vehicle must yaw: at a fixed heading a misalignment and a real
+             lateral force are the same two degrees of freedom.
+  interact   everything frozen, fe/me are the measurement.
+
+$ rls_wrench_estimator stage align
+  ... yaw the vehicle through at least 90 deg, ideally a full turn ...
+$ rls_wrench_estimator stage interact
+
+Leaving align for interact saves the alignment to RLS_EST_ALN_R/P automatically, if
+the run passed the rotation gate; if it did not, nothing is written and it says so.
+'align save' does the same by hand. Either way the correction is applied exactly
+once - it is an increment on the parameters, not an absolute value. To advance
+without keeping a run, 'align reset' first.
+
+With no stage forced, the stage follows the MAVLink DEBUG_VECT flag as before.
+
 )DESCR_STR");
 
 	PRINT_MODULE_USAGE_NAME("rls_wrench_estimator", "estimator");
 	PRINT_MODULE_USAGE_COMMAND("start");
+	PRINT_MODULE_USAGE_COMMAND_DESCR("stage", "Set the identification stage, or print the current state");
+	PRINT_MODULE_USAGE_ARG("identify|align|interact|auto", "Stage to force, or follow the DEBUG_VECT flag", true);
+	PRINT_MODULE_USAGE_COMMAND_DESCR("align", "Manage the sensor alignment estimate (saved automatically on align -> interact)");
+	PRINT_MODULE_USAGE_ARG("save|reset", "Write the estimate to RLS_EST_ALN_R/P (-f to skip the rotation check), or discard it", true);
+	PRINT_MODULE_USAGE_COMMAND_DESCR("interaction", "Alias of 'stage': on -> interact, off -> identify");
+	PRINT_MODULE_USAGE_ARG("on|off|auto", "Force interact, force identify, or follow the DEBUG_VECT flag", true);
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
 	return 0;

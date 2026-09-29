@@ -293,6 +293,48 @@ PARAM_DEFINE_FLOAT(RLS_EST_YO_CONF, 1000.0f);
 PARAM_DEFINE_FLOAT(RLS_EST_F_NOISE, 1.0f);
 
 /**
+ * Sensor-to-rotor-frame roll alignment [deg]
+ *
+ * Rotation about the body x-axis from the frame the IMU and attitude estimate are
+ * reported in to the frame the rotor geometry (CA_ROTOR*) is defined in.
+ *
+ * Only a few degrees are needed to matter: the vehicle's whole weight acts along
+ * the rotor thrust axis, so an angle A between the two frames turns |F| * sin(A)
+ * of vertical thrust into an apparent lateral force in the estimate - roughly
+ * 0.18 N per degree on a 1 kg vehicle. It is body-fixed, so unlike wind it does
+ * not average out and cannot be told apart from a real force at a fixed heading.
+ *
+ * Sign: a NEGATIVE value corrects a POSITIVE bias on the estimated y force.
+ * Set it to -asin(Fe_y / |Fi|) measured in a steady, wind-free hover, or from a
+ * bench measurement of the rotor plane against the reported attitude.
+ *
+ * This corrects the estimate only. If the misalignment is in the IMU mounting,
+ * fixing SENS_BOARD_X_OFF instead also corrects the controllers and the mixer.
+ *
+ * @decimal 3
+ * @min -15.0
+ * @max 15.0
+ * @unit deg
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(RLS_EST_ALN_R, 0.0f);
+
+/**
+ * Sensor-to-rotor-frame pitch alignment [deg]
+ *
+ * Rotation about the body y-axis, see RLS_EST_ALN_R.
+ *
+ * Sign: a POSITIVE value corrects a POSITIVE bias on the estimated x force.
+ *
+ * @decimal 3
+ * @min -15.0
+ * @max 15.0
+ * @unit deg
+ * @group RLS Wrench Estimator
+ */
+PARAM_DEFINE_FLOAT(RLS_EST_ALN_P, 0.0f);
+
+/**
  * Vehicle moment of inertia about x-axis
  *
  * Given in g m^2, i.e. the SI inertia in kg m^2 multiplied by 1e3.
