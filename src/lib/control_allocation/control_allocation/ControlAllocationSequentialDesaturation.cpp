@@ -234,6 +234,22 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 
 	_sequential_desaturation_pub.publish(sqmsg);
 
+	// Command after desaturation: each step added gain * mix column to the actuators, i.e. the
+	// gain to that axis of the demand
+	const float gain[NUM_AXES] {roll_sat, pitch_sat, yaw_sat, x_sat, y_sat, z_sat};
+
+	dtrg_desaturated_control_s ctrl{};
+	ctrl.timestamp = sqmsg.timestamp;
+
+	for (int i = 0; i < 3; i++) {
+		ctrl.torque_sp[i] = _control_sp(ControlAxis::ROLL + i);
+		ctrl.thrust_sp[i] = _control_sp(ControlAxis::THRUST_X + i);
+		ctrl.torque[i] = ctrl.torque_sp[i] + gain[ControlAxis::ROLL + i];
+		ctrl.thrust[i] = ctrl.thrust_sp[i] + gain[ControlAxis::THRUST_X + i];
+	}
+
+	_dtrg_desaturated_control_pub.publish(ctrl);
+
 	// (void)sqmsg;
 
 	// (void)(x_sat + y_sat + z_sat + roll_sat + pitch_sat); // Unusaed variable repair

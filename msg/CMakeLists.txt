@@ -265,6 +265,7 @@ set(msg_files
 	versioned/VtolVehicleStatus.msg
 	DtrgCustom.msg
 	DtrgMixerStatus.msg
+	DtrgDesaturatedControl.msg
 	HorizontalThrustLimit.msg
 	SequentialDesaturation.msg
 )

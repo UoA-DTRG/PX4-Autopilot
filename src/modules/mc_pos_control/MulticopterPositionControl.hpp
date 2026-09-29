@@ -42,6 +42,7 @@
 #include "GotoControl/GotoControl.hpp"
 
 #include <drivers/drv_hrt.h>
+#include <lib/dtrg_horizontal_thrust/dtrg_horizontal_thrust.hpp>
 #include <lib/mathlib/mathlib.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <lib/mathlib/math/filter/NotchFilter.hpp>
@@ -149,18 +150,11 @@ private:
 	int _ht_en{0}; 				/**< DTRG horizontal thrust Enabled*/
 	int _ht_rc_en_add{-1};			/**< DTRF HT RC enable channel */
 	int _dtrg_ht_mask = 0;
+	bool _ht_split_en{false};			/**< DTRG_HT_SPLIT_EN, HT axes also move by tilting */
+	float _ht_split{dtrg_ht::kDefaultSplit};	/**< DTRG_HT_SPLIT, horizontal thrust share on the HT axes */
 	// 0-based RC channel indices, -1 when the channel parameter is 0 (input disabled)
 	int _ht_r_add{-1};                     	/**< DTRG horizontal thrust Roll channel */
 	int _ht_p_add{-1}; 	       		/**< DTRG horizontal thrust Pitch channel */
-
-	/**
-	 * Scaled tilt setpoint from a DTRG-assigned RC channel.
-	 *
-	 * @param channel_index 0-based RC channel, or -1 when RC_MAP_HT_ROLL/RC_MAP_HT_PITCH is 0
-	 * @param limit         magnitude limit [rad]
-	 * @return              0 when the input is disabled, out of range or inside the deadzone
-	 */
-	float dtrgAuxTiltSetpoint(int channel_index, float limit) const;
 
 	/**
 	 * Tilt setpoint from Offboard (DEBUG_FLOAT_ARRAY), limited to DTRG_HT_R_MAX / DTRG_HT_P_MAX.
@@ -170,7 +164,6 @@ private:
 	 * @return              the setpoint constrained to +-limit, 0 when it is not finite
 	 */
 	static float dtrgOffboardTiltSetpoint(float setpoint, float limit);
-
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -249,7 +242,9 @@ private:
 		(ParamInt<px4::params::RC_MAP_HT_PITCH>)  	    _param_dtrg_ht_P,		/**< horizontal thrust Pitch channel */
 		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
 		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
-		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max
+		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max,
+		(ParamInt<px4::params::DTRG_HT_SPLIT_EN>)   _param_dtrg_ht_split_en,	/**< split the HT axes between HT and tilt */
+		(ParamFloat<px4::params::DTRG_HT_SPLIT>)    _param_dtrg_ht_split	/**< horizontal thrust share on the HT axes */
 	);
 
 	math::WelfordMean<float> _sample_interval_s{};

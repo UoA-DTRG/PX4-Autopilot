@@ -17,9 +17,10 @@ Implemented:
 * Horizontal Thrust Position Mode
 * Horizontal Thrust Offboard Mode
 * Sequential Desaturation and Thrust Limits (HT)
+* Planar Octo SITL
+* [Status Monitor](https://github.com/UoA-DTRG/status_monitor)
 
 Upcoming:
-* Status Monitor
 * Dynamixel Servo Control with easy configuration
 * Wrench Estimator
 * Admittance Controller
