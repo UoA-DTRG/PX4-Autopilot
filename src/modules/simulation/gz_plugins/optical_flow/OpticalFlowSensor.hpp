@@ -63,10 +63,6 @@ private:
 	std::shared_ptr<OpticalFlowOpenCV> _optical_flow {nullptr};
 	int _integration_time_us;
 
-	// Camera
-	double _horizontal_fov {0.0};
-	double _vertical_fov {0.0};
-
 	cv::Mat _last_image_gray;
 	uint32_t _last_image_timestamp {0};
 	bool _new_image_available {false};

@@ -73,6 +73,14 @@ if (gz-transport_FOUND)
 	target_include_directories(modules__simulation__gz_bridge PUBLIC px4_gz_msgs)
 	target_link_libraries(modules__simulation__gz_bridge PUBLIC px4_gz_msgs)
 
+	# Newer protobuf releases (>= 22, bundled with abseil) changed setter signatures to
+	# double and deprecated RepeatedField::Resize. Neither is a PX4 logic issue, but both
+	# trip PX4's -Werror, so relax just these two warnings for this module.
+	target_compile_options(modules__simulation__gz_bridge PRIVATE
+		-Wno-error=double-promotion
+		-Wno-error=deprecated-declarations
+	)
+
 	px4_add_git_submodule(TARGET git_gz PATH "${PX4_SOURCE_DIR}/Tools/simulation/gz")
 	include(ExternalProject)
 	ExternalProject_Add(gz
