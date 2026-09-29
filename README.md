@@ -17,6 +17,7 @@ Implemented:
 * Horizontal Thrust Position Mode
 * Horizontal Thrust Offboard Mode
 * Sequential Desaturation and Thrust Limits (HT)
+* Planar Octo SITL
 
 Upcoming:
 * Status Monitor
