@@ -49,3 +49,27 @@ param set-default NAV_DLL_ACT 2
 # DTRG Mapping
 param set-default RC_MAP_HT_ROLL 9
 param set-default RC_MAP_HT_PITCH 10
+
+# RLS wrench estimator: match the Gazebo model exactly (planar_octo/model.sdf),
+# instead of the hardware values inherited from 12013_dtrg_planar_octo.
+param set-default RLS_EST_EN 1
+# actuator_outputs are already rotor speeds in rad/s in SITL: identity speed
+# model (P2/V2 at their minimum, i.e. effectively no offset/voltage scaling).
+param set-default RLS_EST_SPD_SRC 0
+param set-default RLS_EST_SPE_P1 1.0
+param set-default RLS_EST_SPE_P2 0.01
+param set-default RLS_EST_SPE_V2 0.01
+# motorConstant 1.2138e-06 (x1e6), timeConstantUp/Down 0.03 s
+param set-default RLS_EST_KF_INIT 1.2138
+param set-default RLS_EST_LPF_M 0.03
+# base_link 1.460 kg + 8 x 0.005 kg rotors; inertia in g m^2
+param set-default RLS_EST_MASS 1.50
+param set-default RLS_EST_IXX 24.07
+param set-default RLS_EST_IYY 24.07
+param set-default RLS_EST_IZZ 39.60
+# rotorDragCoefficient from the SDF: the in-plane rotor force while translating,
+# which is otherwise reported as an external force of ~0.85 N per m/s
+param set-default RLS_EST_K_DRAG 0.0000806428
+# CA_ROTOR* matches the SDF rotor poses exactly: no sensor misalignment
+param set-default RLS_EST_ALN_R 0
+param set-default RLS_EST_ALN_P 0
