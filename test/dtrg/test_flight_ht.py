@@ -182,8 +182,13 @@ def test_offboard_tilt_is_limited(sitl):
     assert tr.roll.max() < TILT_MAX_DEG + TRUE_TILT_TOL_DEG, \
         f"rolled {tr.roll.max():.1f} deg, limit {TILT_MAX_DEG} deg"
 
+    # even a plain HT hover drifts ~2 deg in truth with a level estimate, so level is judged
+    # tightly on the estimate and loosely on the truth, like the commanded tilt above
     level = truth(log, tilted, end).last(2.0)
-    assert level.tilt.max() < 2.0, f"still tilted {level.tilt.max():.1f} deg after a NaN tilt setpoint"
+    estimated_roll, estimated_pitch = estimated_attitude(log, end - 2.0, end)
+    estimated_tilt = max(abs(estimated_roll).max(), abs(estimated_pitch).max())
+    assert estimated_tilt < EST_TILT_TOL_DEG, f"estimate still tilted {estimated_tilt:.1f} deg after a NaN tilt setpoint"
+    assert level.tilt.max() < TRUE_TILT_TOL_DEG, f"still tilted {level.tilt.max():.1f} deg after a NaN tilt setpoint"
     assert vehicle.main_mode() == MAIN_OFFBOARD
 
 
