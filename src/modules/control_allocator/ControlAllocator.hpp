@@ -72,6 +72,7 @@
 #include <uORB/topics/actuator_servos.h>
 #include <uORB/topics/actuator_servos_trim.h>
 #include <uORB/topics/control_allocator_status.h>
+#include <uORB/topics/dtrg_mixer_status.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_torque_setpoint.h>
@@ -138,6 +139,12 @@ private:
 
 	void publish_actuator_controls();
 
+	/**
+	 * DTRG CSV mixer: publish the result of loading the mixer file (on change, and at
+	 * 1 Hz), for the commander arming check.
+	 */
+	void publish_dtrg_mixer_status();
+
 	AllocationMethod _allocation_method_id{AllocationMethod::NONE};
 	ControlAllocation *_control_allocation[ActuatorEffectiveness::MAX_NUM_MATRICES] {}; 	///< class for control allocation calculations
 	int _num_control_allocation{0};
@@ -186,6 +193,7 @@ private:
 	uORB::Publication<actuator_motors_s>	_actuator_motors_pub{ORB_ID(actuator_motors)};
 	uORB::Publication<actuator_servos_s>	_actuator_servos_pub{ORB_ID(actuator_servos)};
 	uORB::Publication<actuator_servos_trim_s>	_actuator_servos_trim_pub{ORB_ID(actuator_servos_trim)};
+	uORB::Publication<dtrg_mixer_status_s>	_dtrg_mixer_status_pub{ORB_ID(dtrg_mixer_status)};
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
@@ -207,6 +215,7 @@ private:
 	hrt_abstime _last_run{0};
 	hrt_abstime _timestamp_sample{0};
 	hrt_abstime _last_status_pub{0};
+	dtrg_mixer_status_s _dtrg_mixer_status{};
 
 	ParamHandles _param_handles{};
 	Params _params{};

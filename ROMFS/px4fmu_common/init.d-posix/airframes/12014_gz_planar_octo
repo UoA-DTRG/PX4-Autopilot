@@ -73,3 +73,16 @@ param set-default RC_MAP_HT_PITCH 10
 # # CA_ROTOR* matches the SDF rotor poses exactly: no sensor misalignment
 # param set-default RLS_EST_ALN_R 0
 # param set-default RLS_EST_ALN_P 0
+
+# Rate and attitude gains for this model. With the flown gains of 12013 the rate
+# loop only reaches ~0.9 Hz here (~56 rad/s^2 of roll acceleration per unit
+# torque), right under the attitude loop, and with HT off the vehicle wobbles
+# 5-10 deg at ~1.1 Hz (SIH_VS_GAZEBO.md 3.2). Rate P x4 (I with it, D unchanged:
+# more D only amplifies SIH's gyro noise) and a lower attitude P fix it, also
+# with the Gazebo angular damping (SIH_KDW 0.0073). Tuned in SIH, not in flight.
+param set-default MC_ROLLRATE_P 0.40
+param set-default MC_ROLLRATE_I 0.80
+param set-default MC_PITCHRATE_P 0.40
+param set-default MC_PITCHRATE_I 1.00
+param set-default MC_ROLL_P 4.5
+param set-default MC_PITCH_P 4.5

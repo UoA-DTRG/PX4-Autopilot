@@ -48,6 +48,7 @@
 #include <px4_platform_common/module_params.h>
 
 #include <drivers/drv_hrt.h>
+#include <lib/mathlib/mathlib.h>
 #include <uORB/uORB.h>
 #include <uORB/Publication.hpp>
 #include <uORB/topics/sequential_desaturation.h>
@@ -89,6 +90,7 @@ private:
 	 */
 	float desaturateActuators(ActuatorVector &actuator_sp, const ActuatorVector &desaturation_vector,
 				  bool increase_only = false);
+
 
 	/**
 	 * Computes the gain k by which desaturation_vector has to be multiplied

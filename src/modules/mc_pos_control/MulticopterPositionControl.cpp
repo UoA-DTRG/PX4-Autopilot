@@ -326,6 +326,16 @@ void MulticopterPositionControl::parameters_update(bool force)
 	}
 }
 
+float MulticopterPositionControl::dtrgOffboardTiltSetpoint(float setpoint, float limit)
+{
+	// a non-finite setpoint commands level rather than being passed on to the attitude setpoint
+	if (!PX4_ISFINITE(setpoint)) {
+		return 0.f;
+	}
+
+	return math::constrain(setpoint, -limit, limit);
+}
+
 PositionControlStates MulticopterPositionControl::set_vehicle_states(const vehicle_local_position_s
 		&vehicle_local_position, const float dt_s)
 {
@@ -646,9 +656,10 @@ void MulticopterPositionControl::Run()
 				} else {
 					if (_debug_array_sub.update(&_debug_array)) {
 
-						// if offboard is enabled, use the roll and pitch setpoints from the debug array
-						roll_setpoint = _debug_array.data[0]; //first index is roll setpoint
-						pitch_setpoint = _debug_array.data[1]; //second index is pitch setpoint
+						// if offboard is enabled, use the roll and pitch setpoints from the debug array.
+						// DEBUG_FLOAT_ARRAY is accepted from any MAVLink source, so limit it like the aux channels.
+						roll_setpoint = dtrgOffboardTiltSetpoint(_debug_array.data[0], _ht_r_limit); //first index is roll setpoint
+						pitch_setpoint = dtrgOffboardTiltSetpoint(_debug_array.data[1], _ht_p_limit); //second index is pitch setpoint
 					}
 				}
 

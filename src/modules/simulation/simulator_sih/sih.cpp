@@ -68,6 +68,10 @@ void Sih::run()
 	_px4_accel.set_temperature(T1_C);
 	_px4_gyro.set_temperature(T1_C);
 
+	// before parameters_updated(), which loads the rotor geometry of the generic multirotor
+	_vehicle = (VehicleType)constrain(_sih_vtype.get(), static_cast<typeof _sih_vtype.get()>(0),
+					  static_cast<typeof _sih_vtype.get()>(4));
+
 	init_variables();
 	parameters_updated();
 
@@ -75,8 +79,6 @@ void Sih::run()
 	_last_run = task_start;
 	_airspeed_time = task_start;
 	_dist_snsr_time = task_start;
-	_vehicle = (VehicleType)constrain(_sih_vtype.get(), static_cast<typeof _sih_vtype.get()>(0),
-					  static_cast<typeof _sih_vtype.get()>(3));
 
 	_actuator_out_sub = uORB::Subscription{ORB_ID(actuator_outputs_sim)};
 
@@ -281,6 +283,70 @@ void Sih::parameters_updated()
 	_distance_snsr_override = _sih_distance_snsr_override.get();
 
 	_T_TAU = _sih_thrust_tau.get();
+	_THR_MDL_FAC = _sih_thr_mdl_fac.get();
+
+	if (_vehicle == VehicleType::GenericMultirotor) {
+		update_rotor_geometry();
+	}
+}
+
+void Sih::update_rotor_geometry()
+{
+	// Same parameters and conventions as control allocation (ActuatorEffectivenessRotors),
+	// so one airframe file describes both the controller's model and the simulated vehicle.
+	int32_t rotor_count = 0;
+	param_get(param_find("CA_ROTOR_COUNT"), &rotor_count);
+	const int num_rotors = math::constrain(static_cast<int>(rotor_count), 0, NUM_ROTORS_MAX);
+
+	float thrust_coef[NUM_ROTORS_MAX] {};
+	float thrust_coef_sum = 0.f;
+	char name[20];
+
+	for (int i = 0; i < num_rotors; i++) {
+		Rotor &rotor = _rotors[i];
+		const char *fields[] = {"PX", "PY", "PZ", "AX", "AY", "AZ"};
+		float values[6] {};
+
+		for (int j = 0; j < 6; j++) {
+			snprintf(name, sizeof(name), "CA_ROTOR%d_%s", i, fields[j]);
+			param_get(param_find(name), &values[j]);
+		}
+
+		snprintf(name, sizeof(name), "CA_ROTOR%d_CT", i);
+		param_get(param_find(name), &thrust_coef[i]);
+		snprintf(name, sizeof(name), "CA_ROTOR%d_KM", i);
+		param_get(param_find(name), &rotor.km);
+
+		rotor.position = Vector3f(values[0], values[1], values[2]);
+		rotor.axis = Vector3f(values[3], values[4], values[5]);
+
+		if (rotor.axis.longerThan(FLT_EPSILON)) {
+			rotor.axis.normalize();
+
+		} else {
+			PX4_WARN("rotor %d has no thrust axis, using upwards", i);
+			rotor.axis = Vector3f(0.f, 0.f, -1.f);
+		}
+
+		thrust_coef_sum += thrust_coef[i];
+	}
+
+	// CA_ROTORn_CT only matters relative to the other rotors: a rotor with the average
+	// coefficient makes SIH_T_MAX at full output
+	const float thrust_coef_mean = (num_rotors > 0) ? thrust_coef_sum / num_rotors : 0.f;
+
+	for (int i = 0; i < num_rotors; i++) {
+		_rotors[i].thrust_max = (thrust_coef_mean > FLT_EPSILON) ? _T_MAX * thrust_coef[i] / thrust_coef_mean : _T_MAX;
+	}
+
+	if (num_rotors == 0) {
+		PX4_ERR("generic multirotor without rotors, set CA_ROTOR_COUNT");
+
+	} else if (num_rotors != _num_rotors) {
+		PX4_INFO("generic multirotor with %d rotors", num_rotors);
+	}
+
+	_num_rotors = num_rotors;
 }
 
 void Sih::init_variables()
@@ -295,7 +361,9 @@ void Sih::init_variables()
 	_q_E = Quatf(Eulerf(0.f, -M_PI_2_F, 0.f));
 	_w_B = Vector3f(0.0f, 0.0f, 0.0f);
 
-	_u[0] = _u[1] = _u[2] = _u[3] = 0.0f;
+	for (float &u : _u) {
+		u = 0.0f;
+	}
 }
 
 void Sih::read_motors(const float dt)
@@ -351,6 +419,30 @@ void Sih::generate_force_and_torques()
 		// thrust 0 because it is already contained in _T_B. in
 		// equations_of_motion they are all summed into sum_of_forces_E
 		generate_fw_aerodynamics(_u[4], _u[5], _u[6], 0);
+
+	} else if (_vehicle == VehicleType::GenericMultirotor) {
+		generate_rotor_force_and_torques();
+		_Fa_E = -_KDV * _v_E;   // first order drag to slow down the aircraft
+		_Ma_B = -_KDW * _w_B;   // first order angular damper
+	}
+}
+
+void Sih::generate_rotor_force_and_torques()
+{
+	_T_B.zero();
+	_Mt_B.zero();
+
+	for (int i = 0; i < _num_rotors; i++) {
+		const Rotor &rotor = _rotors[i];
+		const float u = math::constrain(_u[i], 0.f, 1.f);
+
+		// the thrust curve PX4 inverts with THR_MDL_FAC: rel_thrust = fac * u^2 + (1 - fac) * u
+		const float thrust = rotor.thrust_max * (_THR_MDL_FAC * u * u + (1.f - _THR_MDL_FAC) * u);
+		const Vector3f force = thrust * rotor.axis;
+
+		_T_B += force;
+		// lever arm moment plus the propeller drag torque, which reacts against the spin direction
+		_Mt_B += rotor.position.cross(force) - rotor.km * thrust * rotor.axis;
 	}
 }
 
@@ -431,7 +523,8 @@ void Sih::equations_of_motion(const float dt)
 	if ((_lla.altitude() - _lpos_ref_alt) < 0.f && force_down > 0.f) {
 		if (_vehicle == VehicleType::Multicopter
 		    || _vehicle == VehicleType::TailsitterVTOL
-		    || _vehicle == VehicleType::StandardVTOL) {
+		    || _vehicle == VehicleType::StandardVTOL
+		    || _vehicle == VehicleType::GenericMultirotor) {
 			ground_force_E = -sum_of_forces_E;
 
 			if (!_grounded) {
@@ -729,6 +822,9 @@ int Sih::print_status()
 
 	} else if (_vehicle == VehicleType::StandardVTOL) {
 		PX4_INFO("Running Standard VTOL");
+
+	} else if (_vehicle == VehicleType::GenericMultirotor) {
+		PX4_INFO("Running generic multirotor, %d rotors from CA_ROTOR*", _num_rotors);
 	}
 
 	PX4_INFO("vehicle landed: %d", _grounded);
@@ -741,8 +837,10 @@ int Sih::print_status()
 	PX4_INFO("angular acceleration roll-pitch-yaw (deg/s)");
 	(_w_B * 180.0f / M_PI_F).print();
 	PX4_INFO("actuator signals");
-	Vector<float, 8> u = Vector<float, 8>(_u);
+	Vector<float, NUM_ACTUATORS_MAX> u = Vector<float, NUM_ACTUATORS_MAX>(_u);
 	u.transpose().print();
+	PX4_INFO("Thruster force body frame (N)");
+	_T_B.print();
 	PX4_INFO("Aerodynamic forces NED (N)");
 	(_R_N2E.transpose() * _Fa_E).print();
 	PX4_INFO("Aerodynamic moments body frame (Nm)");
@@ -757,7 +855,7 @@ int Sih::task_spawn(int argc, char *argv[])
 	_task_id = px4_task_spawn_cmd("sih",
 				      SCHED_DEFAULT,
 				      SCHED_PRIORITY_MAX,
-				      1560,
+				      1900,
 				      (px4_main_t)&run_trampoline,
 				      (char *const *)argv);
 
@@ -796,6 +894,12 @@ int Sih::print_usage(const char *reason)
 ### Description
 This module provides a simulator for quadrotors and fixed-wings running fully
 inside the hardware autopilot.
+
+With SIH_VEHICLE_TYPE 4 (generic multirotor) the rotor geometry is read from the
+control allocation parameters (CA_ROTOR_COUNT, CA_ROTORn_PX/PY/PZ/AX/AY/AZ/CT/KM),
+so any multirotor that control allocation can describe, including tilted and
+fully actuated ones, is simulated without code changes. Output channel n drives
+rotor n, so map the outputs to Motor 1..N in order.
 
 This simulator subscribes to "actuator_outputs" which are the actuator pwm
 signals given by the control allocation module.

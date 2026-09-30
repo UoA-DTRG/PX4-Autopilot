@@ -1,0 +1,4 @@
+pymavlink>=2.4.41
+pytest>=8
+pyulog>=1.1
+numpy

@@ -31,11 +31,16 @@
 #
 ############################################################################
 
+include(GoogleTest)
+
 #=============================================================================
 #
 #	px4_add_unit_gtest
 #
 #	Adds a googletest unit test to the test_results target.
+#
+#	DISCOVER: register every TEST() as its own ctest entry (named Suite.Test),
+#	so ctest lists and reports each test case instead of the whole binary.
 #
 function(px4_add_unit_gtest)
 	# skip if unit testing is not configured
@@ -43,6 +48,7 @@ function(px4_add_unit_gtest)
 		# parse source file and library dependencies from arguments
 		px4_parse_function_args(
 			NAME px4_add_unit_gtest
+			OPTIONS DISCOVER
 			ONE_VALUE SRC
 			MULTI_VALUE EXTRA_SRCS COMPILE_FLAGS INCLUDES LINKLIBS
 			REQUIRED SRC
@@ -68,9 +74,13 @@ function(px4_add_unit_gtest)
 		endif()
 
 		# add the test to the ctest plan
-		add_test(NAME ${TESTNAME}
-		         COMMAND ${TESTNAME}
-		         WORKING_DIRECTORY ${PX4_BINARY_DIR})
+		if(DISCOVER)
+			gtest_discover_tests(${TESTNAME} WORKING_DIRECTORY ${PX4_BINARY_DIR})
+		else()
+			add_test(NAME ${TESTNAME}
+			         COMMAND ${TESTNAME}
+			         WORKING_DIRECTORY ${PX4_BINARY_DIR})
+		endif()
 
 		# attach it to the unit test target
 		add_dependencies(test_results ${TESTNAME})
@@ -83,6 +93,7 @@ function(px4_add_functional_gtest)
 		# parse source file and library dependencies from arguments
 		px4_parse_function_args(
 			NAME px4_add_functional_gtest
+			OPTIONS DISCOVER
 			ONE_VALUE SRC
 			MULTI_VALUE EXTRA_SRCS COMPILE_FLAGS INCLUDES LINKLIBS
 			REQUIRED SRC
@@ -122,10 +133,15 @@ function(px4_add_functional_gtest)
 		endif()
 
 		# add the test to the ctest plan
-		add_test(NAME ${TESTNAME}
-		         # functional tests need to run in a new process for each test,
-		         # since they set up and tear down system components
-		         COMMAND ${PX4_BINARY_DIR}/${TESTNAME})
+		if(DISCOVER)
+			# runs each test case in its own process
+			gtest_discover_tests(${TESTNAME} WORKING_DIRECTORY ${PX4_BINARY_DIR})
+		else()
+			add_test(NAME ${TESTNAME}
+			         # functional tests need to run in a new process for each test,
+			         # since they set up and tear down system components
+			         COMMAND ${PX4_BINARY_DIR}/${TESTNAME})
+		endif()
 
 		# attach it to the unit test target
 		add_dependencies(test_results ${TESTNAME})
