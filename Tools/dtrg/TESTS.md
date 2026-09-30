@@ -233,7 +233,7 @@ freezes. Tests use a margin of 0.05.
 ## Tier 2: SIH logic tests
 
 ```
-make px4_sitl_default
+make px4_sitl
 python3 -m venv ~/.venvs/px4-dtrg                # once
 ~/.venvs/px4-dtrg/bin/pip install -r test/dtrg/requirements.txt   # once
 
@@ -367,11 +367,11 @@ change. Parameters: `DTRG_HT_MAX` 0.5, `DTRG_HT_R_MAX` and `DTRG_HT_P_MAX` 10 de
 | `test_switch_on_sticks_command_thrust_and_vehicle_stays_level` | HT on, full pitch stick, half roll stick | Thrust X = 0.5 (`DTRG_HT_MAX`), Y = 0.49 x 0.5, roll and pitch 0 (+-0.5 deg), `horizontal_thrust_limit` published |
 | `test_switch_toggles_ht_at_runtime` | Full pitch stick, HT switch off, on, off | Setpoint follows each change: tilt, then level with X thrust, then tilt again |
 | `test_switch_ignored_when_ht_disabled` | `DTRG_HT_EN=0`, HT on, full pitch stick | The switch is ignored: no X thrust, normal tilt, `horizontal_thrust_limit` not published |
-| `test_aux_channels_command_tilt_up_to_limit` | HT on, aux roll full, then aux pitch full | Roll +10 deg with pitch 0, then pitch -10 deg (nose down, like the pitch stick) with roll 0 |
+| `test_aux_channels_command_tilt_up_to_limit` | HT on, aux roll full, then aux pitch full | Roll +10 deg with pitch 0, then pitch +10 deg (nose up - the aux channels set the tilt directly, so the opposite way round to the pitch stick) with roll 0 |
 | `test_aux_channel_deadzone[1505/1515]` | HT on, aux roll at 1505 or 1515 us | 1505 us (0.01) is inside the 0.02 aux deadzone: roll 0. 1515 us (0.03) tilts by 0.03 x 10 deg |
 | `test_mask_selects_thrust_axes[mask0/1/2]` | `DTRG_HT_MASK` 0-2, HT on, full pitch, half roll | 0: X and Y by thrust; 1: X only; 2: Y only |
 | `test_mask_selects_thrust_axes[mask3]` | **Known gap (G6).** `DTRG_HT_MASK=3` | Should give no X/Y thrust (move by tilting only). Fails: HT is applied on both axes. Fixed on branch `salz167/DTRG_HT_refactor` |
-| `test_full_stick_gives_ht_max` | HT on, full pitch stick | Thrust X = 0.5 (`DTRG_HT_MAX`, +-0.001), `y_sat` 0, and `SYS_STATUS.errors_count3` mirrors `horizontal_thrust_limit` (bit 0 `x_sat`, bit 2 `y_sat`). The demand is `stick * DTRG_HT_MAX`, never clipped: RC scaling gives 0.9999999, so X is 0.49999994 and whether `x_sat` sets is not asserted (G3) |
+| `test_full_stick_gives_ht_max` | HT on, full pitch stick | Thrust X = 0.5 (`DTRG_HT_MAX`, +-0.001) and `y_sat` 0. The demand is `stick * DTRG_HT_MAX`, never clipped, so `x_sat` sits exactly on the limit: it sets on Linux (X = 0.5) but not on macOS (X = 0.49999994), so it is not asserted here, nor is the `SYS_STATUS.errors_count3` mirror, which only carries the flags while armed (G3). The flags are covered by `DtrgHorizontalThrustTest.cpp`, which feeds exact values |
 
 ### test_csv_mixer.py
 
@@ -437,7 +437,7 @@ commander, in flight
 | A3 | `test_a3_without_ht_the_vehicle_tilts_to_move` | Same move with HT off | Moves 5 m (+-0.5) and pitches nose down past -5 deg. Control case for A2: shows A2's tilt limit would catch a vehicle that moves by tilting |
 | A4 | `test_a4_aux_tilt_in_hover_holds_position[roll/pitch]` | **Known gap (G11).** HT on, Hold, aux roll or pitch channel full for 8 s | Should tilt to 10 deg (+-3.5, true) and drift < 0.5 m. Fails on the drift: HT delivers only 41% of the horizontal force the position controller asks for, so it cannot hold against the tilt and slides ~0.5 m/s |
 | A4b | `test_a4b_aux_tilt_reaches_the_limit[roll]` | HT on, Hold, aux roll full | The attitude half of A4, independent of G11: roll +10 deg (estimate +-2, truth +-3.5), pitch below 3 deg |
-| A4b | `test_a4b_aux_tilt_reaches_the_limit[pitch]` | **Known gap (G13).** HT on, Hold, aux pitch full | Should pitch -10 deg (nose down, as the same channel does in Stabilized, see `test_aux_channels_command_tilt_up_to_limit`). Fails: in Position / Hold / Offboard the channel pitches nose up. Which sign is intended still needs deciding |
+| A4b | `test_a4b_aux_tilt_reaches_the_limit[pitch]` | HT on, Hold, aux pitch full | The attitude half of A4, independent of G11: pitch +10 deg nose up (estimate +-2, truth +-3.5), roll below 3 deg. The aux channels set the tilt directly, so pitch is the opposite way round to the pitch stick, and Hold agrees with Stabilized (see `test_aux_channels_command_tilt_up_to_limit`) |
 | A5 | `test_a5_offboard_tilt_setpoint_in_hover` | HT on, Offboard hold, `DEBUG_FLOAT_ARRAY` roll 0.1 rad (5.7 deg) at 10 Hz for 8 s | Estimated roll 5.7 deg (+-2), true roll +-3.5 (the estimate drifts ~2 deg from the truth while tilted, G14), drift < 0.5 m, still in Offboard |
 | A5b | `test_a5_offboard_tilt_is_limited` | Same, roll setpoint twice `DTRG_HT_R_MAX` for 5 s, then NaN roll and pitch for 5 s | Estimated roll at `DTRG_HT_R_MAX` (+-2 deg) and true roll below the limit + 3.5 deg, not the doubled setpoint; after the NaN the vehicle is level (true tilt < 2 deg) and still in Offboard. Pins the G8 fix: `DEBUG_FLOAT_ARRAY` is accepted from any MAVLink source |
 | A7 | `test_a7_toggling_ht_in_hover_is_smooth` | Hold 8 s as a reference, then HT switch on / off 5 times, 2 s each | Altitude within 0.7 m of its setpoint, drift < 1 m, and tilt below max(8 deg, the reference hover's tilt + 2 deg): switching HT does not kick the vehicle |

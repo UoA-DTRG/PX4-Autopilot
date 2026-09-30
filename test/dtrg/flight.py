@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ulog_checks import Log
-from vehicle import AUTO_LOITER, AUTO_TAKEOFF, MAIN_AUTO, Vehicle
+from vehicle import AUTO_LOITER, AUTO_TAKEOFF, MAIN_AUTO, Vehicle, WaitTimeout
 
 TAKEOFF_ALT = 3.0
 
@@ -32,6 +32,15 @@ def take_off(vehicle: Vehicle, altitude: float = TAKEOFF_ALT, timeout: float = 4
     result = vehicle.set_mode(MAIN_AUTO, AUTO_TAKEOFF)
     assert result.accepted, f"Takeoff mode rejected: {result}"
     vehicle.wait_until(lambda: vehicle.mode() == (MAIN_AUTO, AUTO_TAKEOFF), 5.0, f"Takeoff mode (now {vehicle.mode()})")
+    # The prearm bit in SYS_STATUS only covers the mode the vehicle is in, so the fixture's
+    # wait_ready passed in the RC mode (Stabilized), which needs no position. Takeoff also needs
+    # a global position, which the EKF only has ~3 s of simulated time after boot; how much of
+    # that has passed by now depends on how fast the host boots PX4. Re-check it here, in Takeoff.
+    try:
+        vehicle.wait_prearm(ok=True, timeout=30)
+    except WaitTimeout as e:
+        raise AssertionError(f"{e}; texts: {vehicle.texts()[-5:]}") from None
+
     result = vehicle.arm()
     assert result.accepted, f"arming rejected: {result}; texts: {vehicle.texts()[-5:]}"
 

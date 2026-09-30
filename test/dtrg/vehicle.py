@@ -237,6 +237,11 @@ class Vehicle:
         with self._state_lock:
             return self._latest.get(msg_type)
 
+    def forget(self, msg_type: str) -> None:
+        """Drop the cached message, so the next read waits for one sent after this call."""
+        with self._state_lock:
+            self._latest.pop(msg_type, None)
+
     def wait_heartbeat(self, timeout: float = 60.0) -> None:
         self.wait_until(lambda: self._target_system is not None and self.latest("HEARTBEAT"), timeout,
                         "the first HEARTBEAT")
@@ -269,8 +274,12 @@ class Vehicle:
         return bool(status and status.onboard_control_sensors_health & mavlink.MAV_SYS_STATUS_PREARM_CHECK)
 
     def wait_prearm(self, ok: bool = True, timeout: float = 60.0) -> None:
-        self.wait_until(lambda: self.prearm_ok() == ok, timeout, "arming checks to pass" if ok else
-                        "arming checks to fail")
+        # The cached SYS_STATUS can predate whatever the caller just changed (the onboard link
+        # streams it at 5 Hz), and the bit is only about the mode the vehicle is in right now,
+        # so answering from it would report the state before the change.
+        self.forget("SYS_STATUS")
+        self.wait_until(lambda: self.latest("SYS_STATUS") is not None and self.prearm_ok() == ok, timeout,
+                        "arming checks to pass" if ok else "arming checks to fail")
 
     def sys_status(self):
         return self.wait_until(lambda: self.latest("SYS_STATUS"), 10.0, "SYS_STATUS")

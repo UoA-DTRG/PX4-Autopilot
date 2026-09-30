@@ -36,3 +36,8 @@
 # mc_att_control and mc_pos_control.
 
 px4_add_unit_gtest(SRC DtrgHorizontalThrustTest.cpp)
+
+if(TARGET unit-DtrgHorizontalThrust)
+	# header-only lib pulls in generated uORB topic headers (rc_channels.h)
+	add_dependencies(unit-DtrgHorizontalThrust uorb_headers)
+endif()

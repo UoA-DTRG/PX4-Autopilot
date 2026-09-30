@@ -25,6 +25,12 @@ BASE_PARAMS = {
     "COM_DISARM_PRFLT": -1,
     # log from boot, so the ULog also covers what happens before arming
     "SDLOG_MODE": 1,
+    # RC comes from Python over UDP, so allow a longer gap than the 0.5 s default before
+    # declaring RC loss. rcS sets this for a simulation, but only where bc is installed
+    # (not in the CI container), so set it here to get the same value everywhere. The other
+    # three timeouts rcS scales (COM_DL_LOSS_T, COM_OF_LOSS_T, COM_OBC_LOSS_T) already equal
+    # their firmware defaults at 1x, so they need no override.
+    "COM_RC_LOSS_T": 1.0,
 }
 
 

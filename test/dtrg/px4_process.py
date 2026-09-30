@@ -52,7 +52,13 @@ class Px4Sitl:
             env.pop(key, None)
         env = {k: v for k, v in env.items() if not k.startswith("PX4_PARAM_")}
         env["PX4_SYS_AUTOSTART"] = str(self.airframe.autostart)
-        env["PX4_SIM_SPEED_FACTOR"] = str(self.speed_factor)
+
+        # Only for a real speedup: rcS scales the link timeouts with bc, which the CI container
+        # does not have, and SIH already defaults to 1.0x when the variable is unset.
+        if self.speed_factor != 1.0:
+            env["PX4_SIM_SPEED_FACTOR"] = str(self.speed_factor)
+        else:
+            env.pop("PX4_SIM_SPEED_FACTOR", None)
 
         for name, value in self.params.items():
             env[f"PX4_PARAM_{name}"] = str(value)
