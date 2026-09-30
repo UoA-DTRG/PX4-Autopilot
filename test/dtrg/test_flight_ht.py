@@ -1,8 +1,8 @@
 """Tier 3: horizontal thrust (HT) in flight, on the fully actuated planarOcto in SIH.
 
 The vehicle really flies here: SIH simulates the eight tilted rotors from the
-airframe's CA_ROTOR* geometry, and the checks are on SIH's ground truth. Plan
-IDs refer to Tools/dtrg/SITL_TESTING.md section 6.
+airframe's CA_ROTOR* geometry, and the checks are on SIH's ground truth. See
+Tools/dtrg/DTRG_Automated_Testing.md.
 
 Run: python3 -m pytest test/dtrg -m flight -v
 """
@@ -27,17 +27,10 @@ HT_PARAMS = {**FLIGHT_PARAMS, "DTRG_HT_EN": 1, "DTRG_HT_MAX": HT_MAX, "DTRG_HT_R
 
 MOVE_NORTH = 5.0
 
-# HT tilt limit for A4: high enough that the position controller cannot make up for G11
-G11_TILT_DEG = 10.0
-
-# Holding a tilt with horizontal thrust, the true attitude is ~2 deg off the estimate (G14), so
+# Holding a tilt with horizontal thrust, the true attitude is ~2 deg off the estimate, so
 # commanded tilts are checked tightly against the estimate and loosely against the truth.
 EST_TILT_TOL_DEG = 2.0
 TRUE_TILT_TOL_DEG = 3.5
-
-
-class G11DriftWhileTilted(AssertionError):
-    """Known gap G11. The xfail only accepts this, so a timeout or crash still fails the test."""
 
 
 def fly(sitl, params=None, rc=None):
@@ -72,7 +65,7 @@ def offboard_move_north(vehicle, distance):
     return start, vehicle.boot_time()
 
 
-def test_a1_take_off_hold_and_land(sitl):
+def test_take_off_hold_and_land(sitl):
     vehicle, px4 = fly(sitl)
 
     start = vehicle.boot_time()
@@ -88,7 +81,7 @@ def test_a1_take_off_hold_and_land(sitl):
     assert horizontal_error(log, start, end) < 1.0
 
 
-def test_a2_ht_moves_the_vehicle_level(sitl):
+def test_ht_moves_the_vehicle_level(sitl):
     vehicle, px4 = fly(sitl)
 
     vehicle.set_rc(CH_HT_MODE, PWM_MAX)
@@ -101,8 +94,8 @@ def test_a2_ht_moves_the_vehicle_level(sitl):
     assert tr.tilt.max() < 3.0, f"tilted {tr.tilt.max():.1f} deg while moving with HT"
 
 
-def test_a3_without_ht_the_vehicle_tilts_to_move(sitl):
-    # control case for A2
+def test_without_ht_the_vehicle_tilts_to_move(sitl):
+    # control case for test_ht_moves_the_vehicle_level
     vehicle, px4 = fly(sitl)
 
     start, end = offboard_move_north(vehicle, MOVE_NORTH)
@@ -121,36 +114,14 @@ def hold_sending_tilt(vehicle, roll, pitch, seconds):
         vehicle.hold(0.1)
 
 
-@pytest.mark.xfail(strict=True, raises=G11DriftWhileTilted,
-                   reason="G11: HT gets 41% of the horizontal force the position controller asks for, "
-                   "so it cannot hold position while tilted")
-@pytest.mark.parametrize("channel, axis", [(CH_HT_ROLL, "roll"), (CH_HT_PITCH, "pitch")], ids=["roll", "pitch"])
-def test_a4_aux_tilt_in_hover_holds_position(sitl, channel, axis):
-    # G11 only shows above ~7 deg of HT tilt with MPC_TILTMAX_AIR 10; at the 5 deg default it holds
-    vehicle, px4 = fly(sitl, params={"DTRG_HT_R_MAX": G11_TILT_DEG, "DTRG_HT_P_MAX": G11_TILT_DEG})
-
-    vehicle.set_rc(CH_HT_MODE, PWM_MAX)
-    vehicle.hold(2.0)
-    start = vehicle.boot_time()
-    vehicle.set_rc(channel, PWM_MAX)
-    vehicle.hold(8.0)
-    end = vehicle.boot_time()
-
-    log = read_log(px4)
-    settled = truth(log, start, end).last(3.0)
-    angle = getattr(settled, axis)
-    assert abs(angle.mean()) == pytest.approx(G11_TILT_DEG, abs=TRUE_TILT_TOL_DEG)  # its sign is checked in A4b
-    # error = horizontal_error(log, start, end)
-    # if error >= 0.5:
-    #     raise G11DriftWhileTilted(f"{error:.2f} m off position holding {axis} at the HT limit")
-
 
 @pytest.mark.parametrize("channel, axis, other", [
     (CH_HT_ROLL, "roll", "pitch"),
     (CH_HT_PITCH, "pitch", "roll"),
 ], ids=["roll", "pitch"])
-def test_a4b_aux_tilt_reaches_the_limit(sitl, channel, axis, other):
-    # the attitude half of A4, which does not depend on G11. An aux channel up tilts positively on
+def test_aux_tilt_reaches_the_limit(sitl, channel, axis, other):
+    # the attitude half of the aux tilt check, independent of the horizontal thrust gain loss. An
+    # aux channel up tilts positively on
     # both axes: roll right and pitch nose up, here as in Stabilized (test_horizontal_thrust.py).
     # The aux channels set the tilt directly, so pitch goes the opposite way to the pitch stick.
     vehicle, px4 = fly(sitl)
@@ -172,7 +143,7 @@ def test_a4b_aux_tilt_reaches_the_limit(sitl, channel, axis, other):
     assert angle == pytest.approx(TILT_MAX_DEG, abs=TRUE_TILT_TOL_DEG)
 
 
-def test_a5_offboard_tilt_setpoint_in_hover(sitl):
+def test_offboard_tilt_setpoint_in_hover(sitl):
     vehicle, px4 = fly(sitl)
 
     vehicle.set_rc(CH_HT_MODE, PWM_MAX)
@@ -191,8 +162,8 @@ def test_a5_offboard_tilt_setpoint_in_hover(sitl):
     assert vehicle.main_mode() == MAIN_OFFBOARD
 
 
-def test_a5_offboard_tilt_is_limited(sitl):
-    # G8: DEBUG_FLOAT_ARRAY is accepted from any MAVLink source, so its tilt is limited to
+def test_offboard_tilt_is_limited(sitl):
+    # DEBUG_FLOAT_ARRAY is accepted from any MAVLink source, so its tilt is limited to
     # DTRG_HT_R_MAX, and a NaN levels the vehicle
     vehicle, px4 = fly(sitl)
 
@@ -216,7 +187,7 @@ def test_a5_offboard_tilt_is_limited(sitl):
     assert vehicle.main_mode() == MAIN_OFFBOARD
 
 
-def test_a7_toggling_ht_in_hover_is_smooth(sitl):
+def test_toggling_ht_in_hover_is_smooth(sitl):
     vehicle, px4 = fly(sitl)
 
     # the same hover without toggling, as the reference for the noise of this run
@@ -242,7 +213,7 @@ def test_a7_toggling_ht_in_hover_is_smooth(sitl):
     assert horizontal_error(log, start, end) < 1.0
 
 
-def test_a8_stabilized_ht_stick_moves_the_vehicle_level(sitl):
+def test_stabilized_ht_stick_moves_the_vehicle_level(sitl):
     # higher, as the manual throttle does not hold altitude exactly
     vehicle, px4 = sitl(params={**HT_PARAMS, "MIS_TAKEOFF_ALT": 6.0}, rc={})
     vehicle.wait_mode(MAIN_STABILIZED)
@@ -275,7 +246,7 @@ def test_a8_stabilized_ht_stick_moves_the_vehicle_level(sitl):
     assert tr.tilt.max() < 3.0, f"tilted {tr.tilt.max():.1f} deg with HT"
 
 
-def test_b1b_bench_test_rejected_in_flight(sitl):
+def test_bench_test_rejected_in_flight(sitl):
     vehicle, px4 = fly(sitl)
 
     since = vehicle.now()

@@ -338,7 +338,7 @@ TEST_F(DtrgSequentialDesaturation, PublishesTopic)
 	EXPECT_FLOAT_EQ(msg.yaw_sat, 0.f);
 }
 
-// Regression (G1): desaturateActuators() used to return only the gain of its
+// Regression: desaturateActuators() used to return only the gain of its
 // second, half strength pass, which is 0 when the first pass already removes
 // the saturation, as it does for a one-sided overshoot. The sign is still lost
 // on the way to SYS_STATUS.errors_count1, which only tests "> 0.01", while
@@ -361,7 +361,7 @@ TEST_F(DtrgSequentialDesaturation, TopicReportsHorizontalThrustReduction)
 	EXPECT_LT(fabsf(msg.pitch_sat), 0.01f);
 }
 
-// G2, by design: the X, Y and yaw steps slide along their axis to relieve any
+// By design: the X, Y and yaw steps slide along their axis to relieve any
 // saturation, even with no demand on that axis, so that roll and pitch are
 // kept. On this geometry roll trades against X and pitch against Y.
 TEST_F(DtrgSequentialDesaturation, HorizontalThrustIsUsedToKeepRollAndPitch)
