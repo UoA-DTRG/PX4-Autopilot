@@ -24,7 +24,7 @@ CH_HT_PITCH = 10
 # COM_FLTMODEx values (see src/modules/commander/module.yaml), not nav states
 FLTMODE_POSITION = 2
 FLTMODE_STABILIZED = 8
-FLTMODE_BENCH_TEST = 16
+FLTMODE_BENCH_TEST = 17
 
 SLOT_STABILIZED = 1
 SLOT_POSITION = 4

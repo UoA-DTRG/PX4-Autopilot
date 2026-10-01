@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*   Copyright (c) 2019-2022 PX4 Development Team. All rights reserved.
+*   Copyright (c) 2019-2025 PX4 Development Team. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions
@@ -152,7 +152,7 @@ private:
 	void read_motors(const float dt);
 
 	// generate the motors thrust and torque in the body frame
-	void generate_force_and_torques();
+	void generate_force_and_torques(const float dt);
 
 	// load the rotor geometry of the generic multirotor from the CA_ROTOR* parameters
 	void update_rotor_geometry();
@@ -168,6 +168,7 @@ private:
 	void publish_ground_truth(const hrt_abstime &time_now_us);
 	void generate_fw_aerodynamics(const float roll_cmd, const float pitch_cmd, const float yaw_cmd, const float thrust);
 	void generate_ts_aerodynamics();
+	void generate_rover_ackermann_dynamics(const float throttle_cmd, const float steering_cmd, const float dt);
 	void sensor_step();
 	static float computeGravity(double lat);
 
@@ -223,11 +224,10 @@ private:
 	matrix::Vector3f    _v_E_dot{};
 	matrix::Dcmf        _R_N2E;           // local navigation to ECEF frame rotation matrix
 
-	float       _u[NUM_ACTUATORS_MAX] {};         // thruster signals
+	float _u[NUM_ACTUATORS_MAX] {}; // thruster signals
 
-	enum class VehicleType {Multicopter, FixedWing, TailsitterVTOL, StandardVTOL, GenericMultirotor};
-
-	VehicleType _vehicle = VehicleType::Multicopter;
+	enum class VehicleType {Quadcopter, FixedWing, TailsitterVTOL, StandardVTOL, Hexacopter, RoverAckermann, GenericMultirotor, First = Quadcopter, Last = GenericMultirotor}; // numbering dependent on parameter SIH_VEHICLE_TYPE
+	VehicleType _vehicle = VehicleType::Quadcopter;
 
 	// generic multirotor: one rotor per motor output, geometry from CA_ROTOR*
 	struct Rotor {
