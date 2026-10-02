@@ -34,7 +34,9 @@ jobs:
   unit:
     name: Unit tests (tier 1)
     runs-on: ubuntu-latest
-    container: px4io/px4-dev-base-focal:2021-09-08
+    # same image upstream runs `make tests` in (checks.yml): since v1.17 the test
+    # build pulls in fuzztest, which needs CMake >= 3.19 (focal ships 3.16)
+    container: px4io/px4-dev:v1.16.0-rc1-258-g0369abd556
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +51,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: sitl-test-ccache-${{ github.run_id }}
-          restore-keys: sitl-test-ccache-
+          key: sitl-test-noble-ccache-${{ github.run_id }}
+          restore-keys: sitl-test-noble-ccache-
 
       - name: Configure ccache
         run: |
