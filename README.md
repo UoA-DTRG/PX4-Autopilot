@@ -18,6 +18,7 @@ Implemented:
 * Horizontal Thrust Offboard Mode
 * Sequential Desaturation and Thrust Limits (HT)
 * Planar Octo SITL
+* Planetary Hex SITL
 * [Status Monitor](https://github.com/UoA-DTRG/status_monitor)
 
 Upcoming:

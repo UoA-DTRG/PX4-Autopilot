@@ -96,6 +96,8 @@ px4_add_romfs_files(
 
 	# planarOcto Gazebo SITL registration
 	12014_gz_planar_octo
+	# planetaryHex Gazebo SITL registration
+	12019_gz_planetary_hex
 
 	10015_gazebo-classic_iris
 	10016_none_iris
