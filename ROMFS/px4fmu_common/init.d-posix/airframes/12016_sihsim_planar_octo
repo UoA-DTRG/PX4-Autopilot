@@ -7,7 +7,7 @@
 #
 # @desc The planarOcto (12013_dtrg_planar_octo) in SITL with SIH as the
 # simulator. SIH builds the vehicle from the same CA_ROTOR* geometry as control
-# allocation (SIH_VEHICLE_TYPE 4), so the tilted rotors make horizontal thrust
+# allocation (SIH_VEHICLE_TYPE 6), so the tilted rotors make horizontal thrust
 # like on the real vehicle. Used by the DTRG flight tests (test/dtrg).
 #
 
@@ -43,7 +43,7 @@ param set-default PWM_MAIN_FUNC8 108
 # - T_MAX = motorConstant * maxRotVelocity^2 = 1.2138e-6 * 1774^2
 # - thrust curve: the THR_MDL_FAC fitted to the Gazebo motor model
 # - KDV about 8 x rotorDragCoefficient x hover rotor speed
-param set SIH_VEHICLE_TYPE 4
+param set SIH_VEHICLE_TYPE 6
 param set-default SIH_MASS 1.5
 param set-default SIH_IXX 0.0254
 param set-default SIH_IYY 0.0254

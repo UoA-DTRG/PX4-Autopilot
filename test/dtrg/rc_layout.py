@@ -24,7 +24,7 @@ CH_HT_PITCH = 10
 # COM_FLTMODEx values (see src/modules/commander/module.yaml), not nav states
 FLTMODE_POSITION = 2
 FLTMODE_STABILIZED = 8
-FLTMODE_BENCH_TEST = 16
+FLTMODE_BENCH_TEST = 17
 
 SLOT_STABILIZED = 1
 SLOT_POSITION = 4
@@ -54,19 +54,15 @@ RC_PARAMS = {
 
 NUM_MODE_SLOTS = 6
 
-def deadzone(channel: int) -> int:
-    """RCx_DZ default [us]: 10 on channels 1-8, 0 on 9-18 (src/modules/rc_update/params.c)."""
-    return 10 if channel <= 8 else 0
-
-
 def normalized(pwm: int, channel: int) -> float:
-    """rc_channels value for ``pwm`` with the default calibration (rc_update.cpp: min, trim +- dz, max)."""
-    dz = deadzone(channel)
-    if pwm >= PWM_CENTRE + dz:
-        return min(1.0, (pwm - PWM_CENTRE - dz) / (PWM_MAX - PWM_CENTRE - dz))
-    if pwm <= PWM_CENTRE - dz:
-        return max(-1.0, (pwm - PWM_CENTRE + dz) / (PWM_CENTRE - dz - PWM_MIN))
-    return 0.0
+    """rc_channels value for ``pwm`` with the default calibration (rc_update.cpp: min, trim, max).
+
+    There is no per-channel RC deadzone since v1.17 (RCx_DZ was removed upstream), so every
+    channel maps linearly; ``channel`` is kept so callers still say which channel they mean.
+    """
+    if pwm >= PWM_CENTRE:
+        return min(1.0, (pwm - PWM_CENTRE) / (PWM_MAX - PWM_CENTRE))
+    return max(-1.0, (pwm - PWM_CENTRE) / (PWM_CENTRE - PWM_MIN))
 
 
 def mode_slot_from_pwm(pwm: int) -> int:

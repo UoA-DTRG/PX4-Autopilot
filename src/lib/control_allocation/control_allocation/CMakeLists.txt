@@ -45,8 +45,8 @@ target_link_libraries(ControlAllocation PRIVATE mathlib)
 
 # functional (not unit): the DTRG CSV mixer params make the allocator depend on the parameter system
 px4_add_functional_gtest(SRC ControlAllocationPseudoInverseTest.cpp LINKLIBS ControlAllocation)
-px4_add_functional_gtest(SRC ControlAllocationSequentialDesaturationTest.cpp LINKLIBS ControlAllocation ActuatorEffectiveness)
+px4_add_functional_gtest(SRC ControlAllocationSequentialDesaturationTest.cpp LINKLIBS ControlAllocation VehicleActuatorEffectiveness)
 
 # DTRG tests (run with: make tests TESTFILTER=Dtrg)
-px4_add_functional_gtest(SRC DtrgSequentialDesaturationTest.cpp DISCOVER LINKLIBS ControlAllocation ActuatorEffectiveness)
+px4_add_functional_gtest(SRC DtrgSequentialDesaturationTest.cpp DISCOVER LINKLIBS ControlAllocation VehicleActuatorEffectiveness)
 px4_add_functional_gtest(SRC DtrgMixerCsvTest.cpp DISCOVER LINKLIBS ControlAllocation)
