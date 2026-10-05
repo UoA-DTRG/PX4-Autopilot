@@ -203,26 +203,13 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 		// Tilt on an HT axis: with DTRG_HT_SPLIT_EN the stick tilts for (1 - DTRG_HT_SPLIT)
 		// of the maximum tilt (forward stick: nose down and +X thrust; right stick: positive
 		// roll and +Y thrust), otherwise the knob sets the tilt
-		const float tilt_share = dtrg_ht::tiltShare(_ht_split_en, _ht_split);
-
 		const float roll_knob = dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_r_add, _ht_r_limit);
 		const float pitch_knob = -dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_p_add, _ht_p_limit);
 
-		const float roll_split = roll_stick * tilt_share;
-		const float pitch_split = pitch_stick * tilt_share;
-
-		if (_dtrg_ht_mask == 1) { // roll for y, HT for x - use stick roll for attitude, HT pitch
-			roll = roll_stick;
-			pitch = _ht_split_en ? pitch_split : pitch_knob;
-
-		} else if (_dtrg_ht_mask == 2) { // pitch for x, HT for y - use HT roll, stick pitch for attitude
-			roll = _ht_split_en ? roll_split : roll_knob;
-			pitch = pitch_stick;
-
-		} else { // HT for x and y (mask 0) - HT roll and pitch
-			roll = _ht_split_en ? roll_split : roll_knob;
-			pitch = _ht_split_en ? pitch_split : pitch_knob;
-		}
+		const dtrg_ht::Tilt tilt = dtrg_ht::manualModeTilt(_dtrg_ht_mask, _ht_split_en, _ht_split, roll_stick,
+					   pitch_stick, roll_knob, pitch_knob);
+		roll = tilt.roll;
+		pitch = tilt.pitch;
 
 	} else {
 		// Roll/pitch come from the manual control stick inputs, scaled by the manual tilt max.
@@ -273,9 +260,8 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 
 		// Sticks command horizontal thrust on the axes selected by the mask, constrained to DTRG_HT_MAX.
 		// With DTRG_HT_SPLIT_EN only DTRG_HT_SPLIT of it, the tilt produces the rest.
-		const float ht_max = _ht_limit * dtrg_ht::thrustShare(_ht_split_en, _ht_split);
-		const dtrg_ht::HorizontalThrust ht = dtrg_ht::horizontalThrust(_dtrg_ht_mask,
-						     _manual_control_setpoint.pitch * ht_max, _manual_control_setpoint.roll * ht_max, _ht_limit);
+		const dtrg_ht::HorizontalThrust ht = dtrg_ht::manualModeHorizontalThrust(_dtrg_ht_mask, _ht_split_en, _ht_split,
+						     _manual_control_setpoint.roll, _manual_control_setpoint.pitch, _ht_limit);
 		attitude_setpoint.thrust_body[0] = ht.x;
 		attitude_setpoint.thrust_body[1] = ht.y;
 		hzlim_msg.x_sat = ht.x_sat;
