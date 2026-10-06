@@ -17,7 +17,7 @@
 # @desc The planarOcto flight stack on the real flight controller, flying a
 # vehicle simulated on the flight controller itself (Simulation-In-Hardware).
 # No PC or simulator is needed: SIH builds the vehicle from the CA_ROTOR*
-# geometry of 12013_dtrg_planar_octo (SIH_VEHICLE_TYPE 4). The real outputs
+# geometry of 12013_dtrg_planar_octo (SIH_VEHICLE_TYPE 6). The real outputs
 # stay off (SYS_HITL 2), but remove the propellers anyway.
 #
 # @board px4_fmu-v2 exclude
@@ -36,7 +36,7 @@ param set-default CBRK_SUPPLY_CHK 894281
 
 # Vehicle model. Keep in sync with init.d-posix/airframes/12016_sihsim_planar_octo,
 # which documents where the values come from.
-param set SIH_VEHICLE_TYPE 4
+param set SIH_VEHICLE_TYPE 6
 param set-default SIH_MASS 1.5
 param set-default SIH_IXX 0.0254
 param set-default SIH_IYY 0.0254

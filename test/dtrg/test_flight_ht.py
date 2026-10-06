@@ -27,6 +27,9 @@ HT_PARAMS = {**FLIGHT_PARAMS, "DTRG_HT_EN": 1, "DTRG_HT_MAX": HT_MAX, "DTRG_HT_R
              "DTRG_HT_P_MAX": TILT_MAX_DEG}
 
 MOVE_NORTH = 5.0
+# Offboard holds the estimate only to ~0.35 m of its setpoint, and the estimate wanders ~0.15 m
+# from the truth, so the true distance of a move is checked loosely, like horizontal_error.
+MOVE_TOL = 1.0
 
 # Holding a tilt with horizontal thrust, the true attitude is ~2 deg off the estimate, so
 # commanded tilts are checked tightly against the estimate and loosely against the truth.
@@ -86,7 +89,7 @@ def test_take_off_hold_and_land(sitl):
     assert abs(error).max() < 0.5, f"altitude off its setpoint by up to {abs(error).max():.2f} m during the hold"
     assert horizontal_error(log, start, end) < 1.0
 
-
+    
 def test_ht_moves_the_vehicle_level(sitl):
     vehicle, px4 = fly(sitl)
 
@@ -112,7 +115,7 @@ def test_without_ht_the_vehicle_tilts_to_move(sitl):
     # accelerating north is nose down
     assert tr.pitch.min() < -5.0, f"pitched only {tr.pitch.min():.1f} deg while moving without HT"
 
-
+    
 def force_shares(log, start, end, yaw):
     """Force [normalised thrust] from horizontal thrust and from tilting, per vehicle_attitude_setpoint sample.
 

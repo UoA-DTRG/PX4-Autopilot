@@ -22,7 +22,7 @@ HT_PARAMS = {"DTRG_HT_EN": 1, "DTRG_HT_MAX": HT_MAX, "DTRG_HT_R_MAX": TILT_MAX_D
 HT_ON = {CH_HT_MODE: PWM_MAX}
 HT_OFF = {CH_HT_MODE: PWM_MIN}
 
-# about half deflection; the RC deadzone makes it 0.49 rather than 0.5
+# half deflection
 HALF_UP = 1750
 HALF = normalized(HALF_UP, CH_ROLL)
 
@@ -121,7 +121,7 @@ def test_aux_channels_command_tilt_up_to_limit(sitl):
 
 @pytest.mark.parametrize("pwm", [1505, 1515])
 def test_aux_channel_deadzone(sitl, pwm):
-    # HT ignores aux values up to 0.02 (1505 us is 0.01 on channel 9, which has no RC deadzone)
+    # HT ignores aux values up to 0.02 (1505 us is 0.01)
     value = normalized(pwm, CH_HT_ROLL)
     expected = 0.0 if value <= 0.02 else value * TILT_MAX_DEG
 

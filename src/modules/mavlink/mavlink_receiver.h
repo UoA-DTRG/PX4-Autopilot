@@ -212,7 +212,9 @@ private:
 	void handle_message_gimbal_device_information(mavlink_message_t *msg);
 	void handle_message_gimbal_device_attitude_status(mavlink_message_t *msg);
 
+#if defined(MAVLINK_MSG_ID_DTRG_OFFBOARD) // only defined if the dtrg dialect is used
 	void handle_message_dtrg_offboard(mavlink_message_t *msg);
+#endif
 
 #if !defined(CONSTRAINED_FLASH)
 	void handle_message_debug(mavlink_message_t *msg);
@@ -244,6 +246,8 @@ private:
 
 	void update_message_statistics(const mavlink_message_t &message);
 	void update_rx_stats(const mavlink_message_t &message);
+
+	void publish_hil_battery();
 
 	px4::atomic_bool 	_should_exit{false};
 	pthread_t		_thread {};
@@ -409,7 +413,10 @@ private:
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::BAT_CRIT_THR>)     _param_bat_crit_thr,
 		(ParamFloat<px4::params::BAT_EMERGEN_THR>)  _param_bat_emergen_thr,
-		(ParamFloat<px4::params::BAT_LOW_THR>)      _param_bat_low_thr
+		(ParamFloat<px4::params::BAT_LOW_THR>)      _param_bat_low_thr,
+		(ParamInt<px4::params::BAT1_N_CELLS>)       _param_bat_cells_count,
+		(ParamFloat<px4::params::BAT1_V_CHARGED>)   _param_bat_v_charged,
+		(ParamFloat<px4::params::BAT1_V_EMPTY>)     _param_bat_v_empty
 	);
 
 	// Disallow copy construction and move assignment.

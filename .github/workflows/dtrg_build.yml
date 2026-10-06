@@ -78,6 +78,11 @@ jobs:
       - name: Record toolchain version
         run: arm-none-eabi-gcc --version | head -1
 
+      # since v1.17 Zenoh is enabled on big-flash boards (fmu-v6xrt) and its
+      # IDL generation needs lark, which this container predates
+      - name: Install lark
+        run: python3 -m pip install lark
+
       - name: Restore ccache
         uses: actions/cache@v4
         with:
