@@ -40,9 +40,9 @@ Actions on every push and pull request to `dtrg-main`:
 
 | Tier | Question it answers | How | Tests | Runtime | CI job |
 | --- | --- | --- | --- | --- | --- |
-| **1. Unit** | Is the maths and parsing right? | gtest on the code directly, no simulator, no PX4 running | 112 in 6 groups | seconds (after the build) | `unit` |
-| **2. SIH logic** | Are the decisions right? (arming, modes, status texts, published setpoints) | full PX4 SITL + SIH simulator, driven over MAVLink like a GCS; nothing takes off | 35 | 10-25 s per test | `sih` |
-| **3. SIH flight** | Does the vehicle really behave that way? | the fully actuated planarOcto flies in SIH; assertions on SIH ground truth | 12 | ~10 min total | `flight` |
+| **1. Unit** | Is the maths and parsing right? | gtest on the code directly, no simulator, no PX4 running | 125 in 7 groups | seconds (after the build) | `unit` |
+| **2. SIH logic** | Are the decisions right? (arming, modes, status texts, published setpoints) | full PX4 SITL + SIH simulator, driven over MAVLink like a GCS; nothing takes off | 43 | 10-25 s per test | `sih` |
+| **3. SIH flight** | Does the vehicle really behave that way? | the fully actuated planarOcto flies in SIH; assertions on SIH ground truth | 16 | ~10 min total | `flight` |
 
 Each tier exists because the one below it cannot answer the question:
 
@@ -120,6 +120,7 @@ cd build/px4_sitl_test
 ctest -R DtrgBenchProfile.StepFollowsSign --output-on-failure
 ctest -R DtrgMixerCsv --output-on-failure
 ./unit-DtrgHorizontalThrust --gtest_filter='*Split*'
+./unit-DtrgHorizontalThrustSplit
 ```
 
 ### Tier 2: SIH logic tests
@@ -323,14 +324,15 @@ updating that row and removing the `DISABLED_` prefix from the test that covers 
 
 ### 5.1 Tier 1: unit tests
 
-112 tests in 6 gtest groups (5 binaries). They exercise PX4 code directly: no
+125 tests in 7 gtest groups (6 binaries). They exercise PX4 code directly: no
 simulator, no airframe, no running PX4. Each is listed as `Group.Test`.
 
 | Group | File | Code under test |
 | --- | --- | --- |
 | [`DtrgSequentialDesaturation`](#dtrgsequentialdesaturation) (18) | `src/lib/control_allocation/control_allocation/DtrgSequentialDesaturationTest.cpp` | `ControlAllocationSequentialDesaturation` |
 | [`DtrgMixerCsv`](#dtrgmixercsv) (24) + [`DtrgMixerCsvLoad`](#dtrgmixercsvload) (8) | `src/lib/control_allocation/control_allocation/DtrgMixerCsvTest.cpp` | `ControlAllocationPseudoInverse::readMixerFromCSV()`, `loadCsvMixer()` |
-| [`DtrgHorizontalThrust`](#dtrghorizontalthrust) (30) | `src/lib/dtrg_horizontal_thrust/DtrgHorizontalThrustTest.cpp` | `dtrg_horizontal_thrust.hpp` |
+| [`DtrgHorizontalThrust`](#dtrghorizontalthrust) (36) | `src/lib/dtrg_horizontal_thrust/DtrgHorizontalThrustTest.cpp` | `dtrg_horizontal_thrust.hpp` |
+| [`DtrgHorizontalThrustSplit`](#dtrghorizontalthrustsplit) (7) | `src/lib/dtrg_horizontal_thrust/DtrgHorizontalThrustSplitTest.cpp` | `dtrg_horizontal_thrust.hpp` with `ControlMath` (the HT branch of mc_pos_control) |
 | [`DtrgBenchSwitch`](#dtrgbenchswitch) (7) | `src/modules/bench_test/DtrgBenchSwitchTest.cpp` | `bench_test_switch.h` |
 | [`DtrgBenchProfile`](#dtrgbenchprofile) (25) | `src/modules/bench_test/DtrgBenchProfileTest.cpp` | `bench_test_profile.h` |
 
@@ -465,10 +467,39 @@ in SITL, where `SYS_STATUS` only mirrors them while armed. The tilt limit in the
 | `ThrustIsClampedAndFlaggedSaturated` | Demands of 0.8 / -0.9 against a 0.5 limit come out +-0.5 with both saturation flags set |
 | `ExactlyAtLimitIsSaturated` | A demand exactly at the limit is flagged, one just below is not |
 | `UnusedAxisIsNeverSaturated` | Mask 1 ignores a Y demand of 10 entirely: Y is 0 and not flagged |
-| `StickToThrustAsInStabilized` | `stick * DTRG_HT_MAX` as mc_att_control feeds it: full stick lands exactly on the limit (flagged), half stick at half of it (not flagged) |
+| `StickToThrustAsInManualMode` | `stick * DTRG_HT_MAX` as mc_att_control feeds it: full stick lands exactly on the limit (flagged), half stick at half of it (not flagged) |
 | `PositionControlTiltPerMask` | Without the split, the tilt of an HT axis comes from HT (aux / offboard) and the other axis from the position controller: mask 0 both from HT, mask 1 pitch from HT and roll from the controller, mask 2 the other way round |
 | `PositionControlTiltWithSplit` | With the split enabled, both axes tilt with the (scaled) controller for every mask |
 | `UnknownMaskBehavesAsFullHt` | An out of range mask never tilts with the controller and keeps both thrust axes: an invalid parameter cannot turn HT into something else |
+| `ManualModeWithoutSplitHtAxesAreThrustOnly` | Every mask, three stick pairs, `DTRG_HT_SPLIT_EN=0`: an HT axis gets `stick * DTRG_HT_MAX` of thrust and the aux channel's tilt (`DTRG_HT_SPLIT` ignored); the other axis gets no thrust and `stick * MPC_MAN_TILT_MAX` of tilt |
+| `ManualModeSplitDividesTheStick` | Every mask x split 0, 0.25, 0.5, 0.8, 1 x three stick pairs: on an HT axis the thrust fraction (of `DTRG_HT_MAX`) is `split * stick` and the tilt fraction (of `MPC_MAN_TILT_MAX`) `(1 - split) * stick`, adding up to the stick; the other axis has no thrust and tilts for all of the stick. The aux channels are not used |
+| `ManualModeSplitZeroIsNoHorizontalThrust` | `DTRG_HT_SPLIT_EN=1`, `DTRG_HT_SPLIT=0` (the old mask 3), every mask: no X/Y thrust, not flagged, and the stick tilt is unchanged: standard Manual Mode |
+| `ManualModeSplitOneIsLevel` | Split 1, full sticks: X/Y at `DTRG_HT_MAX` (flagged) and level, the aux channels still unused |
+| `ManualModeSplitNeverSaturates` | Split 0.8, full sticks: 0.8 of `DTRG_HT_MAX`, not flagged |
+| `ManualModeSplitOutOfRange` | Split 1.5 behaves as 1, -0.5 as 0, NaN as the default 0.5, for the thrust and the tilt alike |
+
+#### DtrgHorizontalThrustSplit
+
+How Position and Offboard divide the position controller's horizontal thrust
+between horizontal thrust and tilt. There the split is not one multiplication:
+mc_pos_control tilts for `(1 - split)` of the thrust (`tiltThrust()`), then
+rotates the *full* thrust into the tilted body frame, and what is left on body
+X/Y becomes horizontal thrust. The test runs that branch of
+`MulticopterPositionControl::Run()` step by step with the real `ControlMath`
+(linked from `PositionControl`) and checks the resulting forces in the heading
+frame. Demand: 0.08 forward, 0.05 left, 0.5 up (about 10 deg of tilt), at yaw 0,
+0.7, 90 deg and -2.5 rad; tolerance 0.002 (second order effects of the tilt).
+mc_pos_control itself is not compiled in; the tier 2/3 tests cover its wiring.
+
+| Test | Passes when |
+| --- | --- |
+| `SplitDividesTheDemand` | Every mask x split 0, 0.25, 0.5, 0.8, 1 x four yaws: on an HT axis horizontal thrust gives `split` of the demand and tilting the rest; the other axis is moved by tilting only; together they deliver the whole demand, vertical included. The mask is in heading (body) axes at any yaw |
+| `SplitKeepsTheHtAxesFromTheAuxTilt` | With the split an aux / offboard tilt changes neither attitude nor thrust |
+| `WithoutSplitHtAxesAreThrustOnly` | `DTRG_HT_SPLIT_EN=0`, every mask and yaw: an HT axis stays level and gets the whole demand as horizontal thrust; the other axis tilts for all of it |
+| `SplitZeroIsNoHorizontalThrust` | Split 0 (the old mask 3), every mask and yaw: no X/Y thrust, and attitude and collective thrust equal the standard position controller's |
+| `SplitOneIsLevelOnTheHtAxes` | Split 1: the HT axes stay level and get the whole demand |
+| `ThrustShareIsLimitedButTiltShareIsNot` | Split 0.8 of 0.7 forward: horizontal thrust is clipped at `DTRG_HT_MAX` and flagged, the tilt is still exactly that for the other 0.2 |
+| `SplitIsExactOnlyForSmallTilts` | Pins [section 6.1](#61-open-issues): split 0.5 of 1.2 forward over a 0.5 hover tilts 50 deg and leaves 0.38 of body X thrust rather than 0.6, while the total force is still exactly the demand |
 
 #### DtrgBenchSwitch
 
@@ -650,6 +681,7 @@ into 0.49.
 | `test_aux_channels_command_tilt_up_to_limit` | HT on, aux roll full, then aux pitch full | Roll +10 deg with pitch 0, then pitch +10 deg (nose up — the aux channels set the tilt directly, so the opposite way round to the pitch stick) with roll 0 |
 | `test_aux_channel_deadzone[1505/1515]` | HT on, aux roll at 1505 or 1515 us | 1505 us (0.01) is inside the 0.02 aux deadzone: roll 0. 1515 us (0.03) tilts by 0.03 x 10 deg |
 | `test_mask_selects_thrust_axes[mask0/1/2]` | `DTRG_HT_MASK` 0-2, HT on, full pitch, half roll | 0: X and Y by thrust; 1: X only; 2: Y only |
+| `test_mask_and_split_divide_stick_between_thrust_and_tilt[...]` | Pitch stick 0.49, roll stick 0.23, aux roll +0.5 and aux pitch -0.4; `DTRG_HT_MASK` 0-2 with the split off, mask 0 with split 0, 0.25 and 1, masks 1 and 2 with split 0.25 | Thrust X/Y (+-0.001) and roll/pitch of the attitude setpoint (+-0.3 deg) as mc_att_control should compute them: on an HT axis `split` of `DTRG_HT_MAX` as thrust and `(1 - split)` of `MPC_MAN_TILT_MAX` as tilt, or all thrust and the aux tilt with the split off; the other axis tilts with the stick and has no thrust. The expected attitude is built as the same axis-angle rotation. Split 0 is the old mask 3 (standard Stabilized), split 1 is level |
 | `test_full_stick_gives_ht_max` | HT on, full pitch stick | Thrust X = 0.5 (`DTRG_HT_MAX`, +-0.001) and `y_sat` 0. The demand is `stick * DTRG_HT_MAX`, never clipped, so `x_sat` sits exactly on the limit: it sets on Linux (X = 0.5) but not on macOS (0.99999988 of it), so it is not asserted here, nor is the `SYS_STATUS.errors_count3` mirror, which only carries the flags while armed. The flags are covered by `DtrgHorizontalThrustTest.cpp`, which feeds exact values |
 
 #### test_csv_mixer.py
@@ -667,8 +699,8 @@ file" case can run here.
 
 ### 5.3 Tier 3: SIH flight tests
 
-12 tests in `test/dtrg/test_flight_ht.py`, helpers in `test/dtrg/flight.py`; about
-10 flights, ~10 minutes. Same harness, RC layout and conventions as tier 2, but
+16 tests in `test/dtrg/test_flight_ht.py`, helpers in `test/dtrg/flight.py`; about
+14 flights, ~14 minutes. Same harness, RC layout and conventions as tier 2, but
 here the planarOcto really flies. All are marked `flight` and `fully_actuated`,
 so they are skipped on `--airframe=sihsim_quadx`.
 
@@ -685,8 +717,9 @@ commander, in flight.
 | Test | Manoeuvre | Passes when |
 |  --- | --- | --- |
 | `test_take_off_hold_and_land` | Take off, hold 10 s, Land | Altitude within 0.5 m of its setpoint and drift < 1 m during the hold; lands and disarms within 30 s. Baseline: if this fails, nothing below means anything |
-| `test_ht_moves_the_vehicle_level` | HT on, Offboard position setpoint 5 m north | Moves 5 m (+-1, the true position averaged over 1 s of hold before and after) north, with the true pitch above -3 deg and the tilt below 5 deg throughout: HT moves the vehicle without tilting it. Pitch is the axis of the move; roll is hover noise reaching ~3 deg with HT, so it only has the looser tilt bound |
-| `test_without_ht_the_vehicle_tilts_to_move` | Same move with HT off | Moves 5 m (+-1, as above) and pitches nose down past -5 deg. Control case for `test_ht_moves_the_vehicle_level`: shows its tilt limit would catch a vehicle that moves by tilting |
+| `test_ht_moves_the_vehicle_level` | HT on, Offboard position setpoint 5 m north | Moves 5 m (+-0.5) north and the true tilt stays below 3 deg throughout: HT moves the vehicle without tilting it |
+| `test_offboard_split_divides_thrust[mask0-split0.25/mask0-split0.75/mask1-split0.25/mask2-split0.75]` | `DTRG_HT_SPLIT_EN` 1, HT on, Offboard move 4 m forward and 4 m right of the heading | Moves the 5.7 m diagonal (true distance along it +-0.6; each axis settles up to ~0.5 m short from the HT gain loss), and of the force in the published attitude setpoint (samples asking for more than 0.02 on that axis), horizontal thrust gives `DTRG_HT_SPLIT` on an HT axis and nothing on the other (median, +-0.05), tilting the rest. Measured within 0.01 of 0.25 / 0.75 on HT axes and of 0 on the tilt-only axis for every mask. On the setpoint, so the allocator gain loss ([section 6.1](#61-open-issues)) does not enter |
+| `test_without_ht_the_vehicle_tilts_to_move` | Same move with HT off | Moves 5 m (+-0.5) and pitches nose down past -5 deg. Control case for `test_ht_moves_the_vehicle_level`: shows its tilt limit would catch a vehicle that moves by tilting |
 | `test_aux_tilt_reaches_the_limit[roll]` | HT on, Hold, aux roll full | The attitude half of the aux tilt check, independent of the horizontal thrust gain loss ([section 6.1](#61-open-issues)): roll +10 deg (estimate +-2, truth +-3.5), pitch below 3 deg |
 | `test_aux_tilt_reaches_the_limit[pitch]` | HT on, Hold, aux pitch full | pitch +10 deg nose up (estimate +-2, truth +-3.5), roll below 3 deg. The aux channels set the tilt directly, so pitch is the opposite way round to the pitch stick, and Hold agrees with Stabilized |
 | `test_offboard_tilt_setpoint_in_hover` | HT on, Offboard hold, `DEBUG_FLOAT_ARRAY` roll 0.1 rad (5.7 deg) at 10 Hz for 8 s | Estimated roll 5.7 deg (+-2), true roll +-3.5 (the estimate drifts ~2 deg from the truth while tilted), drift < 0.5 m, still in Offboard |
@@ -714,18 +747,16 @@ GPS/IMU noise with HT off.
 | **Open.** `BT_SAT_MARGIN` allows 0.5, at which any standard motor output reads as saturated and the ramp freezes at 0 | documented in `DtrgBenchProfileTest.cpp` (`MarginIsClamped`) |
 | **Open.** `DTRG_OFFBOARD` (MAVLink 9003) is received into `dtrg_custom` but nothing reads it; `streams/DTRG_OFFBOARD.hpp` does not compile and is not registered | not covered |
 | **Open.** HT delivers 41 % of the horizontal force the position controller asks for on the planarOcto. mc_pos_control writes its NED thrust (normalised to full collective thrust) into `thrust_body[0/1]`, but the allocator normalises each thrust axis on its own (`ControlAllocationPseudoInverse::updateControlAllocationMatrixScale`), and on this geometry X/Y = 1 is 0.41 of full thrust while Z = 1 is all of it. In a hover with an HT tilt the position controller cannot hold position: at 10 deg roll it needs 0.25 body Y thrust for a physical 0.10, which `MPC_TILTMAX_AIR 10` caps below, so the vehicle slides ~0.5 m/s (and Hold then yaws towards its setpoint). With `MPC_TILTMAX_AIR 30` it holds, 0.55 m off. Moving level (`test_ht_moves_the_vehicle_level`) works because the integrators absorb the gain loss. Stabilized HT is scaled the same way |  |
+| **By design.** In Position/Offboard the split is exact only for small tilts: mc_pos_control tilts for `(1 - DTRG_HT_SPLIT)` of the thrust and rotates the full thrust into that tilted body, so the horizontal thrust share shrinks as the tilt grows (split 0.5 at a 50 deg tilt gives 0.32 of the demand instead of 0.5; within 0.002 at ~10 deg). The total force is always the demand, only the division changes. Stabilized is exact | `SplitIsExactOnlyForSmallTilts` |
 | **By Design.** Desaturation can demand more input in horizontal force to desaturate roll/pitch |  |
 
 
 ### 6.2 Not covered yet
 
-- `DTRG_HT_SPLIT_EN` / `DTRG_HT_SPLIT` (moving an HT axis by thrust *and* tilt)
-  is unit tested only: no tier 2 or tier 3 test exercises a split in Stabilized
-  or in Position/Offboard.
+- `DTRG_HT_SPLIT` in flight in Stabilized (tier 1 and tier 2 cover every
+  mask x split; tier 3 flies every mask with a split in Offboard only).
 - The allocator giving up X/Y before roll/pitch in flight (needs the allocator's
   per-axis output in the log).
-- The "no horizontal thrust" configuration (`DTRG_HT_SPLIT_EN=1`,
-  `DTRG_HT_SPLIT=0`), which replaced the old mask 3.
 - Bench test's in-air disarm exception needs a vehicle that reports "in air" on a
   bench; SIH stays landed.
 - Horizontal thrust mode flight with pitch/roll command flight test need to be developed better

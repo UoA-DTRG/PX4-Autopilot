@@ -41,3 +41,10 @@ if(TARGET unit-DtrgHorizontalThrust)
 	# header-only lib pulls in generated uORB topic headers (rc_channels.h)
 	add_dependencies(unit-DtrgHorizontalThrust uorb_headers)
 endif()
+
+# Position / Offboard split: runs the HT branch of mc_pos_control with the real ControlMath
+px4_add_unit_gtest(SRC DtrgHorizontalThrustSplitTest.cpp LINKLIBS PositionControl)
+
+if(TARGET unit-DtrgHorizontalThrustSplit)
+	add_dependencies(unit-DtrgHorizontalThrustSplit uorb_headers)
+endif()

@@ -331,7 +331,7 @@ TEST(DtrgHorizontalThrust, UnusedAxisIsNeverSaturated)
 	EXPECT_FALSE(ht.y_sat);
 }
 
-TEST(DtrgHorizontalThrust, StickToThrustAsInStabilized)
+TEST(DtrgHorizontalThrust, StickToThrustAsInManualMode)
 {
 	// mc_att_control feeds stick * DTRG_HT_MAX: full stick is exactly at the limit
 	const float limit = 0.3f;
@@ -386,4 +386,150 @@ TEST(DtrgHorizontalThrust, UnknownMaskBehavesAsFullHt)
 	const HorizontalThrust ht = horizontalThrust(7, 0.2f, 0.1f, 0.5f);
 	EXPECT_FLOAT_EQ(ht.x, 0.2f);
 	EXPECT_FLOAT_EQ(ht.y, 0.1f);
+}
+
+// Manual: how the sticks divide between horizontal thrust and tilt --------
+
+namespace
+{
+
+constexpr float kHtMax = 0.5f; // DTRG_HT_MAX
+constexpr float kManTiltMax = 0.6109f; // MPC_MAN_TILT_MAX 35 deg
+
+// asymmetric so a thrust/tilt or X/Y swap cannot pass
+constexpr float kSplits[] = {0.f, 0.25f, 0.5f, 0.8f, 1.f};
+
+struct Sticks {
+	float roll;
+	float pitch;
+};
+
+constexpr Sticks kSticks[] = {{0.3f, 0.7f}, {-1.f, 0.4f}, {0.6f, -1.f}};
+
+} // namespace
+
+TEST(DtrgHorizontalThrust, ManualModeWithoutSplitHtAxesAreThrustOnly)
+{
+	// without the split an HT axis moves by thrust only: full stick is DTRG_HT_MAX and the tilt
+	// is the aux channel's, whatever DTRG_HT_SPLIT says; the other axis tilts with the stick
+	const float roll_knob = 0.05f;
+	const float pitch_knob = -0.08f;
+
+	for (int32_t mask = 0; mask <= kMaxSelectableMask; mask++) {
+		for (const Sticks &s : kSticks) {
+			SCOPED_TRACE(testing::Message() << "mask " << mask << " roll " << s.roll << " pitch " << s.pitch);
+
+			const HorizontalThrust ht = manualModeHorizontalThrust(mask, false, 0.2f, s.roll, s.pitch, kHtMax);
+			const Tilt t = manualModeTilt(mask, false, 0.2f, s.roll * kManTiltMax, s.pitch * kManTiltMax, roll_knob,
+						      pitch_knob);
+
+			EXPECT_FLOAT_EQ(ht.x, maskUsesX(mask) ? s.pitch *kHtMax : 0.f);
+			EXPECT_FLOAT_EQ(ht.y, maskUsesY(mask) ? s.roll *kHtMax : 0.f);
+			EXPECT_FLOAT_EQ(t.pitch, maskUsesX(mask) ? pitch_knob : s.pitch * kManTiltMax);
+			EXPECT_FLOAT_EQ(t.roll, maskUsesY(mask) ? roll_knob : s.roll * kManTiltMax);
+		}
+	}
+}
+
+TEST(DtrgHorizontalThrust, ManualModeSplitDividesTheStick)
+{
+	// with the split an HT axis moves by DTRG_HT_SPLIT of the stick as thrust and the rest as
+	// tilt, so the two fractions add up to the stick; the other axis has no thrust and tilts
+	// for all of the stick. The aux channels are not used.
+	for (int32_t mask = 0; mask <= kMaxSelectableMask; mask++) {
+		for (const float split : kSplits) {
+			for (const Sticks &s : kSticks) {
+				SCOPED_TRACE(testing::Message() << "mask " << mask << " split " << split << " roll " << s.roll
+					     << " pitch " << s.pitch);
+
+				const HorizontalThrust ht = manualModeHorizontalThrust(mask, true, split, s.roll, s.pitch, kHtMax);
+				const Tilt t = manualModeTilt(mask, true, split, s.roll * kManTiltMax, s.pitch * kManTiltMax, 0.05f,
+							      -0.08f);
+
+				const float x_thrust = ht.x / kHtMax;
+				const float y_thrust = ht.y / kHtMax;
+				const float x_tilt = t.pitch / kManTiltMax;
+				const float y_tilt = t.roll / kManTiltMax;
+
+				if (maskUsesX(mask)) {
+					EXPECT_NEAR(x_thrust, split * s.pitch, 1e-6f);
+					EXPECT_NEAR(x_tilt, (1.f - split) * s.pitch, 1e-6f);
+
+				} else {
+					EXPECT_FLOAT_EQ(x_thrust, 0.f);
+					EXPECT_FLOAT_EQ(x_tilt, s.pitch);
+				}
+
+				if (maskUsesY(mask)) {
+					EXPECT_NEAR(y_thrust, split * s.roll, 1e-6f);
+					EXPECT_NEAR(y_tilt, (1.f - split) * s.roll, 1e-6f);
+
+				} else {
+					EXPECT_FLOAT_EQ(y_thrust, 0.f);
+					EXPECT_FLOAT_EQ(y_tilt, s.roll);
+				}
+
+				EXPECT_NEAR(x_thrust + x_tilt, s.pitch, 1e-6f);
+				EXPECT_NEAR(y_thrust + y_tilt, s.roll, 1e-6f);
+			}
+		}
+	}
+}
+
+TEST(DtrgHorizontalThrust, ManualModeSplitZeroIsNoHorizontalThrust)
+{
+	// DTRG_HT_SPLIT_EN=1, DTRG_HT_SPLIT=0 (the old mask 3): standard Manual Mode on every mask
+	for (int32_t mask = 0; mask <= kMaxSelectableMask; mask++) {
+		const HorizontalThrust ht = manualModeHorizontalThrust(mask, true, 0.f, 1.f, -1.f, kHtMax);
+		const Tilt t = manualModeTilt(mask, true, 0.f, 0.3f, -0.4f, 0.05f, -0.08f);
+		EXPECT_FLOAT_EQ(ht.x, 0.f);
+		EXPECT_FLOAT_EQ(ht.y, 0.f);
+		EXPECT_FALSE(ht.x_sat);
+		EXPECT_FALSE(ht.y_sat);
+		EXPECT_FLOAT_EQ(t.roll, 0.3f);
+		EXPECT_FLOAT_EQ(t.pitch, -0.4f);
+	}
+}
+
+TEST(DtrgHorizontalThrust, ManualModeSplitOneIsLevel)
+{
+	// split 1 is all thrust: full stick reaches DTRG_HT_MAX and the HT axes stay level,
+	// the aux channels are still not used
+	const HorizontalThrust ht = manualModeHorizontalThrust(0, true, 1.f, -1.f, 1.f, kHtMax);
+	const Tilt t = manualModeTilt(0, true, 1.f, -kManTiltMax, kManTiltMax, 0.05f, -0.08f);
+	EXPECT_FLOAT_EQ(ht.x, kHtMax);
+	EXPECT_FLOAT_EQ(ht.y, -kHtMax);
+	EXPECT_TRUE(ht.x_sat);
+	EXPECT_TRUE(ht.y_sat);
+	EXPECT_FLOAT_EQ(t.roll, 0.f);
+	EXPECT_FLOAT_EQ(t.pitch, 0.f);
+}
+
+TEST(DtrgHorizontalThrust, ManualModeSplitNeverSaturates)
+{
+	// below split 1 full stick asks for split * DTRG_HT_MAX, inside the limit
+	const HorizontalThrust ht = manualModeHorizontalThrust(0, true, 0.8f, 1.f, -1.f, kHtMax);
+	EXPECT_FLOAT_EQ(ht.x, -0.8f * kHtMax);
+	EXPECT_FLOAT_EQ(ht.y, 0.8f * kHtMax);
+	EXPECT_FALSE(ht.x_sat);
+	EXPECT_FALSE(ht.y_sat);
+}
+
+TEST(DtrgHorizontalThrust, ManualModeSplitOutOfRange)
+{
+	// a split outside 0..1 is clamped and NaN falls back to the default, for thrust and tilt alike
+	HorizontalThrust ht = manualModeHorizontalThrust(0, true, 1.5f, 0.f, 1.f, kHtMax);
+	Tilt t = manualModeTilt(0, true, 1.5f, 0.f, 0.4f, 0.f, 0.f);
+	EXPECT_FLOAT_EQ(ht.x, kHtMax);
+	EXPECT_FLOAT_EQ(t.pitch, 0.f);
+
+	ht = manualModeHorizontalThrust(0, true, -0.5f, 0.f, 1.f, kHtMax);
+	t = manualModeTilt(0, true, -0.5f, 0.f, 0.4f, 0.f, 0.f);
+	EXPECT_FLOAT_EQ(ht.x, 0.f);
+	EXPECT_FLOAT_EQ(t.pitch, 0.4f);
+
+	ht = manualModeHorizontalThrust(0, true, NAN, 0.f, 1.f, kHtMax);
+	t = manualModeTilt(0, true, NAN, 0.f, 0.4f, 0.f, 0.f);
+	EXPECT_FLOAT_EQ(ht.x, kDefaultSplit * kHtMax);
+	EXPECT_FLOAT_EQ(t.pitch, (1.f - kDefaultSplit) * 0.4f);
 }
