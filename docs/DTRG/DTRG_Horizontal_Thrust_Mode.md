@@ -484,8 +484,8 @@ y_b = z_b \times x_b
 $$
 
 $$
-R_{sp} = [\,x_b\ \ y_b\ \ z_b\,],\qquad
-\texttt{thrust\_body} = [\,0,\ 0,\ -\|T\|\,]
+R_{sp} = [x_b\ \ y_b\ \ z_b\,],\qquad
+T = [\,0,\ 0,\ -\|T\|\,]
 $$
 
 So upstream all the thrust is on body Z, and the vehicle tilts to point it.
