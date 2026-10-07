@@ -2,7 +2,7 @@
 
 The vehicle really flies here: SIH simulates the eight tilted rotors from the
 airframe's CA_ROTOR* geometry, and the checks are on SIH's ground truth. See
-Tools/dtrg/DTRG_Automated_Testing.md.
+docs/DTRG/DTRG_Automated_Testing.md.
 
 Run: python3 -m pytest test/dtrg -m flight -v
 """

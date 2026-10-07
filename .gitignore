@@ -109,3 +109,7 @@ src/systemcmds/topic_listener/listener_generated.cpp
 # colcon
 log/
 keys/
+.obsidian/app.json
+.obsidian/appearance.json
+.obsidian/core-plugins.json
+.obsidian/workspace.json

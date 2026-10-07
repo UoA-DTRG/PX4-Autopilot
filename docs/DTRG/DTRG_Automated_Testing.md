@@ -18,8 +18,8 @@ asserts, and the known gaps they pin. Replaces the earlier split between
 
 Related: [test/dtrg/README.md](../../test/dtrg/README.md) (tier 2/3 harness),
 [.github/workflows/dtrg_tests.yml](../../.github/workflows/dtrg_tests.yml) (CI),
-[README.md](README.md) (manual SITL input tools),
-[SIH_VS_GAZEBO.md](SIH_VS_GAZEBO.md) (simulator comparison).
+[Tools/dtrg/README.md](../../Tools/dtrg/README.md) (manual SITL input tools),
+[Tools/dtrg/SIH_VS_GAZEBO.md](SIH_VS_GAZEBO.md) (simulator comparison).
 
 ---
 
@@ -31,7 +31,7 @@ Actions on every push and pull request to `dtrg-main`:
 | Feature | Parameters | Where it lives |
 | --- | --- | --- |
 | **Horizontal thrust (HT)** — a fully actuated vehicle moves sideways without tilting; sticks command body X/Y thrust, aux channels or an offboard setpoint command the tilt | `DTRG_HT_EN`, `DTRG_HT_MAX`, `DTRG_HT_MASK`, `DTRG_HT_SPLIT_EN`, `DTRG_HT_SPLIT`, `DTRG_HT_R_MAX`, `DTRG_HT_P_MAX`, `RC_MAP_HT_MODE/ROLL/PITCH` | `src/lib/dtrg_horizontal_thrust`, mc_att_control, mc_pos_control |
-| **Bench test mode** — holds a hover thrust and excites one axis with a step or a ramp, with every control loop off, for rig measurements | `BT_*`, `RC_MAP_CMD_SIGN`, `COM_FLTMODEx = 16` | `src/modules/bench_test` |
+| **Bench test mode** — holds a hover thrust and excites one axis with a step or a ramp, with every control loop off, for rig measurements | `BT_*`, `RC_MAP_CMD_SIGN`, `COM_FLTMODEx = 17` | `src/modules/bench_test` |
 | **Sequential desaturation order** — which axes are given up when the rotors cannot deliver everything | - | `ControlAllocationSequentialDesaturation` |
 | **CSV mixer** — replace the pseudo-inverse with a matrix read from `/fs/microsd/etc/mixer.csv` | `DTRG_MIXER_CSV`, `DTRG_MIXER_NORM` | `ControlAllocationPseudoInverse` |
 | **RC channel conflict check** — refuse to arm when two `RC_MAP_*` functions share a raw channel | `COM_ARM_RC_CONF` | commander |
@@ -63,7 +63,7 @@ marked `fully_actuated`; tier 3 is fully actuated throughout.
 
 ### The simulated vehicle
 
-`SIH_VEHICLE_TYPE 4` (generic multirotor) reads `CA_ROTOR_COUNT` and
+`SIH_VEHICLE_TYPE 6` (generic multirotor) reads `CA_ROTOR_COUNT` and
 `CA_ROTORn_PX/PY/PZ/AX/AY/AZ/CT/KM` — the same parameters control allocation
 uses — and sums per rotor `F = T * axis` and `M = r x F - KM * T * axis`, with
 `T = SIH_T_MAX * (SIH_THR_MDL_FAC * u^2 + (1 - SIH_THR_MDL_FAC) * u)`. Any
@@ -278,8 +278,8 @@ Traps, all of which have cost someone an afternoon:
 - Channels 9-18 need MAVLink 2 (`MAVLINK20=1` before importing pymavlink).
 - A mode switch is only acted on when it *changes* (or is first seen while
   disarmed): hold the intermediate position ~1 s.
-- Three different numbers mean "bench test": HEARTBEAT main mode 11, RC slot
-  value `COM_FLTMODEx = 16`, nav state 16.
+- Three different numbers mean "bench test": HEARTBEAT main mode 12, RC slot
+  value `COM_FLTMODEx = 17`, nav state 16.
 - `param set-default` in the airframe script does not override `PX4_PARAM_*`,
   except when the requested value equals the firmware default — that does not
   count as a change. `init.d-posix/rcS` therefore applies `PX4_PARAM_*` a second
@@ -769,7 +769,7 @@ Re-check these if tests start failing for no obvious reason.
    `RC_CHANNELS_OVERRIDE` feeds (`MANUAL_CONTROL` does not reach them).
 2. SITL defaults to `COM_RC_IN_MODE 1` (joystick). RC tests set `0` and
    `RC_CHAN_CNT 18`, and stream RC for the whole test.
-3. Bench test is only reachable from an RC slot (`COM_FLTMODEx = 16`), and a slot
+3. Bench test is only reachable from an RC slot (`COM_FLTMODEx = 17`), and a slot
    is only acted on when it changes (or is first seen while disarmed).
 4. HT is on when the `RC_MAP_HT_MODE` channel is `> 0.5`. The bench test
    direction switch is `>1700` up, `<1300` down (raw us).
