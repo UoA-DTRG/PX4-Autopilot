@@ -68,8 +68,14 @@ jobs:
         run: |
           command -v curl >/dev/null || { apt-get update && apt-get install -y curl xz-utils; }
           mkdir -p /opt/arm-toolchain
-          curl -fLs "https://developer.arm.com/-/media/Files/downloads/gnu/${ARM_TOOLCHAIN_VERSION}/binrel/arm-gnu-toolchain-${ARM_TOOLCHAIN_VERSION}-x86_64-arm-none-eabi.tar.xz" \
-            | tar -xJ --strip-components=1 -C /opt/arm-toolchain
+          # developer.arm.com sits behind bot protection that answers runner IPs
+          # with a 200 HTML page instead of the archive; fetch from the blob
+          # storage it redirects to, and verify before extracting.
+          curl -fsSL --retry 3 -o /tmp/arm-toolchain.tar.xz \
+            "https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu/${ARM_TOOLCHAIN_VERSION}/binrel/arm-gnu-toolchain-${ARM_TOOLCHAIN_VERSION}-x86_64-arm-none-eabi.tar.xz"
+          xz -t /tmp/arm-toolchain.tar.xz || { echo "Not an xz archive:"; head -c 500 /tmp/arm-toolchain.tar.xz; exit 1; }
+          tar -xJf /tmp/arm-toolchain.tar.xz --strip-components=1 -C /opt/arm-toolchain
+          rm /tmp/arm-toolchain.tar.xz
 
       # GITHUB_PATH is prepended, so this shadows the container's 9.3.1
       - name: Use Arm GNU Toolchain
