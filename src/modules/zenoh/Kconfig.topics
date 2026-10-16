@@ -149,6 +149,10 @@ menu "Zenoh publishers/subscribers"
 		bool "dronecan_node_status"
 		default n
 
+	config ZENOH_PUBSUB_DTRG_CONSTANT_COMMAND
+		bool "dtrg_constant_command"
+		default n
+
 	config ZENOH_PUBSUB_DTRG_CUSTOM
 		bool "dtrg_custom"
 		default n
@@ -1003,6 +1007,7 @@ config ZENOH_PUBSUB_ALL_SELECTION
 	select ZENOH_PUBSUB_DISTANCE_SENSOR
 	select ZENOH_PUBSUB_DISTANCE_SENSOR_MODE_CHANGE_REQUEST
 	select ZENOH_PUBSUB_DRONECAN_NODE_STATUS
+	select ZENOH_PUBSUB_DTRG_CONSTANT_COMMAND
 	select ZENOH_PUBSUB_DTRG_CUSTOM
 	select ZENOH_PUBSUB_DTRG_DESATURATED_CONTROL
 	select ZENOH_PUBSUB_DTRG_MIXER_STATUS

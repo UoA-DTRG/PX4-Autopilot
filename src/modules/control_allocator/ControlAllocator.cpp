@@ -200,6 +200,11 @@ ControlAllocator::update_allocation_method(bool force)
 			}
 		}
 
+		if (_num_control_allocation > 0) {
+			_constant_command.setAllocationMethod((configured_method == AllocationMethod::AUTO) ? desired_methods[0] :
+							      configured_method);
+		}
+
 		_allocation_method_id = configured_method;
 	}
 }
@@ -432,7 +437,19 @@ ControlAllocator::Run()
 			_control_allocation[i]->setControlSetpoint(c[i]);
 
 			// Do allocation
-			_control_allocation[i]->allocate();
+			if (i == 0) {
+				// DTRG constant command: allocates as normal unless the switch holds the centre rotors
+				const bool constant_command_available = (_num_control_allocation == 1)
+									&& (_effectiveness_source_id == EffectivenessSource::MULTIROTOR)
+									&& (_csv_mixer.get() == 0)
+									&& (_num_actuators[(int)ActuatorType::MOTORS] >= DtrgConstantCommand::MIN_NUM_MOTORS)
+									&& (_handled_motor_failure_bitmask == 0);
+				_constant_command.allocate(*_control_allocation[0], constant_command_available, _armed, dt);
+
+			} else {
+				_control_allocation[i]->allocate();
+			}
+
 			_actuator_effectiveness->allocateAuxilaryControls(dt, i, _control_allocation[i]->_actuator_sp); //flaps and spoilers
 			_actuator_effectiveness->updateSetpoint(c[i], i, _control_allocation[i]->_actuator_sp,
 								_control_allocation[i]->getActuatorMin(), _control_allocation[i]->getActuatorMax());
@@ -638,6 +655,8 @@ ControlAllocator::update_effectiveness_matrix_if_needed(EffectivenessUpdateReaso
 			_control_allocation[i]->setEffectivenessMatrix(config.effectiveness_matrices[i], config.trim[i],
 					config.linearization_point[i], total_num_actuators, reason == EffectivenessUpdateReason::CONFIGURATION_UPDATE);
 		}
+
+		_constant_command.effectivenessUpdated();
 
 		trims.timestamp = hrt_absolute_time();
 		_actuator_servos_trim_pub.publish(trims);
@@ -868,6 +887,8 @@ int ControlAllocator::print_status()
 	if (_actuator_effectiveness != nullptr) {
 		PX4_INFO("Effectiveness Source: %s", _actuator_effectiveness->name());
 	}
+
+	_constant_command.printStatus();
 
 	//Is Overide Used
 	PX4_INFO("DTRG CSV OVERIDE IS %s", (_csv_mixer.get() == 1) ? "Enabled" : "Disabled");

@@ -275,6 +275,7 @@ set(msg_files
 	DtrgCustom.msg
 	DtrgMixerStatus.msg
 	DtrgDesaturatedControl.msg
+	DtrgConstantCommand.msg
 	HorizontalThrustLimit.msg
 	SequentialDesaturation.msg
 )

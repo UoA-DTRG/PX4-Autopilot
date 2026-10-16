@@ -260,6 +260,7 @@ public:
 
 protected:
 	friend class ControlAllocator; // for _actuator_sp
+	friend class DtrgConstantCommand; // builds a second allocation with the same scale and overrides _actuator_sp
 
 	matrix::Matrix<float, NUM_AXES, NUM_ACTUATORS> _effectiveness;  ///< Effectiveness matrix
 	matrix::Vector<float, NUM_AXES> _control_allocation_scale;  	///< Scaling applied during allocation

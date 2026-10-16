@@ -42,6 +42,72 @@ parameters:
                 0: Disabled
                 1: Enabled
             default: 0
+    - group: DTRG Constant Command
+      definitions:
+        DTRG_CC_EN:
+            description:
+                short: Enable constant command allocation
+                long: |
+                  While the switch RC_MAP_CC_MODE is on, the rotors selected in DTRG_CC_MOTORS are held at
+                  DTRG_CC_M_CMD and allocate the controller's demand to the other rotors only. The other
+                  rotors are given the demand minus what the centre rotors produce, so the thrust and torque
+                  setpoints keep their meaning and the flight mode in use is unchanged.
+
+                  Only engages in flight (armed, not landed), effectiveness defined with the multirotor geometry
+                  (CA_AIRFRAME 0) at least 8 motors and no handled motor failure. It is released on RC loss.
+            type: boolean
+            default: 0
+        RC_MAP_CC_MODE:
+            description:
+                short: Constant command switch channel
+                long: |
+                  Raw RC channel (rc_channels) that switches constant command allocation on while it reads
+                  high. Used with DTRG_CC_EN. The channel must not be assigned to any other function.
+            type: enum
+            values:
+                0: Disabled
+                5: Channel 5
+                6: Channel 6
+                7: Channel 7
+                8: Channel 8
+                9: Channel 9
+                10: Channel 10
+                11: Channel 11
+                12: Channel 12
+                13: Channel 13
+                14: Channel 14
+                15: Channel 15
+                16: Channel 16
+            min: 0
+            max: 16
+            default: 0
+        DTRG_CC_M_CMD:
+            description:
+                short: Constant command Motor command
+                long: |
+                  Command for the centre rotors is held at with constant command allocation on,
+                  as published in actuator_motors (before the thrust curve THR_MDL_FAC and the
+                  output mapping).
+            type: float
+            decimal: 3
+            increment: 0.01
+            min: 0.0
+            max: 1.0
+            default: 0.5
+        DTRG_CC_RAMP:
+            description:
+                short: Constant command transition time
+                long: |
+                  Time to move the centre rotors between their normally allocated commands and
+                  DTRG_CC_M_CMD when the switch changes. The outer rotors compensate
+                  throughout. 0 switches in one step.
+            type: float
+            decimal: 2
+            increment: 0.1
+            unit: s
+            min: 0.0
+            max: 10.0
+            default: 1.0
     - group: Geometry
       definitions:
         CA_AIRFRAME:

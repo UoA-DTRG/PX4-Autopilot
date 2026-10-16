@@ -239,7 +239,7 @@ ControlAllocationSequentialDesaturation::mixAirmodeDisabled()
 	const float gain[NUM_AXES] {roll_sat, pitch_sat, yaw_sat, x_sat, y_sat, z_sat};
 
 	dtrg_desaturated_control_s ctrl{};
-	ctrl.timestamp = sqmsg.timestamp;
+	ctrl.timestamp = hrt_absolute_time();
 
 	for (int i = 0; i < 3; i++) {
 		ctrl.torque_sp[i] = _control_sp(ControlAxis::ROLL + i);

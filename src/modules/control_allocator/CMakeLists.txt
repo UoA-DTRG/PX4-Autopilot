@@ -44,6 +44,8 @@ px4_add_module(
 	SRCS
 		ControlAllocator.cpp
 		ControlAllocator.hpp
+		DtrgConstantCommand.cpp
+		DtrgConstantCommand.hpp
 	MODULE_CONFIG
 		module.yaml
 	DEPENDS

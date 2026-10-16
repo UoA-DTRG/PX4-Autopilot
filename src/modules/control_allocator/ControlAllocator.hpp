@@ -59,6 +59,8 @@
 #include <ControlAllocationPseudoInverse.hpp>
 #include <ControlAllocationSequentialDesaturation.hpp>
 
+#include "DtrgConstantCommand.hpp"
+
 #include <lib/matrix/matrix/math.hpp>
 #include <lib/perf/perf_counter.h>
 #include <px4_platform_common/px4_config.h>
@@ -218,6 +220,8 @@ private:
 	hrt_abstime _timestamp_sample{0};
 	hrt_abstime _last_status_pub{0};
 	dtrg_mixer_status_s _dtrg_mixer_status{};
+
+	DtrgConstantCommand _constant_command{this}; ///< DTRG constant command: hold the planetaryHex centre rotors
 
 	ParamHandles _param_handles{};
 	Params _params{};
