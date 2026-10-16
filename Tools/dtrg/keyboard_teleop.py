@@ -12,6 +12,9 @@ second message, RC_CHANNELS_OVERRIDE, which becomes `input_rc` and then
 match the planarOcto airframe defaults (RC_MAP_HT_MODE/ROLL/PITCH = 8/9/10);
 Tools/dtrg/rc_override.py does the same thing standalone.
 
+The DTRG constant command switch of the planetaryHex (RC_MAP_CC_MODE = 7, read from
+`rc_channels` by control_allocator) goes the same way, on channel 7.
+
 Usage:  Tools/dtrg/keyboard_teleop.py [udpin:0.0.0.0:14540]
 """
 
@@ -51,6 +54,9 @@ HT_MODE_CH = 8
 HT_ROLL_CH = 9
 HT_PITCH_CH = 10
 HT_STEP = 0.05    # normalized stick units per keypress; HT sticks do not decay
+# DTRG constant command (planetaryHex), over RC_CHANNELS_OVERRIDE. Must agree with
+# the airframe: RC_MAP_CC_MODE 7, and DTRG_CC_EN 1 for the switch to act.
+CC_MODE_CH = 7
 RC_CHANNELS = 18
 # PX4's default RC<n>_MIN/TRIM/MAX. Pass different numbers here only if the
 # SITL rootfs carries a saved transmitter calibration for these channels.
@@ -77,6 +83,9 @@ HELP = """
   z / x      HT roll  - / +  (ch9)
   c / v      HT pitch - / +  (ch10)
   b          center HT roll/pitch
+
+  DTRG constant command, planetaryHex (RC_CHANNELS_OVERRIDE, starts on first use)
+  u          toggle constant command switch (ch7): hold Motors 7/8 at DTRG_CC_M_CMD
 
   q / Ctrl-C quit
 """
@@ -135,10 +144,11 @@ def main():
             mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
             main_mode, sub_mode)
 
-    def send_ht(mode_on, roll, pitch):
-        """Stream the HT channels as RC_CHANNELS_OVERRIDE."""
+    def send_rc(mode_on, roll, pitch, cc_on):
+        """Stream the HT and constant command channels as RC_CHANNELS_OVERRIDE."""
         ch = [PWM_UNUSED_LOW] * 8 + [PWM_ABSENT] * (RC_CHANNELS - 8)
         ch[HT_MODE_CH - 1] = PWM_MAX if mode_on else PWM_MIN
+        ch[CC_MODE_CH - 1] = PWM_MAX if cc_on else PWM_MIN
         ch[HT_ROLL_CH - 1] = normalized_to_pwm(roll)
         ch[HT_PITCH_CH - 1] = normalized_to_pwm(pitch)
         m.mav.rc_channels_override_send(m.target_system, m.target_component, *ch)
@@ -149,9 +159,10 @@ def main():
 
     ht_roll = ht_pitch = 0.0
     ht_mode_on = False
-    # No RC_CHANNELS_OVERRIDE goes out until an HT key is pressed, so a session
-    # that never uses HT leaves PX4's RC path exactly as it was.
-    ht_streaming = False
+    cc_on = False
+    # No RC_CHANNELS_OVERRIDE goes out until an HT or constant command key is pressed,
+    # so a session that never uses them leaves PX4's RC path exactly as it was.
+    rc_streaming = False
 
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
@@ -208,8 +219,13 @@ def main():
                 elif c == "0":
                     aux = [0, 0, 0, 0]
                     print("\rall aux channels -> low" + " " * 30)
+                elif c == "u":
+                    rc_streaming = True
+                    cc_on = not cc_on
+                    print(f"\rconstant command (ch{CC_MODE_CH}) -> "
+                          f"{'ON' if cc_on else 'off'}" + " " * 30)
                 elif c in ("e", "z", "x", "c", "v", "b"):
-                    ht_streaming = True
+                    rc_streaming = True
                     if c == "e":
                         ht_mode_on = not ht_mode_on
                         print(f"\rHT mode (ch{HT_MODE_CH}) -> "
@@ -242,11 +258,12 @@ def main():
                                       aux1=a1, aux2=a2, aux3=a3, aux4=a4,
                                       aux5=0, aux6=0)
 
-            if ht_streaming:
-                send_ht(ht_mode_on, ht_roll, ht_pitch)
+            if rc_streaming:
+                send_rc(ht_mode_on, ht_roll, ht_pitch, cc_on)
 
             ht_status = (f" | HT {'ON' if ht_mode_on else 'off'} "
-                         f"r{ht_roll:+.2f} p{ht_pitch:+.2f}" if ht_streaming else "")
+                         f"r{ht_roll:+.2f} p{ht_pitch:+.2f}"
+                         f" | CC {'ON' if cc_on else 'off'}" if rc_streaming else "")
             aux_status = "".join(AUX_LABEL[v][0].upper() for v in (a1, a2, a3, a4))
 
             status = (f"p{int(x):+5d} r{int(y):+5d} t{int(z):4d} y{int(r):+5d}"

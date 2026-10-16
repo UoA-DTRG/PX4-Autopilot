@@ -1,8 +1,8 @@
 """Standard RC layout for every DTRG SITL test that streams RC.
 
 One layout for all tests, so that no two functions ever share a channel (which
-the RC channel conflict check would refuse to arm with). Channels 7 and 11-18
-are left unassigned.
+the RC channel conflict check would refuse to arm with). Channels 11-18 are
+left unassigned.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ CH_THROTTLE = 3
 CH_YAW = 4
 CH_FLTMODE = 5
 CH_CMD_SIGN = 6  # bench test direction switch
+CH_CC_MODE = 7  # constant command on/off
 CH_HT_MODE = 8  # horizontal thrust on/off
 CH_HT_ROLL = 9
 CH_HT_PITCH = 10
@@ -41,6 +42,7 @@ RC_PARAMS = {
     "RC_MAP_YAW": CH_YAW,
     "RC_MAP_FLTMODE": CH_FLTMODE,
     "RC_MAP_CMD_SIGN": CH_CMD_SIGN,
+    "RC_MAP_CC_MODE": CH_CC_MODE,
     "RC_MAP_HT_MODE": CH_HT_MODE,
     "RC_MAP_HT_ROLL": CH_HT_ROLL,
     "RC_MAP_HT_PITCH": CH_HT_PITCH,
@@ -92,6 +94,7 @@ def initial_channels(overrides: dict[int, int] | None = None) -> dict[int, int]:
         CH_YAW: PWM_CENTRE,
         CH_FLTMODE: slot_pwm(SLOT_STABILIZED),
         CH_CMD_SIGN: PWM_CENTRE,
+        CH_CC_MODE: PWM_MIN,
         CH_HT_MODE: PWM_MIN,
         CH_HT_ROLL: PWM_CENTRE,
         CH_HT_PITCH: PWM_CENTRE,

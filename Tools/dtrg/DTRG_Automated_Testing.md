@@ -35,6 +35,7 @@ Actions on every push and pull request to `dtrg-main`:
 | **Sequential desaturation order** — which axes are given up when the rotors cannot deliver everything | - | `ControlAllocationSequentialDesaturation` |
 | **CSV mixer** — replace the pseudo-inverse with a matrix read from `/fs/microsd/etc/mixer.csv` | `DTRG_MIXER_CSV`, `DTRG_MIXER_NORM` | `ControlAllocationPseudoInverse` |
 | **RC channel conflict check** — refuse to arm when two `RC_MAP_*` functions share a raw channel | `COM_ARM_RC_CONF` | commander |
+| **Constant command** (planetaryHex) — a switch holds the centre rotors, Motors 7 and 8, at fixed commands while the six outer rotors take the rest of the demand | `DTRG_CC_EN`, `DTRG_CC_M_CMD`, `DTRG_CC_RAMP`, `RC_MAP_CC_MODE` | `src/modules/control_allocator/DtrgConstantCommand.cpp` |
 
 ### The three tiers
 
@@ -76,6 +77,7 @@ outputs 1..N in order.
 | --- | --- | --- |
 | `12016_sihsim_planar_octo` | SITL (`make px4_sitl sihsim_planar_octo`) | CI and local runs |
 | `12017_dtrg_planar_octo_sih.hil` | the real flight controller (`SYS_HITL 2`) | the planarOcto stack flying on the actual hardware against a vehicle simulated on the board; real outputs stay off (remove the props anyway) |
+| `12021_sihsim_planetary_hex` | SITL (`make px4_sitl sihsim_planetary_hex`) | the planetaryHex, for the constant command flight tests only; the centre rotors are scaled by their `CA_ROTORn_CT`. Hovers at outer ~0.31, centre ~0.72 / 0.58 |
 
 Mass, inertia and propulsion are the Gazebo model's values (assumed / FT-X8, not
 measured), documented in `12016_sihsim_planar_octo`. With them the planarOcto
@@ -695,6 +697,17 @@ commander, in flight.
 | `test_stabilized_ht_stick_moves_the_vehicle_level` | Take off to 6 m, HT on, Stabilized, full pitch stick for 3 s | Forward speed (true, along the heading) above 1 m/s and tilt below 3 deg. The manual counterpart of `test_ht_moves_the_vehicle_level` |
 | `test_bench_test_rejected_in_flight` | Hovering in Hold, mode switch to the bench test slot | `Bench test mode denied: disarm first`; still armed and in Hold, and stays above 1.5 m. The in-air case of `test_bench_test_rejected_while_armed` |
 
+
+3 tests in `test/dtrg/test_flight_constant_command.py` always fly the planetaryHex
+(`sihsim_planetary_hex`, through a module-level `airframe` fixture), whatever
+`--airframe` says; ~2.5 minutes. `DTRG_CC_M_CMD` 0.5, and `DTRG_CC_RAMP` 1 s. Code under test:
+`DtrgConstantCommand` in control_allocator.
+
+| Test | Manoeuvre | Passes when |
+|  --- | --- | --- |
+| `test_constant_command_holds_the_centre_rotors` | Hold 5 s, constant command switch on for 10 s, off for 5 s | `Constant command engaged` / `released`; once ramped, Motors 7 and 8 at 0.55 / 0.45 (+-0.001) with the outer rotors' mean 0.03 above the normal hover (seen: 0.31 to 0.41), back to the normal centre commands (+-0.03) after release; `dtrg_constant_command.blend` 1 then 0; altitude within 0.5 m, drift < 1 m and tilt < 5 deg throughout |
+| `test_switch_does_nothing_when_disabled` | `DTRG_CC_EN` 0, switch on in Hold | No `Constant command` text and Motor 7 stays on the normal allocation. Control case for the test above |
+| `test_landing_releases_the_centre_rotors` | Switch on, then Land with it still on | `Constant command released` once the land detector reports landed, then disarms |
 
 Holding position and altitude is judged on the estimate against the setpoint;
 tilt and distance moved on the ground truth. The tolerances are first guesses;

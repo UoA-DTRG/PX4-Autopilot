@@ -51,6 +51,13 @@ param set-default NAV_DLL_ACT 2
 param set-default RC_MAP_HT_ROLL 9
 param set-default RC_MAP_HT_PITCH 10
 
+# DTRG constant command on channel 7 for the keyboard/RC-override scripts
+# (Tools/dtrg/keyboard_teleop.py key u). Inert until the switch is on in flight.
+param set-default DTRG_CC_EN 1
+param set-default RC_MAP_CC_MODE 7
+
+param set-default SDLOG_MODE 0
+
 # Horizontal velocity P for this model. With the flown MPC_XY_VEL_P_ACC 11 of
 # 12018 the vehicle holds height but limit-cycles +-30-40 deg in roll/pitch,
 # saturating the outer rotors. PX4's default holds a level hover within 0.3 deg,

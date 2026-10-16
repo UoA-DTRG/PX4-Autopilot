@@ -40,6 +40,14 @@ AIRFRAMES = {
         num_motors=8,
         fully_actuated=True,
     ),
+    # the planetaryHex: six tilted outer rotors and a centre coaxial pair, from the CA_ROTOR*
+    # geometry of 12018_dtrg_planetary_hex. The constant command flight tests always run on it.
+    "sihsim_planetary_hex": Airframe(
+        name="sihsim_planetary_hex",
+        autostart=12021,
+        num_motors=8,
+        fully_actuated=True,
+    ),
 }
 
 DEFAULT_AIRFRAME = "sihsim_planar_octo"

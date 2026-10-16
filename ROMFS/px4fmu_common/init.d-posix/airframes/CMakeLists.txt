@@ -115,6 +115,8 @@ px4_add_romfs_files(
 
 	# planarOcto SIH SITL registration (DTRG flight tests)
 	12016_sihsim_planar_octo
+	# planetaryHex SIH SITL registration (DTRG constant command flight tests)
+	12021_sihsim_planetary_hex
 
 	17001_flightgear_tf-g1
 	17002_flightgear_tf-g2
