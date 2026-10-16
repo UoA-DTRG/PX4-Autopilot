@@ -108,6 +108,30 @@ parameters:
             min: 0.0
             max: 10.0
             default: 1.0
+        DTRG_CC_MOTORS:
+            description:
+                short: Constant command motors
+                long: |
+                  Motors held at DTRG_CC_M_CMD with constant command allocation on. Requires
+                  DTRG_CC_EN. At most (number of motors - 6) can be selected, e.g. 2 with 8
+                  motors and 3 with 9, so that 6 motors stay allocated. With no motor, more motors,
+                  or an unconfigured motor selected the mode is unavailable. A change applies
+                  once the held rotors are released.
+            type: bitmask
+            bit:
+                0: Motor 1
+                1: Motor 2
+                2: Motor 3
+                3: Motor 4
+                4: Motor 5
+                5: Motor 6
+                6: Motor 7
+                7: Motor 8
+                8: Motor 9
+                9: Motor 10
+                10: Motor 11
+                11: Motor 12
+            default: 0
     - group: Geometry
       definitions:
         CA_AIRFRAME:

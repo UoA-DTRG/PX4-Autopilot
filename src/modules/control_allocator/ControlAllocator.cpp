@@ -442,9 +442,9 @@ ControlAllocator::Run()
 				const bool constant_command_available = (_num_control_allocation == 1)
 									&& (_effectiveness_source_id == EffectivenessSource::MULTIROTOR)
 									&& (_csv_mixer.get() == 0)
-									&& (_num_actuators[(int)ActuatorType::MOTORS] >= DtrgConstantCommand::MIN_NUM_MOTORS)
 									&& (_handled_motor_failure_bitmask == 0);
-				_constant_command.allocate(*_control_allocation[0], constant_command_available, _armed, dt);
+				_constant_command.allocate(*_control_allocation[0], constant_command_available,
+							  _num_actuators[(int)ActuatorType::MOTORS], _armed, dt);
 
 			} else {
 				_control_allocation[i]->allocate();

@@ -59,4 +59,5 @@ param set-default RC_MAP_HT_PITCH 10
 # DTRG constant command on channel 7 for the keyboard/RC-override scripts
 # (Tools/dtrg/keyboard_teleop.py key u). Inert until the switch is on in flight.
 param set-default DTRG_CC_EN 1
+param set-default DTRG_CC_MOTORS 192
 param set-default RC_MAP_CC_MODE 7

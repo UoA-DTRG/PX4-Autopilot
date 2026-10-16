@@ -48,9 +48,6 @@
 using namespace matrix;
 using namespace time_literals;
 
-// C++14 still requires out-of-line definitions for odr-used constexpr static members
-constexpr int DtrgConstantCommand::COMMAND_MOTOR[];
-
 /// the switch reads off when rc_channels has not been published for this long
 static constexpr hrt_abstime kRcTimeout = 500_ms;
 
@@ -59,6 +56,7 @@ DtrgConstantCommand::DtrgConstantCommand(ModuleParams *parent) :
 {
 	_dtrg_constant_command_pub.advertise();
 	parametersUpdated();
+	latchMotors();
 }
 
 DtrgConstantCommand::~DtrgConstantCommand()
@@ -122,6 +120,38 @@ void DtrgConstantCommand::createOuterAllocation()
 	_outer_update_needed = true;
 }
 
+void DtrgConstantCommand::latchMotors()
+{
+	const uint32_t mask = static_cast<uint32_t>(_param_dtrg_cc_motors.get());
+
+	if (mask == _motors_mask) {
+		return;
+	}
+
+	_motors_mask = mask;
+	_num_cc_motors = 0;
+
+	for (int motor = 0; motor < 32; ++motor) {
+		if (mask & (1u << motor)) {
+			if (_num_cc_motors < MAX_COMMAND_MOTORS) {
+				_cc_motors[_num_cc_motors] = motor;
+			}
+
+			++_num_cc_motors;
+		}
+	}
+
+	_outer_update_needed = true;
+}
+
+bool DtrgConstantCommand::motorsValid(int num_motors) const
+{
+	// at least one motor, all of them configured, and MIN_FREE_MOTORS left to the allocation
+	return (_num_cc_motors > 0) && (_num_cc_motors <= MAX_COMMAND_MOTORS)
+	       && (num_motors >= 0) && (num_motors < 32) && ((_motors_mask >> num_motors) == 0)
+	       && (_num_cc_motors <= num_motors - MIN_FREE_MOTORS);
+}
+
 bool DtrgConstantCommand::switchRequested()
 {
 	_rc_channels_sub.update(&_rc_channels);
@@ -148,8 +178,8 @@ void DtrgConstantCommand::updateOuterAllocation(ControlAllocation &allocation)
 
 	ActuatorEffectiveness::EffectivenessMatrix outer = allocation.getEffectivenessMatrix();
 
-	for (int motor : COMMAND_MOTOR) {
-		outer.col(motor) = 0.f;
+	for (int i = 0; i < _num_cc_motors; ++i) {
+		outer.col(_cc_motors[i]) = 0.f;
 	}
 
 	// Limits first: setEffectivenessMatrix() clips the trim to them
@@ -167,7 +197,7 @@ void DtrgConstantCommand::updateOuterAllocation(ControlAllocation &allocation)
 	_outer_update_needed = false;
 }
 
-void DtrgConstantCommand::allocate(ControlAllocation &allocation, bool available, bool armed, float dt)
+void DtrgConstantCommand::allocate(ControlAllocation &allocation, bool available, int num_motors, bool armed, float dt)
 {
 	if (!_param_dtrg_cc_en.get() && (_blend <= 0.f)) {
 		// disabled and released: the normal allocation, untouched
@@ -177,11 +207,22 @@ void DtrgConstantCommand::allocate(ControlAllocation &allocation, bool available
 	}
 
 	const bool requested = switchRequested();
-	available = available && (_outer_allocation != nullptr);
+
+	if (_blend <= 0.f) {
+		// a new selection only applies while released
+		latchMotors();
+	}
+
+	_motors_valid = motorsValid(num_motors);
+	available = available && _motors_valid && (_outer_allocation != nullptr);
 
 	reportTransitions(requested && armed, available);
 
-	float cc_cmd[NUM_COMMAND_MOTORS] {NAN, NAN};
+	float cc_cmd[MAX_COMMAND_MOTORS];
+
+	for (float &cmd : cc_cmd) {
+		cmd = NAN;
+	}
 
 	if (!available || !armed) {
 		// nothing to ramp from: the outer allocation cannot be used, or the outputs are disarmed
@@ -203,26 +244,23 @@ void DtrgConstantCommand::allocate(ControlAllocation &allocation, bool available
 		updateOuterAllocation(allocation);
 	}
 
-	const float held[NUM_COMMAND_MOTORS] {
-		math::constrain(_param_dtrg_cc_m_cmd.get(), 0.f, 1.f),
-		math::constrain(_param_dtrg_cc_m_cmd.get(), 0.f, 1.f)
-	};
+	const float held = math::constrain(_param_dtrg_cc_m_cmd.get(), 0.f, 1.f);
 
 	if (_blend < 1.f) {
-		// Ramping: blend from the commands the normal allocation gives the centre rotors now
+		// Ramping: blend from the commands the normal allocation gives the held rotors now
 		allocation.allocate();
 
-		for (int i = 0; i < NUM_COMMAND_MOTORS; ++i) {
-			const float normal = allocation._actuator_sp(COMMAND_MOTOR[i]);
-			cc_cmd[i] = normal + _blend * (held[i] - normal);
+		for (int i = 0; i < _num_cc_motors; ++i) {
+			const float normal = allocation._actuator_sp(_cc_motors[i]);
+			cc_cmd[i] = normal + _blend * (held - normal);
 		}
 
 	} else {
 		// allocate() is skipped, keep the previous setpoint for the slew rate limit
 		allocation._prev_actuator_sp = allocation._actuator_sp;
 
-		for (int i = 0; i < NUM_COMMAND_MOTORS; ++i) {
-			cc_cmd[i] = held[i];
+		for (int i = 0; i < _num_cc_motors; ++i) {
+			cc_cmd[i] = held;
 		}
 	}
 
@@ -230,8 +268,8 @@ void DtrgConstantCommand::allocate(ControlAllocation &allocation, bool available
 	const ActuatorEffectiveness::EffectivenessMatrix &effectiveness = allocation.getEffectivenessMatrix();
 	Vector<float, ControlAllocation::NUM_AXES> cc_control{};
 
-	for (int i = 0; i < NUM_COMMAND_MOTORS; ++i) {
-		const int motor = COMMAND_MOTOR[i];
+	for (int i = 0; i < _num_cc_motors; ++i) {
+		const int motor = _cc_motors[i];
 		cc_control += Vector<float, ControlAllocation::NUM_AXES>(effectiveness.col(motor))
 			      * (cc_cmd[i] - allocation._actuator_trim(motor));
 	}
@@ -242,8 +280,8 @@ void DtrgConstantCommand::allocate(ControlAllocation &allocation, bool available
 
 	allocation._actuator_sp = _outer_allocation->getActuatorSetpoint();
 
-	for (int i = 0; i < NUM_COMMAND_MOTORS; ++i) {
-		allocation._actuator_sp(COMMAND_MOTOR[i]) = cc_cmd[i];
+	for (int i = 0; i < _num_cc_motors; ++i) {
+		allocation._actuator_sp(_cc_motors[i]) = cc_cmd[i];
 	}
 
 	publishStatus(requested, available, cc_cmd);
@@ -256,7 +294,10 @@ void DtrgConstantCommand::reportTransitions(bool requested, bool available)
 	if (requested != _reported_requested) {
 		_reported_requested = requested;
 
-		if (requested && !available) {
+		if (requested && !_motors_valid) {
+			mavlink_log_critical(&_mavlink_log_pub, "Constant command: invalid DTRG_CC_MOTORS");
+
+		} else if (requested && !available) {
 			mavlink_log_critical(&_mavlink_log_pub, "Constant command unavailable, check CA config");
 		}
 	}
@@ -275,7 +316,7 @@ void DtrgConstantCommand::reportTransitions(bool requested, bool available)
 	}
 }
 
-void DtrgConstantCommand::publishStatus(bool requested, bool available, const float cc_cmd[NUM_COMMAND_MOTORS])
+void DtrgConstantCommand::publishStatus(bool requested, bool available, const float cc_cmd[MAX_COMMAND_MOTORS])
 {
 	const hrt_abstime now = hrt_absolute_time();
 
@@ -291,8 +332,9 @@ void DtrgConstantCommand::publishStatus(bool requested, bool available, const fl
 	_status.requested = requested;
 	_status.available = available;
 	_status.blend = _blend;
+	_status.motors = static_cast<uint16_t>(_motors_mask);
 
-	for (int i = 0; i < NUM_COMMAND_MOTORS; ++i) {
+	for (int i = 0; i < MAX_COMMAND_MOTORS; ++i) {
 		_status.cc_cmd[i] = cc_cmd[i];
 	}
 
@@ -302,8 +344,8 @@ void DtrgConstantCommand::publishStatus(bool requested, bool available, const fl
 
 void DtrgConstantCommand::printStatus() const
 {
-	PX4_INFO("DTRG constant command: %s, switch %s, blend %.2f, Motor 7 %.3f, Motor 8 %.3f",
+	PX4_INFO("DTRG constant command: %s, switch %s, blend %.2f, motors 0x%" PRIx32 " (%s) at %.3f",
 		 _param_dtrg_cc_en.get() ? "enabled" : "disabled",
 		 _status.requested ? "on" : "off", (double)_blend,
-		 (double)_param_dtrg_cc_m_cmd.get(), (double)_param_dtrg_cc_m_cmd.get());
+		 _motors_mask, _motors_valid ? "valid" : "invalid", (double)_param_dtrg_cc_m_cmd.get());
 }

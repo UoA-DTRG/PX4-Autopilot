@@ -40,15 +40,19 @@
  *
  * The normal allocation is left untouched. A second allocation of the same method
  * (the "outer allocation") is built from the normal effectiveness with the centre rotor
- * columns removed, and is normalised with the normal allocation's scale, so a control
+ * columns removed (the motors in DTRG_CC_MOTORS), and is normalised with the normal allocation's scale, so a control
  * setpoint means the same in both. With the centre rotors at u_cc the outer allocation
  * is given
  *
  *   c_outer = c - scale .* (B_cc * u_cc)
  *
- * and the published motor commands are its result with u_cc in place of Motors 7 and 8.
+ * and the published motor commands are its result with u_cc in place of the held rotors.
  * Thrust and torque setpoints therefore keep their meaning, and the controllers, the
  * flight mode, the hover thrust and control_allocator_status are unaffected.
+ *
+ * At least MIN_FREE_MOTORS motors must stay allocated, so at most (number of motors - 6)
+ * may be held; with a selection outside that the mode is unavailable. The selection is
+ * latched while the rotors are held or ramping, and applies once released.
  *
  * Switching ramps the centre rotors between their normally allocated commands and the
  * held ones over DTRG_CC_RAMP, with the outer rotors compensating throughout.
@@ -70,13 +74,11 @@
 class DtrgConstantCommand : public ModuleParams
 {
 public:
-	static constexpr int NUM_COMMAND_MOTORS = 2;
+	/// motors that must stay allocated: at most (number of motors - MIN_FREE_MOTORS) can be held
+	static constexpr int MIN_FREE_MOTORS = 6;
 
-	/// motor indices of the centre rotors: Motor 7 (upper) and Motor 8 (lower)
-	static constexpr int COMMAND_MOTOR[NUM_COMMAND_MOTORS] {6, 7};
-
-	/// minimum number of motors for the mode to be available
-	static constexpr int MIN_NUM_MOTORS = 8;
+	/// most motors that can be held (DTRG_CC_MOTORS covers 12 motors)
+	static constexpr int MAX_COMMAND_MOTORS = 12 - MIN_FREE_MOTORS;
 
 	explicit DtrgConstantCommand(ModuleParams *parent);
 	~DtrgConstantCommand() override;
@@ -100,10 +102,11 @@ public:
 	 * @param allocation  allocation of matrix 0
 	 * @param available   the configuration supports the mode (see dtrg_constant_command_s::available);
 	 *                    when false the normal allocation is used at once, without ramping
+	 * @param num_motors  number of configured motors, which limits DTRG_CC_MOTORS
 	 * @param armed       vehicle armed; disarming resets the mode at once
 	 * @param dt          time since the last allocation [s]
 	 */
-	void allocate(ControlAllocation &allocation, bool available, bool armed, float dt);
+	void allocate(ControlAllocation &allocation, bool available, int num_motors, bool armed, float dt);
 
 	/// @return whether the centre rotors are currently held or ramping
 	bool active() const { return _blend > 0.f; }
@@ -122,13 +125,19 @@ private:
 	/// @return whether the switch asks for the mode: enabled, switch high, RC present, flying
 	bool switchRequested();
 
+	/// take DTRG_CC_MOTORS as the held motors (only while released)
+	void latchMotors();
+
+	/// @return whether the latched motors are a valid selection for @p num_motors
+	bool motorsValid(int num_motors) const;
+
 	/// create the outer allocation for _allocation_method, if enabled and not created yet
 	void createOuterAllocation();
 
 	/// rebuild the outer allocation from the normal one (effectiveness, limits, scale)
 	void updateOuterAllocation(ControlAllocation &allocation);
 
-	void publishStatus(bool requested, bool available, const float cc_cmd[NUM_COMMAND_MOTORS]);
+	void publishStatus(bool requested, bool available, const float cc_cmd[MAX_COMMAND_MOTORS]);
 
 	/// tell the pilot when the mode engages and releases, or cannot engage
 	void reportTransitions(bool requested, bool available);
@@ -138,6 +147,11 @@ private:
 	bool _outer_update_needed{true};
 
 	float _blend{0.f}; ///< 0: normal allocation, 1: centre rotors held
+
+	uint32_t _motors_mask{0}; ///< latched DTRG_CC_MOTORS
+	int _num_cc_motors{0}; ///< bits set in _motors_mask
+	int _cc_motors[MAX_COMMAND_MOTORS] {}; ///< motor indices of the held rotors, first min(_num_cc_motors, MAX_COMMAND_MOTORS)
+	bool _motors_valid{false};
 
 	int _switch_index{-1};
 	rc_channels_s _rc_channels{};
@@ -157,6 +171,7 @@ private:
 		(ParamBool<px4::params::DTRG_CC_EN>) _param_dtrg_cc_en,
 		(ParamInt<px4::params::RC_MAP_CC_MODE>) _param_rc_map_cc_mode,
 		(ParamFloat<px4::params::DTRG_CC_M_CMD>) _param_dtrg_cc_m_cmd,
-		(ParamFloat<px4::params::DTRG_CC_RAMP>) _param_dtrg_cc_ramp
+		(ParamFloat<px4::params::DTRG_CC_RAMP>) _param_dtrg_cc_ramp,
+		(ParamInt<px4::params::DTRG_CC_MOTORS>) _param_dtrg_cc_motors
 	)
 };
