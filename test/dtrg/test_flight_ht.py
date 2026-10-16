@@ -9,6 +9,7 @@ Run: python3 -m pytest test/dtrg -m flight -v
 
 import math
 
+import numpy as np
 import pytest
 
 from flight import FLIGHT_PARAMS, altitude_error, estimated_attitude, horizontal_error, take_off, truth
@@ -57,20 +58,20 @@ def offboard_hold(vehicle):
     return x, y, z, yaw
 
 
-def offboard_move_north(vehicle, distance):
-    """Hold in Offboard at the current position, then move ``distance`` north. Returns (start, end) PX4 times."""
+def offboard_move(vehicle, north, east):
+    """Hold in Offboard at the current position, then move by ``north``/``east``. Returns (start, end) PX4 times."""
     x, y, z, yaw = offboard_hold(vehicle)
 
     start = vehicle.boot_time()
-    vehicle.set_offboard_position(x + distance, y, z, yaw)
-    vehicle.wait_position(x + distance, y, z, tolerance=0.3, timeout=30)
+    vehicle.set_offboard_position(x + north, y + east, z, yaw)
+    vehicle.wait_position(x + north, y + east, z, tolerance=0.3, timeout=30)
     vehicle.hold(3.0)
     return start, vehicle.boot_time()
 
 
-def distance_moved_north(log, start, end):
-    """True distance [m] north from the hold before ``start`` to the hold at ``end`` (1 s means)."""
-    return truth(log, end - 1.0, end).x.mean() - truth(log, start - 1.0, start).x.mean()
+def offboard_move_north(vehicle, distance):
+    """Hold in Offboard at the current position, then move ``distance`` north. Returns (start, end) PX4 times."""
+    return offboard_move(vehicle, distance, 0.0)
 
 
 def test_take_off_hold_and_land(sitl):
@@ -88,7 +89,7 @@ def test_take_off_hold_and_land(sitl):
     assert abs(error).max() < 0.5, f"altitude off its setpoint by up to {abs(error).max():.2f} m during the hold"
     assert horizontal_error(log, start, end) < 1.0
 
-
+    
 def test_ht_moves_the_vehicle_level(sitl):
     vehicle, px4 = fly(sitl)
 
@@ -96,13 +97,10 @@ def test_ht_moves_the_vehicle_level(sitl):
     vehicle.hold(2.0)
     start, end = offboard_move_north(vehicle, MOVE_NORTH)
 
-    log = read_log(px4)
-    tr = truth(log, start, end)
-    assert distance_moved_north(log, start, end) == pytest.approx(MOVE_NORTH, abs=MOVE_TOL)
-    # level along the move, against the -5 deg of the control case; roll is hover noise
-    # that reaches ~3 deg with HT, so it only has the looser bound on the tilt
-    assert tr.pitch.min() > -3.0, f"pitched {tr.pitch.min():.1f} deg while moving with HT"
-    assert tr.tilt.max() < 5.0, f"tilted {tr.tilt.max():.1f} deg while moving with HT"
+    tr = truth(read_log(px4), start, end)
+    moved = tr.last(1.0).x.mean() - tr.x[0]
+    assert moved == pytest.approx(MOVE_NORTH, abs=0.5)
+    assert tr.tilt.max() < 3.0, f"tilted {tr.tilt.max():.1f} deg while moving with HT"
 
 
 def test_without_ht_the_vehicle_tilts_to_move(sitl):
@@ -111,11 +109,71 @@ def test_without_ht_the_vehicle_tilts_to_move(sitl):
 
     start, end = offboard_move_north(vehicle, MOVE_NORTH)
 
-    log = read_log(px4)
-    tr = truth(log, start, end)
-    assert distance_moved_north(log, start, end) == pytest.approx(MOVE_NORTH, abs=MOVE_TOL)
+    tr = truth(read_log(px4), start, end)
+    moved = tr.last(1.0).x.mean() - tr.x[0]
+    assert moved == pytest.approx(MOVE_NORTH, abs=0.5)
     # accelerating north is nose down
     assert tr.pitch.min() < -5.0, f"pitched only {tr.pitch.min():.1f} deg while moving without HT"
+
+    
+def force_shares(log, start, end, yaw):
+    """Force [normalised thrust] from horizontal thrust and from tilting, per vehicle_attitude_setpoint sample.
+
+    Returns {"forward": (ht, tilt), "right": (ht, tilt)}, along and across the heading ``yaw``.
+    """
+    sp = log.topic("vehicle_attitude_setpoint").between(start, end)
+    assert len(sp), f"no attitude setpoint between {start:.1f} and {end:.1f} s"
+    w, x, y, z = (sp[f"q_d[{i}]"] for i in range(4))
+    tx, ty, tz = (sp[f"thrust_body[{i}]"] for i in range(3))
+    # first two rows of the body to NED rotation
+    r00, r01, r02 = 1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)
+    r10, r11, r12 = 2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)
+    ht_n, ht_e = r00 * tx + r01 * ty, r10 * tx + r11 * ty
+    tilt_n, tilt_e = r02 * tz, r12 * tz
+    c, s = math.cos(yaw), math.sin(yaw)
+    return {
+        "forward": (c * ht_n + s * ht_e, c * tilt_n + s * tilt_e),
+        "right": (-s * ht_n + c * ht_e, -s * tilt_n + c * tilt_e),
+    }
+
+
+# (DTRG_HT_MASK, DTRG_HT_SPLIT): the HT axes, X for masks 0 and 1 and Y for masks 0 and 2, move
+# by `split` of horizontal thrust; the other axis by tilting only
+SPLIT_FLIGHTS = [(0, 0.25), (0, 0.75), (1, 0.25), (2, 0.75)]
+SPLIT_MOVE = 4.0  # forward and right, each
+
+
+@pytest.mark.parametrize("mask, split", SPLIT_FLIGHTS, ids=[f"mask{m}-split{s}" for m, s in SPLIT_FLIGHTS])
+def test_offboard_split_divides_thrust(sitl, mask, split):
+    # DTRG_HT_SPLIT in Position/Offboard: of the force the position controller asks for while
+    # moving diagonally (forward and right of the heading), horizontal thrust gives `split` on an
+    # HT axis and nothing on the other, and tilting the rest. Checked on the published setpoint,
+    # so the allocator's gain loss on X/Y (6.1 Open Issues) does not enter.
+    vehicle, px4 = fly(sitl, params={"DTRG_HT_MASK": mask, "DTRG_HT_SPLIT_EN": 1, "DTRG_HT_SPLIT": split})
+
+    vehicle.set_rc(CH_HT_MODE, PWM_MAX)
+    vehicle.hold(2.0)
+    yaw = vehicle.yaw()
+    north = SPLIT_MOVE * (math.cos(yaw) - math.sin(yaw))
+    east = SPLIT_MOVE * (math.sin(yaw) + math.cos(yaw))
+    start, end = offboard_move(vehicle, north, east)
+
+    log = read_log(px4)
+    tr = truth(log, start, end)
+    # along the diagonal: across it, and on each axis, the true position settles up to ~0.5 m
+    # short (the HT gain loss, 6.1 Open Issues), which is not what this test is about
+    settled = tr.last(1.0)
+    along = ((settled.x.mean() - tr.x[0]) * north + (settled.y.mean() - tr.y[0]) * east) / math.hypot(north, east)
+    assert along == pytest.approx(math.hypot(north, east), abs=0.6)
+
+    expected = {"forward": split if mask != 2 else 0.0, "right": split if mask != 1 else 0.0}
+
+    for axis, (ht, tilt) in force_shares(log, start, end, yaw).items():
+        pushing = abs(ht + tilt) > 0.02
+        assert pushing.sum() > 20, f"the position controller hardly asked for any {axis} force"
+        share = np.median(ht[pushing] / (ht + tilt)[pushing])
+        assert share == pytest.approx(expected[axis], abs=0.05), \
+            f"horizontal thrust gave {share:.2f} of the {axis} force, expected {expected[axis]}"
 
 
 def hold_sending_tilt(vehicle, roll, pitch, seconds):

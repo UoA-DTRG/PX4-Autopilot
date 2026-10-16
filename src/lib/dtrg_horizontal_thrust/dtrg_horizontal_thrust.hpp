@@ -274,4 +274,46 @@ static inline Tilt positionControlTilt(int32_t mask, bool split_en, float ht_rol
 	return Tilt{roll_from_ht ? ht_roll : ctrl_roll, pitch_from_ht ? ht_pitch : ctrl_pitch};
 }
 
+/**
+ * Roll and pitch for Stabilized with HT active, before the manual tilt limit and the input
+ * filters. On an HT axis the stick tilts for tiltShare() of its tilt with the split enabled,
+ * otherwise the aux channel sets the tilt. On the other axis the stick tilts as usual.
+ *
+ * @param mask        DTRG_HT_MASK
+ * @param split_en    DTRG_HT_SPLIT_EN
+ * @param split       DTRG_HT_SPLIT
+ * @param roll_stick  roll stick * MPC_MAN_TILT_MAX [rad]
+ * @param pitch_stick pitch stick * MPC_MAN_TILT_MAX [rad]
+ * @param roll_knob   roll from the aux channel [rad]
+ * @param pitch_knob  pitch from the aux channel [rad], in the pitch stick's sign convention
+ */
+static inline Tilt manualModeTilt(int32_t mask, bool split_en, float split, float roll_stick, float pitch_stick,
+				  float roll_knob, float pitch_knob)
+{
+	const float tilt_share = tiltShare(split_en, split);
+	const float ht_roll = split_en ? roll_stick * tilt_share : roll_knob;
+	const float ht_pitch = split_en ? pitch_stick * tilt_share : pitch_knob;
+
+	return Tilt{maskUsesY(mask) ? ht_roll : roll_stick, maskUsesX(mask) ? ht_pitch : pitch_stick};
+}
+
+/**
+ * Body frame horizontal thrust for Stabilized: full stick commands DTRG_HT_MAX on the axes
+ * selected by the mask, only thrustShare() of it with the split enabled (the tilt produces
+ * the rest).
+ *
+ * @param mask        DTRG_HT_MASK
+ * @param split_en    DTRG_HT_SPLIT_EN
+ * @param split       DTRG_HT_SPLIT
+ * @param roll_stick  roll stick [-1, 1], body Y
+ * @param pitch_stick pitch stick [-1, 1], body X
+ * @param limit       DTRG_HT_MAX
+ */
+static inline HorizontalThrust manualModeHorizontalThrust(int32_t mask, bool split_en, float split, float roll_stick,
+		float pitch_stick, float limit)
+{
+	const float ht_max = limit * thrustShare(split_en, split);
+	return horizontalThrust(mask, pitch_stick * ht_max, roll_stick * ht_max, limit);
+}
+
 } // namespace dtrg_ht
