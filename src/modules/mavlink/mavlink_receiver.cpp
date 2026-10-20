@@ -62,6 +62,7 @@
 #include "mavlink_receiver.h"
 
 #include <lib/drivers/device/Device.hpp> // For DeviceId union
+#include <containers/LockGuard.hpp>
 
 #ifdef CONFIG_NET
 #define MAVLINK_RECEIVER_NET_ADDED_STACK 1360
@@ -323,9 +324,12 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_gimbal_device_attitude_status(msg);
 		break;
 
+#if defined(MAVLINK_MSG_ID_DTRG_OFFBOARD) // only defined if the dtrg dialect is used
+
 	case MAVLINK_MSG_ID_DTRG_OFFBOARD: //DTRG Custom
 		handle_message_dtrg_offboard(msg);
 		break;
+#endif
 
 #if defined(MAVLINK_MSG_ID_SET_VELOCITY_LIMITS) // For now only defined if development.xml is used
 
@@ -463,6 +467,7 @@ MavlinkReceiver::evaluate_target_ok(int command, int target_system, int target_c
 
 
 // DTRG CUSTOM
+#if defined(MAVLINK_MSG_ID_DTRG_OFFBOARD) // only defined if the dtrg dialect is used
 void MavlinkReceiver::handle_message_dtrg_offboard(mavlink_message_t *msg)
 {
 	// decode the mavlink message using the MACRO written decode method
@@ -484,6 +489,7 @@ void MavlinkReceiver::handle_message_dtrg_offboard(mavlink_message_t *msg)
 	//publish
 	_dtrg_custom_pub.publish(dtrg_custom);
 }
+#endif // MAVLINK_MSG_ID_DTRG_OFFBOARD
 
 
 
@@ -623,9 +629,15 @@ void MavlinkReceiver::handle_message_command_both(mavlink_message_t *msg, const 
 	} else if (cmd_mavlink.command == MAV_CMD_REQUEST_MESSAGE) {
 
 		uint16_t message_id = (uint16_t)roundf(vehicle_command.param1);
-		result = handle_request_message_command(message_id,
-							vehicle_command.param2, vehicle_command.param3, vehicle_command.param4,
-							vehicle_command.param5, vehicle_command.param6, vehicle_command.param7);
+
+		if (message_id == MAVLINK_MSG_ID_MESSAGE_INTERVAL) {
+			get_message_interval((int)(cmd_mavlink.param2 + 0.5f));
+
+		} else {
+			result = handle_request_message_command(message_id,
+								vehicle_command.param2, vehicle_command.param3, vehicle_command.param4,
+								vehicle_command.param5, vehicle_command.param6, vehicle_command.param7);
+		}
 
 	} else if (cmd_mavlink.command == MAV_CMD_INJECT_FAILURE) {
 		if (_mavlink.failure_injection_enabled()) {
@@ -1880,6 +1892,7 @@ MavlinkReceiver::handle_message_serial_control(mavlink_message_t *msg)
 		return;
 	}
 
+	const LockGuard lg{_mavlink.get_shell_mutex()};
 	MavlinkShell *shell = _mavlink.get_shell();
 
 	if (shell) {
@@ -2316,7 +2329,7 @@ MavlinkReceiver::set_message_interval(int msgId, float interval, float param3, f
 void
 MavlinkReceiver::get_message_interval(int msgId)
 {
-	unsigned interval = 0;
+	int interval = -1;
 
 	for (const auto &stream : _mavlink.get_streams()) {
 		if (stream->get_id() == msgId) {
@@ -2417,19 +2430,32 @@ MavlinkReceiver::handle_message_hil_sensor(mavlink_message_t *msg)
 	}
 
 	// battery status
-	{
-		battery_status_s hil_battery_status{};
+	publish_hil_battery();
+}
 
-		hil_battery_status.timestamp = timestamp;
-		hil_battery_status.voltage_v = 16.0f;
-		hil_battery_status.current_a = 10.0f;
-		hil_battery_status.discharged_mah = -1.0f;
-		hil_battery_status.connected = true;
-		hil_battery_status.remaining = 0.70;
-		hil_battery_status.time_remaining_s = NAN;
+void
+MavlinkReceiver::publish_hil_battery()
+{
+	battery_status_s hil_battery_status{};
 
-		_battery_pub.publish(hil_battery_status);
+	hil_battery_status.timestamp = hrt_absolute_time();
+
+	hil_battery_status.cell_count = _param_bat_cells_count.get();
+	hil_battery_status.remaining = 0.70f;
+	float cells_v = _param_bat_v_empty.get() * (1.f - hil_battery_status.remaining)
+			+ hil_battery_status.remaining * _param_bat_v_charged.get();
+
+	hil_battery_status.voltage_v = hil_battery_status.cell_count * cells_v;
+	hil_battery_status.current_a = 10.0f;
+	hil_battery_status.discharged_mah = -1.0f;
+	hil_battery_status.connected = true;
+	hil_battery_status.time_remaining_s = NAN;
+
+	for (auto cell_count = 0; cell_count < hil_battery_status.cell_count; cell_count++) {
+		hil_battery_status.voltage_cell_v[cell_count] = cells_v;
 	}
+
+	_battery_pub.publish(hil_battery_status);
 }
 
 void
@@ -2582,7 +2608,7 @@ MavlinkReceiver::handle_message_adsb_vehicle(mavlink_message_t *msg)
 	t.lon = adsb.lon * 1e-7;
 	t.altitude_type = adsb.altitude_type;
 	t.altitude = adsb.altitude / 1000.0f;
-	t.heading = adsb.heading / 100.0f / 180.0f * M_PI_F - M_PI_F;
+	t.heading = adsb.heading / 100.0f / 180.0f * M_PI_F;
 	t.hor_velocity = adsb.hor_velocity / 100.0f;
 	t.ver_velocity = adsb.ver_velocity / 100.0f;
 	memcpy(&t.callsign[0], &adsb.callsign[0], sizeof(t.callsign));
@@ -2752,15 +2778,7 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 	}
 
 	/* battery status */
-	{
-		battery_status_s hil_battery_status{};
-		hil_battery_status.voltage_v = 11.1f;
-		hil_battery_status.current_a = 10.0f;
-		hil_battery_status.discharged_mah = -1.0f;
-		hil_battery_status.timestamp = hrt_absolute_time();
-		hil_battery_status.time_remaining_s = NAN;
-		_battery_pub.publish(hil_battery_status);
-	}
+	publish_hil_battery();
 }
 
 #if !defined(CONSTRAINED_FLASH)
@@ -3246,10 +3264,11 @@ MavlinkReceiver::run()
 				for (ssize_t i = 0; i < nread; i++) {
 					if (mavlink_parse_char(_mavlink.get_channel(), buf[i], &msg, &_status)) {
 
-						/* check if we received version 2 and request a switch. */
-						if (!(_mavlink.get_status()->flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1)) {
-							/* this will only switch to proto version 2 if allowed in settings */
-							_mavlink.set_proto_version(2);
+						// If we receive a complete MAVLink 2 packet, also switch the outgoing protocol version
+						if (!(_mavlink.get_status()->flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1)
+						    && (_mavlink.get_status()->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1)) {
+							PX4_INFO("Upgrade to MAVLink v2 because of incoming packet");
+							_mavlink.set_protocol_version(2);
 						}
 
 						switch (_mavlink.get_mode()) {
@@ -3315,6 +3334,7 @@ MavlinkReceiver::run()
 
 			if (_mavlink.get_mode() != Mavlink::MAVLINK_MODE::MAVLINK_MODE_IRIDIUM) {
 				_parameters_manager.send();
+				_mavlink.set_sending_parameters(_parameters_manager.send_active());
 			}
 
 			if (_mavlink.ftp_enabled()) {

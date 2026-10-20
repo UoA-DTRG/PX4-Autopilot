@@ -33,6 +33,7 @@
 
 #pragma once
 
+#include "bench_test_profile.h"
 #include "bench_test_switch.h"
 
 #include <drivers/drv_hrt.h>
@@ -69,20 +70,8 @@ public:
 	int print_status() override;
 
 private:
-	enum class Mode : int32_t {
-		Hover = 0,
-		Step  = 1,
-		Ramp  = 2,
-	};
-
-	enum class Axis : int32_t {
-		ThrustX = 0,
-		ThrustY = 1,
-		ThrustZ = 2,
-		Roll    = 3,
-		Pitch   = 4,
-		Yaw     = 5,
-	};
+	using Mode = bench_test::Mode;
+	using Axis = bench_test::Axis;
 
 	static constexpr uint32_t kLoopIntervalUs = 2500; // 400 Hz
 
@@ -137,8 +126,7 @@ private:
 
 	// Ramp freeze state: once a motor saturates (or BT_MAX_VAL is hit) the
 	// ramp holds its value until the profile is restarted.
-	bool  _ramp_frozen{false};
-	float _ramp_value{0.f};
+	bench_test::RampState _ramp{};
 
 	// Sign the currently running profile was started with. A change (including
 	// a return to centre) restarts the profile.

@@ -64,8 +64,31 @@ public:
 	void setMetricAllocation(bool metric_allocation) { _metric_allocation = metric_allocation; }
 
 	bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) final;
+
+	/**
+	 * DTRG CSV mixer: read the mixing matrix from a CSV file, one row per actuator and
+	 * one column per control axis (roll, pitch, yaw, thrust x, y, z). Public and static
+	 * so the parser can be tested on its own (DtrgMixerCsvTest.cpp). Blank lines are
+	 * skipped, an empty cell reads as 0, and cells beyond the last axis are ignored.
+	 *
+	 * Lines may be of any length.
+	 *
+	 * @param result if not null, why the file was rejected (or LOADED), the line of the
+	 *        error and the number of rows read
+	 * @return false if the file cannot be opened, holds no rows, has a row with fewer
+	 *         cells than axes or a cell that is not a finite number (including one
+	 *         longer than 31 characters), in which case @p mixer is left untouched
+	 */
+	static bool readMixerFromCSV(const char *filename,
+				     matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer,
+				     CsvMixerResult *result = nullptr);
+
+	CsvMixerResult getCsvMixerResult() const override { return _csv_mixer_result; }
+
 protected:
 	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _mix;
+
+	const char *_csv_mixer_path{"/fs/microsd/etc/mixer.csv"};
 
 	bool _mix_update_needed{false};
 	bool _metric_allocation{false};
@@ -79,12 +102,23 @@ protected:
 	void updateParams() override { ModuleParams::updateParams(); }
 
 private:
-	bool readMixerFromCSV(const char *filename,
-			      matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer);
 
 	void normalizeControlAllocationMatrix();
 	void updateControlAllocationMatrixScale();
 	bool _normalization_needs_update{false};
+
+	/**
+	 * DTRG CSV mixer: (re)read the mixer file and set _mix. A rejected file (see
+	 * CsvMixerStatus) leaves _mix all zero, so that commander refuses to arm, unless a
+	 * valid file was loaded before: then that mixer is kept, so that a failed re-read
+	 * while flying (the file is re-read whenever the effectiveness is updated, e.g. on a
+	 * parameter change) does not cut the motors.
+	 */
+	void loadCsvMixer();
+
+	CsvMixerResult _csv_mixer_result{};
+	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> _csv_mix_last_valid; ///< before normalization
+	bool _csv_mix_valid{false};
 
 	DEFINE_PARAMETERS_CUSTOM_PARENT(
 		ModuleParams,

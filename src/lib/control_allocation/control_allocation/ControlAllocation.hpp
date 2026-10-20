@@ -82,7 +82,7 @@ public:
 	static constexpr uint8_t NUM_ACTUATORS = ActuatorEffectiveness::NUM_ACTUATORS;
 	static constexpr uint8_t NUM_AXES = ActuatorEffectiveness::NUM_AXES;
 
-	typedef matrix::Vector<float, NUM_ACTUATORS> ActuatorVector;
+	using ActuatorVector = matrix::Vector<float, NUM_ACTUATORS>;
 
 	enum ControlAxis {
 		ROLL = 0,
@@ -91,6 +91,27 @@ public:
 		THRUST_X,
 		THRUST_Y,
 		THRUST_Z
+	};
+
+	/**
+	 * DTRG CSV mixer (DTRG_MIXER_CSV): outcome of loading the mixer file.
+	 * Values match dtrg_mixer_status_s::STATUS_*.
+	 */
+	enum class CsvMixerStatus : uint8_t {
+		DISABLED = 0,           ///< DTRG_MIXER_CSV is off, or the allocation method has no mixer
+		LOADED = 1,             ///< mixer file loaded
+		FILE_NOT_FOUND = 2,     ///< the file cannot be opened (missing, or no SD card)
+		EMPTY = 3,              ///< the file holds no rows
+		SHORT_ROW = 4,          ///< a row has fewer values than NUM_AXES
+		INVALID_VALUE = 5,      ///< a value is not a finite number
+		ROW_COUNT_MISMATCH = 6, ///< the number of rows differs from the number of configured actuators
+		ALL_ZERO = 7,           ///< every coefficient is 0
+	};
+
+	struct CsvMixerResult {
+		CsvMixerStatus status{CsvMixerStatus::DISABLED};
+		int line{0};     ///< 1-based line of the file with the error (SHORT_ROW, INVALID_VALUE)
+		int num_rows{0}; ///< rows read from the file
 	};
 
 	/**
@@ -121,7 +142,7 @@ public:
 	 *
 	 * @return Actuator vector
 	 */
-	const matrix::Vector<float, NUM_ACTUATORS> &getActuatorSetpoint() const { return _actuator_sp; }
+	const ActuatorVector &getActuatorSetpoint() const { return _actuator_sp; }
 
 	/**
 	 * Set the desired control vector
@@ -157,28 +178,28 @@ public:
 	 *
 	 * @param actuator_min Minimum actuator values
 	 */
-	void setActuatorMin(const matrix::Vector<float, NUM_ACTUATORS> &actuator_min) { _actuator_min = actuator_min; }
+	void setActuatorMin(const ActuatorVector &actuator_min) { _actuator_min = actuator_min; }
 
 	/**
 	 * Get the minimum actuator values
 	 *
 	 * @return Minimum actuator values
 	 */
-	const matrix::Vector<float, NUM_ACTUATORS> &getActuatorMin() const { return _actuator_min; }
+	const ActuatorVector &getActuatorMin() const { return _actuator_min; }
 
 	/**
 	 * Set the maximum actuator values
 	 *
 	 * @param actuator_max Maximum actuator values
 	 */
-	void setActuatorMax(const matrix::Vector<float, NUM_ACTUATORS> &actuator_max) { _actuator_max = actuator_max; }
+	void setActuatorMax(const ActuatorVector &actuator_max) { _actuator_max = actuator_max; }
 
 	/**
 	 * Get the maximum actuator values
 	 *
 	 * @return Maximum actuator values
 	 */
-	const matrix::Vector<float, NUM_ACTUATORS> &getActuatorMax() const { return _actuator_max; }
+	const ActuatorVector &getActuatorMax() const { return _actuator_max; }
 
 	/**
 	 * Set the current actuator setpoint.
@@ -189,9 +210,9 @@ public:
 	 *
 	 * @param actuator_sp Actuator setpoint
 	 */
-	void setActuatorSetpoint(const matrix::Vector<float, NUM_ACTUATORS> &actuator_sp);
+	void setActuatorSetpoint(const ActuatorVector &actuator_sp);
 
-	void setSlewRateLimit(const matrix::Vector<float, NUM_ACTUATORS> &slew_rate_limit)
+	void setSlewRateLimit(const ActuatorVector &slew_rate_limit)
 	{ _actuator_slew_rate_limit = slew_rate_limit; }
 
 	/**
@@ -206,7 +227,7 @@ public:
 	 *
 	 * @param actuator Actuator vector to clip
 	 */
-	void clipActuatorSetpoint(matrix::Vector<float, NUM_ACTUATORS> &actuator) const;
+	void clipActuatorSetpoint(ActuatorVector &actuator) const;
 
 	void clipActuatorSetpoint() { clipActuatorSetpoint(_actuator_sp); }
 
@@ -219,7 +240,7 @@ public:
 	 *
 	 * @return Clipped actuator setpoint
 	 */
-	matrix::Vector<float, NUM_ACTUATORS> normalizeActuatorSetpoint(const matrix::Vector<float, NUM_ACTUATORS> &actuator)
+	ActuatorVector normalizeActuatorSetpoint(const ActuatorVector &actuator)
 	const;
 
 	virtual void updateParameters() {}
@@ -231,17 +252,23 @@ public:
 	//used by print status to get actual used mixer
 	virtual bool getMixer(matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer) = 0;
 
+	/**
+	 * DTRG CSV mixer: result of the last attempt to load the mixer file. The mixer is
+	 * only (re)loaded when it is needed, i.e. on allocate() or getMixer().
+	 */
+	virtual CsvMixerResult getCsvMixerResult() const { return CsvMixerResult{}; }
+
 protected:
 	friend class ControlAllocator; // for _actuator_sp
 
 	matrix::Matrix<float, NUM_AXES, NUM_ACTUATORS> _effectiveness;  ///< Effectiveness matrix
 	matrix::Vector<float, NUM_AXES> _control_allocation_scale;  	///< Scaling applied during allocation
-	matrix::Vector<float, NUM_ACTUATORS> _actuator_trim; 	///< Neutral actuator values
-	matrix::Vector<float, NUM_ACTUATORS> _actuator_min; 	///< Minimum actuator values
-	matrix::Vector<float, NUM_ACTUATORS> _actuator_max; 	///< Maximum actuator values
-	matrix::Vector<float, NUM_ACTUATORS> _actuator_slew_rate_limit; 	///< Slew rate limit
-	matrix::Vector<float, NUM_ACTUATORS> _prev_actuator_sp;  	///< Previous actuator setpoint
-	matrix::Vector<float, NUM_ACTUATORS> _actuator_sp;  	///< Actuator setpoint
+	ActuatorVector _actuator_trim; 	///< Neutral actuator values
+	ActuatorVector _actuator_min; 	///< Minimum actuator values
+	ActuatorVector _actuator_max; 	///< Maximum actuator values
+	ActuatorVector _actuator_slew_rate_limit; 	///< Slew rate limit
+	ActuatorVector _prev_actuator_sp;  	///< Previous actuator setpoint
+	ActuatorVector _actuator_sp;  	///< Actuator setpoint
 	matrix::Vector<float, NUM_AXES> _control_sp;   		///< Control setpoint
 	matrix::Vector<float, NUM_AXES> _control_trim; 		///< Control at trim actuator values
 	int _num_actuators{0};

@@ -54,6 +54,9 @@ if(PX4_PLATFORM MATCHES "posix")
 		quadx
 		xvert
 		standard_vtol
+		hex
+		rover_ackermann
+		planar_octo
 	)
 
 	# find corresponding airframes

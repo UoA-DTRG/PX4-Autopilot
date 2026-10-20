@@ -73,8 +73,7 @@ void BenchTest::Run()
 		// always runs from t = 0 with a consistent set of parameters.
 		if (profileParamsChanged()) {
 			_test_start_time = 0;
-			_ramp_frozen = false;
-			_ramp_value = 0.f;
+			_ramp.reset();
 			_active_sign = 0.f;
 		}
 	}
@@ -88,8 +87,7 @@ void BenchTest::Run()
 	if (vehicle_status.nav_state != vehicle_status_s::NAVIGATION_STATE_BENCH_TEST) {
 		_test_start_time = 0;
 		_output_start_time = 0;
-		_ramp_frozen = false;
-		_ramp_value = 0.f;
+		_ramp.reset();
 		_active_sign = 0.f;
 		perf_end(_loop_perf);
 		return;
@@ -123,14 +121,12 @@ void BenchTest::Run()
 
 	if (!start_requested) {
 		_test_start_time = 0;
-		_ramp_frozen = false;
-		_ramp_value = 0.f;
+		_ramp.reset();
 		_active_sign = 0.f;
 
 	} else if (_test_start_time == 0 || fabsf(sign - _active_sign) > 0.f) {
 		_test_start_time = now;
-		_ramp_frozen = false;
-		_ramp_value = 0.f;
+		_ramp.reset();
 		_active_sign = sign;
 	}
 
@@ -147,49 +143,14 @@ void BenchTest::Run()
 		_output_start_time = now;
 	}
 
-	float spinup = 1.f;
-	const float spinup_t = _param_bt_spinup_t.get();
-
-	if (spinup_t > 0.f) {
-		const float since_output = static_cast<float>(now - _output_start_time) * 1e-6f;
-		spinup = math::constrain(since_output / spinup_t, 0.f, 1.f);
-	}
+	const float since_output = static_cast<float>(now - _output_start_time) * 1e-6f;
+	const float spinup = bench_test::spinupFactor(since_output, _param_bt_spinup_t.get());
 
 	// Hover baseline: only Z body thrust (NED: -Z is up). Horizontal thrust is 0 at hover.
-	float thrust_x = 0.f;
-	float thrust_y = 0.f;
-	float thrust_z = -_param_bt_hover_thr.get() * spinup;
-	float torque_x = 0.f;
-	float torque_y = 0.f;
-	float torque_z = 0.f;
+	const bench_test::Setpoints sp = bench_test::composeSetpoints(static_cast<Axis>(_param_bt_axis.get()),
+					 _param_bt_hover_thr.get(), spinup, axis_output);
 
-	switch (static_cast<Axis>(_param_bt_axis.get())) {
-	case Axis::ThrustX:
-		thrust_x = axis_output;
-		break;
-
-	case Axis::ThrustY:
-		thrust_y = axis_output;
-		break;
-
-	case Axis::ThrustZ:
-		thrust_z -= axis_output; // additional thrust in -Z (up)
-		break;
-
-	case Axis::Roll:
-		torque_x = axis_output;
-		break;
-
-	case Axis::Pitch:
-		torque_y = axis_output;
-		break;
-
-	case Axis::Yaw:
-		torque_z = axis_output;
-		break;
-	}
-
-	publishOutputs(now, thrust_x, thrust_y, thrust_z, torque_x, torque_y, torque_z);
+	publishOutputs(now, sp.thrust[0], sp.thrust[1], sp.thrust[2], sp.torque[0], sp.torque[1], sp.torque[2]);
 
 	perf_end(_loop_perf);
 }
@@ -200,37 +161,13 @@ float BenchTest::computeAxisOutput(float sign, float dt_since_start, bool motor_
 	case Mode::Hover:
 		return 0.f;
 
-	case Mode::Step: {
-			const float delay = _param_bt_step_delay.get();
-			const float dur = _param_bt_step_dur.get();
+	case Mode::Step:
+		return bench_test::stepOutput(sign, dt_since_start, _param_bt_step_delay.get(), _param_bt_step_dur.get(),
+					      _param_bt_step_mag.get());
 
-			if (dt_since_start < delay) {
-				return 0.f;
-			}
-
-			if (dt_since_start < delay + dur) {
-				return sign * _param_bt_step_mag.get();
-			}
-
-			return 0.f;
-		}
-
-	case Mode::Ramp: {
-			const float max_val = _param_bt_max_val.get();
-
-			// Keep increasing the ramp until a motor saturates (upper or lower) or
-			// the safety clamp is reached, then freeze and hold that value.
-			if (!_ramp_frozen) {
-				const float ramped = sign * _param_bt_ramp_rate.get() * dt_since_start;
-				_ramp_value = math::constrain(ramped, -max_val, max_val);
-
-				if (motor_saturated || fabsf(_ramp_value) >= max_val) {
-					_ramp_frozen = true;
-				}
-			}
-
-			return _ramp_value;
-		}
+	case Mode::Ramp:
+		return bench_test::rampOutput(_ramp, sign, dt_since_start, _param_bt_ramp_rate.get(), _param_bt_max_val.get(),
+					      motor_saturated);
 	}
 
 	return 0.f;
@@ -287,29 +224,8 @@ bool BenchTest::motorSaturated()
 
 	// Treat a motor as saturated once its normalised output comes within the
 	// configured margin of its limit, rather than only at the hard 0 / 1 stops.
-	const float margin = math::constrain(_param_bt_sat_margin.get(), 0.f, 0.5f);
-	const float upper = 1.f - margin;
-
-	// Only inspect the connected motors so unused slots do not freeze the ramp.
-	const int n = math::min(numMotors(), static_cast<int>(actuator_motors_s::NUM_CONTROLS));
-
-	for (int i = 0; i < n; i++) {
-		const float c = motors.control[i];
-
-		if (!PX4_ISFINITE(c)) {
-			continue;
-		}
-
-		// Reversible motors span [-1, 1]; standard motors span [0, 1].
-		const bool reversible = (motors.reversible_flags & (1u << i)) != 0;
-		const float lower = reversible ? (-1.f + margin) : margin;
-
-		if (c >= upper || c <= lower) {
-			return true;
-		}
-	}
-
-	return false;
+	// Only the connected motors are inspected so unused slots do not freeze the ramp.
+	return bench_test::motorsSaturated(motors, numMotors(), _param_bt_sat_margin.get());
 }
 
 int BenchTest::numMotors()
@@ -327,15 +243,7 @@ int BenchTest::numMotors()
 		return 0;
 	}
 
-	int count = 0;
-
-	for (int i = 0; i < actuator_motors_s::NUM_CONTROLS; i++) {
-		if (PX4_ISFINITE(motors.control[i])) {
-			count++;
-		}
-	}
-
-	return count;
+	return bench_test::countFiniteMotors(motors);
 }
 
 void BenchTest::publishZero(const hrt_abstime &now)
@@ -401,8 +309,8 @@ int BenchTest::print_status()
 		 (int)_param_bt_arm_enable.get());
 	PX4_INFO("sign: %d, ramp_frozen: %d, ramp_value: %.3f",
 		 (int)signFromSwitch(),
-		 (int)_ramp_frozen,
-		 (double)_ramp_value);
+		 (int)_ramp.frozen,
+		 (double)_ramp.value);
 	perf_print_counter(_loop_perf);
 	return 0;
 }

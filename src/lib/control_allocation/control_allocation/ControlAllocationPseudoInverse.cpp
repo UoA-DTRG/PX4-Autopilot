@@ -38,9 +38,13 @@
  *
  * @author Julien Lecoeur <julien.lecoeur@gmail.com>
  */
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include "ControlAllocationPseudoInverse.hpp"
+
+#include <px4_platform_common/defines.h>
 
 void
 ControlAllocationPseudoInverse::setEffectivenessMatrix(
@@ -65,19 +69,10 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 	if (_mix_update_needed) {
 		//csv ovveride
 		if (_csv_mixer.get()) {
-			// PX4_INFO("loading mixer from csv file using DTRG mixer override");
-			if (readMixerFromCSV("/fs/microsd/etc/mixer.csv", _mix)) {
-				//check for disabled normalization
-				if (!_mixer_normalization.get()) {
-					// PX4_INFO("mixer normalization disabled");
-					_normalization_needs_update = false;
-				}
-
-			} else {
-				// PX4_ERR("failed to load mixer from csv file");
-			}
+			loadCsvMixer();
 
 		} else {
+			_csv_mixer_result = CsvMixerResult{};
 			matrix::geninv(_effectiveness, _mix);
 		}
 
@@ -95,59 +90,176 @@ ControlAllocationPseudoInverse::updatePseudoInverse()
 	}
 }
 
+void
+ControlAllocationPseudoInverse::loadCsvMixer()
+{
+	// Rows beyond the end of the file are 0, not left over from a previous mixer
+	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> csv_mix{};
+	CsvMixerResult result{};
+
+	if (readMixerFromCSV(_csv_mixer_path, csv_mix, &result)) {
+		if (result.num_rows != _num_actuators) {
+			result.status = CsvMixerStatus::ROW_COUNT_MISMATCH;
+
+		} else if (csv_mix.abs().max() <= 0.f) {
+			result.status = CsvMixerStatus::ALL_ZERO;
+		}
+	}
+
+	_csv_mixer_result = result;
+
+	if (result.status == CsvMixerStatus::LOADED) {
+		_csv_mix_last_valid = csv_mix;
+		_csv_mix_valid = true;
+	}
+
+	if (_csv_mix_valid) {
+		_mix = _csv_mix_last_valid;
+
+		//check for disabled normalization
+		if (!_mixer_normalization.get()) {
+			// PX4_INFO("mixer normalization disabled");
+			_normalization_needs_update = false;
+		}
+
+	} else {
+		// No valid file: use an empty mixer rather than a stale or half-read one, so no
+		// actuator is driven by a mixer that was not intended. Commander refuses to arm.
+		_mix.setZero();
+	}
+}
+
 bool
 ControlAllocationPseudoInverse::readMixerFromCSV(const char *filename,
-		matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer)
+		matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> &mixer, CsvMixerResult *result)
 {
+	CsvMixerResult local_result{};
+
+	if (result == nullptr) {
+		result = &local_result;
+	}
+
+	*result = CsvMixerResult{};
+
 	// Open the CSV file
 	FILE *file = fopen(filename, "r");
 
 	if (file == NULL) {
 		// PX4_WARN("Error: Could not open the mixer file");
-		return 0;
+		result->status = CsvMixerStatus::FILE_NOT_FOUND;
+		return false;
+	}
 
-	} else {
-		char value[100]; //  just needs to be rougly > 70
-		int row = 0;
+	// Skip a UTF-8 BOM
+	unsigned char bom[3];
 
-		while (row < NUM_ACTUATORS && fgets(value, sizeof(value), file) != NULL) {
-			size_t len = strlen(value);
+	if (fread(bom, 1, sizeof(bom), file) != sizeof(bom) || bom[0] != 0xEF || bom[1] != 0xBB || bom[2] != 0xBF) {
+		fseek(file, 0, SEEK_SET);
+	}
 
-			// Check and remove newline character if present
-			if (len > 0 && value[len - 1] == '\n') {
-				value[len - 1] = '\0';
+	// Parse into a copy so that a rejected file leaves the mixer untouched
+	matrix::Matrix<float, NUM_ACTUATORS, NUM_AXES> parsed = mixer;
+
+	// Read one character at a time so that a line of any length is one row: a full
+	// precision export (e.g. -0.35355339059327373) is ~20 characters per cell.
+	// Only a single cell has to fit in the buffer.
+	char cell[32];
+	size_t cell_len = 0;
+	int row = 0;
+	int col = 0;
+	int line = 1;
+	bool blank_line = true;
+	bool valid = true;
+
+	while (valid && row < NUM_ACTUATORS) {
+		const int c = fgetc(file);
+
+		if (c == ',' || c == '\n' || c == EOF) {
+			if (c == ',') {
+				blank_line = false;
 			}
 
-			// Check and remove BOM
-			if (row == 0 && len > 3 && (uint8_t)value[0] == 0xEF && (uint8_t)value[1] == 0xBB && (uint8_t)value[2] == 0xBF) {
-				// This is a UTF-8 BOM
-				len -= 3;
-				memmove(value, &value[3], len);
-			}
+			// Split on every comma. strtok() would merge consecutive commas and shift the
+			// rest of the row left on an empty cell; an empty cell reads as 0 instead.
+			if (!blank_line) {
+				cell[cell_len] = '\0';
 
-			// strtok function is used to split the string into tokens
-			char *token = strtok(value, ",");
-			int col = 0;
+				if (col < NUM_AXES) {
+					char *end = cell;
+					const float value = strtof(cell, &end);
 
-			while (token != NULL && col < NUM_AXES) {
-				if (strlen(token) > 0) {
-					printf("Row %d, Col %d: %f\n", row, col, strtod(token, NULL));
-					mixer(row, col) =  strtof(token, NULL);
+					// Text (e.g. a header row), nan or inf would otherwise silently read as a
+					// number. An empty cell (end == cell == "") reads as 0.
+					if ((*end != '\0') || !PX4_ISFINITE(value)) {
+						result->status = CsvMixerStatus::INVALID_VALUE;
+						valid = false;
+					}
+
+					printf("Row %d, Col %d: %f\n", row, col, (double)value);
+					parsed(row, col) = value;
 				}
 
-				token = strtok(NULL, ",");
 				col++;
 			}
 
-			if (col > 0) { //row protection
-				row++;
+			cell_len = 0;
+
+			if (c != ',') {
+				// Blank lines are not rows. A short row would leave the missing axes at
+				// whatever the matrix held before.
+				if (valid && !blank_line) {
+					if (col < NUM_AXES) {
+						result->status = CsvMixerStatus::SHORT_ROW;
+						valid = false;
+
+					} else {
+						row++;
+					}
+				}
+
+				col = 0;
+				blank_line = true;
+
+				if (c == EOF || !valid) {
+					break;
+				}
+
+				line++;
+			}
+
+		} else if (!isspace(c)) {
+			// Whitespace, including the \r of a Windows line ending, is dropped
+			blank_line = false;
+
+			if (cell_len < sizeof(cell) - 1) {
+				cell[cell_len++] = (char)c;
+
+			} else {
+				result->status = CsvMixerStatus::INVALID_VALUE; // too long to be a number
+				valid = false;
 			}
 		}
 	}
 
 	// Close the file
 	fclose(file);
-	return 1;
+
+	result->num_rows = row;
+
+	if (!valid) {
+		result->line = line;
+		return false;
+	}
+
+	// An empty file would leave the allocator without a mixer
+	if (row == 0) {
+		result->status = CsvMixerStatus::EMPTY;
+		return false;
+	}
+
+	result->status = CsvMixerStatus::LOADED;
+	mixer = parsed;
+	return true;
 
 }
 

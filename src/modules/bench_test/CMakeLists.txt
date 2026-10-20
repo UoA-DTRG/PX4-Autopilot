@@ -43,3 +43,7 @@ px4_add_module(
 		mathlib
 		px4_work_queue
 )
+
+# DTRG unit tests (run with: make tests TESTFILTER=Dtrg)
+px4_add_unit_gtest(SRC DtrgBenchSwitchTest.cpp DISCOVER)
+px4_add_unit_gtest(SRC DtrgBenchProfileTest.cpp DISCOVER)
