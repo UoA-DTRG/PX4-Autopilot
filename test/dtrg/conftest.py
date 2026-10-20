@@ -10,6 +10,7 @@ import pytest
 
 import rc_layout
 from airframes import AIRFRAMES, DEFAULT_AIRFRAME
+from flight import FLIGHT_ATTEMPTS, Tracking
 from px4_process import Px4Sitl
 from vehicle import Vehicle
 
@@ -89,8 +90,9 @@ def sitl(request, tmp_path, airframe):
       ``rc_layout.initial_channels(rc)``
     - ``wait_ready``: wait until the arming checks pass before returning
 
-    Everything is shut down at the end of the test. The px4.log and ULogs of the
-    run stay in the test's tmp_path (``--basetemp`` on CI, uploaded on failure).
+    Everything is shut down at the end of the test, or earlier with ``sitl.shut_down()``.
+    The px4.log and ULogs of every run stay in the test's tmp_path (``--basetemp`` on CI,
+    uploaded on failure).
     """
     config = request.config
     started: list[tuple[Px4Sitl, Vehicle]] = []
@@ -142,10 +144,44 @@ def sitl(request, tmp_path, airframe):
 
         return vehicle, px4
 
+    def shut_down():
+        for px4, vehicle in started:
+            vehicle.close()
+            px4.stop()
+            px4.collect_artifacts()
+        started.clear()
+
+    start.shut_down = shut_down
     yield start
+    shut_down()
 
-    for px4, vehicle in started:
-        vehicle.close()
-        px4.stop()
-        px4.collect_artifacts()
 
+@pytest.fixture
+def reflight(sitl):
+    """Runner for tier 3: ``reflight(flight)`` calls ``flight(tracking)`` until its tracking checks pass.
+
+    ``flight`` boots with ``sitl``, flies, and checks the logic with plain asserts and the
+    tracking with ``tracking.check()`` (flight.Tracking). A logic failure fails the test at
+    once. A flight that only misses its tracking checks is shut down and flown again on a
+    fresh PX4, up to FLIGHT_ATTEMPTS flights; one passing flight passes the test.
+    """
+
+    def run(flight):
+        missed = []
+
+        for attempt in range(1, FLIGHT_ATTEMPTS + 1):
+            tracking = Tracking()
+            flight(tracking)
+
+            if not tracking.failures:
+                if missed:
+                    warnings.warn(f"passed on flight {attempt} of {FLIGHT_ATTEMPTS}, after: " + " | ".join(missed))
+                return
+
+            missed.append(f"flight {attempt}: " + "; ".join(tracking.failures))
+            sitl.shut_down()
+
+        pytest.fail(f"the logic checks passed, but the vehicle did not follow its setpoints closely enough "
+                    f"on any of {FLIGHT_ATTEMPTS} flights:\n" + "\n".join(missed), pytrace=False)
+
+    return run

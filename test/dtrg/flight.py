@@ -1,13 +1,23 @@
 """Helpers for the flight tests (tier 3): take off, and read back how the vehicle really moved.
 
-The assertions use SIH's ground truth (``*_groundtruth`` topics in the ULog), not
-the estimator, so they check what the vehicle did rather than what PX4 believed.
+A flight test checks two kinds of things:
+
+- logic: the modes, and the setpoints PX4 publishes (vehicle_attitude_setpoint,
+  vehicle_local_position_setpoint). These are decided by the code under test, so a
+  wrong one fails the test straight away, with a plain ``assert``.
+- tracking: how closely the vehicle followed those setpoints, on SIH's ground truth
+  (``*_groundtruth`` topics in the ULog) or on the estimate against its setpoint.
+  These depend on the simulated noise as much as on the code, so they are recorded
+  with ``Tracking.check()`` and a flight that misses only these is flown again
+  (``reflight`` fixture, up to FLIGHT_ATTEMPTS flights; any one passing is a pass).
+
 Phases of a test are marked with ``Vehicle.boot_time()``, which is on the same
 clock as the ULog timestamps.
 """
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import numpy as np
@@ -21,6 +31,32 @@ TAKEOFF_ALT = 3.0
 FLIGHT_PARAMS = {
     "MIS_TAKEOFF_ALT": TAKEOFF_ALT,
 }
+
+# a flight whose logic checks pass but whose tracking checks do not is flown up to this many times
+FLIGHT_ATTEMPTS = 5
+
+
+class Tracking:
+    """The tracking checks of one flight: how closely the vehicle followed its setpoints.
+
+    A failed check is recorded instead of raised, so the logic checks after it still run;
+    the ``reflight`` fixture flies again when any were recorded.
+    """
+
+    def __init__(self):
+        self.failures: list[str] = []
+
+    def check(self, ok, message: str) -> None:
+        if not ok:
+            self.failures.append(message)
+
+    @contextmanager
+    def waiting(self):
+        """Record a ``Vehicle.wait_*`` timeout (the vehicle did not get there in time) and carry on."""
+        try:
+            yield
+        except WaitTimeout as e:
+            self.failures.append(str(e))
 
 
 def take_off(vehicle: Vehicle, altitude: float = TAKEOFF_ALT, timeout: float = 40.0, settle: float = 3.0) -> None:
@@ -128,6 +164,54 @@ def horizontal_error(log: Log, start: float, end: float) -> float:
     x_sp = np.interp(pos.t, sp.t[valid], sp["x"][valid])
     y_sp = np.interp(pos.t, sp.t[valid], sp["y"][valid])
     return float(np.max(np.hypot(pos["x"] - x_sp, pos["y"] - y_sp)))
+
+
+@dataclass
+class AttitudeSetpoint:
+    """vehicle_attitude_setpoint of one time window: time [s], roll/pitch [deg], thrust_body [normalised, N x 3]."""
+
+    t: np.ndarray
+    roll: np.ndarray
+    pitch: np.ndarray
+    thrust: np.ndarray
+
+    @property
+    def tilt(self) -> np.ndarray:
+        """max(|roll|, |pitch|) per sample [deg]."""
+        return np.maximum(np.abs(self.roll), np.abs(self.pitch))
+
+    @property
+    def horizontal_thrust(self) -> np.ndarray:
+        """max(|thrust_body[0]|, |thrust_body[1]|) per sample: the HT part of the setpoint."""
+        return np.max(np.abs(self.thrust[:, :2]), axis=1)
+
+
+def attitude_setpoint(log: Log, start: float, end: float) -> AttitudeSetpoint:
+    """The attitude setpoint PX4 published between ``start`` and ``end``: what the code under test asked for."""
+    sp = log.topic("vehicle_attitude_setpoint").between(start, end)
+    assert len(sp), f"no attitude setpoint between {start:.1f} and {end:.1f} s"
+    roll, pitch, _ = euler_deg(np.stack([sp[f"q_d[{i}]"] for i in range(4)], axis=1))
+    return AttitudeSetpoint(sp.t, roll, pitch, np.stack([sp[f"thrust_body[{i}]"] for i in range(3)], axis=1))
+
+
+def position_setpoint_at(log: Log, t: float) -> tuple[float, float, float]:
+    """The local position setpoint (x, y, z) [m] in force at PX4 time ``t``."""
+    sp = log.topic("vehicle_local_position_setpoint")
+    before = sp.t <= t
+    assert before.any(), f"no position setpoint before {t:.1f} s"
+    i = np.flatnonzero(before)[-1]
+    return float(sp["x"][i]), float(sp["y"][i]), float(sp["z"][i])
+
+
+def nav_states(log: Log, start: float, end: float) -> set[int]:
+    """Every vehicle_status nav state in force between ``start`` and ``end``."""
+    status = log.topic("vehicle_status")
+    inside = (status.t >= start) & (status.t <= end)
+    states = {int(s) for s in status["nav_state"][inside]}
+    before = np.flatnonzero(status.t < start)
+    if before.size:
+        states.add(int(status["nav_state"][before[-1]]))
+    return states
 
 
 def truth_window(tr: Truth, start: float, end: float) -> Truth:

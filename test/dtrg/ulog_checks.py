@@ -10,6 +10,10 @@ from pyulog import ULog
 
 from px4_process import Px4Sitl
 
+# vehicle_status nav states (msg/versioned/VehicleStatus.msg)
+NAV_STATE_AUTO_LOITER = 4
+NAV_STATE_OFFBOARD = 14
+NAV_STATE_STAB = 15
 NAV_STATE_BENCH_TEST = 16
 ARMING_STATE_ARMED = 2
 
