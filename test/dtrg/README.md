@@ -74,6 +74,9 @@ Flight tests (tier 3):
 
 - Mark test phases with `vehicle.boot_time()`: it is PX4 time, the clock of the ULog.
 - Assert on `flight.truth()` (SIH ground truth), not on the estimator.
+- Fly through the `reflight` fixture: logic (modes, published setpoints) with plain
+  `assert`, how closely the vehicle followed them with `tracking.check()`. A flight
+  that misses only tracking checks is flown again, up to 3 times; any pass is a pass.
 - With RC streaming, `wait_mode(MAIN_STABILIZED)` before `take_off()`, or the RC slot being
   applied after boot can override Takeoff mode.
 - If the startup script hangs on a `px4-<module>` client call (seen on macOS), the fixture
