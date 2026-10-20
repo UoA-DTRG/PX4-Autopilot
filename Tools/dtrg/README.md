@@ -3,10 +3,11 @@
 Host-side scripts for flying the DTRG planarOcto in SITL, and for recording
 what it pushes against.
 
-| Script | What it does | Use it for |
-|---|---|---|
-| `keyboard_teleop.py` | Sends `MANUAL_CONTROL` (sticks, aux1-4) + `RC_CHANNELS_OVERRIDE` (HT ch8-10, on first HT key) | Flying the vehicle by hand: arm, takeoff, modes, sticks, horizontal thrust |
-| `rc_override.py` | Sends `RC_CHANNELS_OVERRIDE` only | Holding fixed RC channel values, or driving HT channels alone |
+| Script               | What it sends                                                                           | Use it for                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `keyboard_teleop.py` | `MANUAL_CONTROL` (sticks, aux1-4) + `RC_CHANNELS_OVERRIDE` (HT ch8-10, on first HT key) | Flying the vehicle by hand: arm, takeoff, modes, sticks, horizontal thrust                                    |
+| `rc_override.py`     | `RC_CHANNELS_OVERRIDE` only                                                             | Holding fixed RC channel values, or driving HT channels alone                                                 |
+| `compare_sih_gz.py`  | Offboard setpoints, `RC_CHANNELS_OVERRIDE`                                              | Flying the same profile in SIH and Gazebo and comparing them; results in [SIH_VS_GAZEBO.md](SIH_VS_GAZEBO.md) |
 | `log_interaction_force.py` | Records the interaction pole's force sensor to CSV | Measuring what the vehicle pushes the surface with |
 
 The two flying scripts need `pymavlink` (`pip install pymavlink`).

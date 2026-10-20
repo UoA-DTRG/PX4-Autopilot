@@ -11,19 +11,21 @@ This firmware is build upon the v1.16 release of PX4
 
 The DTRG fork of PX4 includes the following additions:
 
-Implemented:
-* Mixer Injection from csv file
-* Manual Horizontal Thrust Control via RC (level mode)
-* Horizontal Thrust Position Mode
-* Horizontal Thrust Offboard Mode
-* Sequential Desaturation and Thrust Limits (HT)
-* Planar Octo SITL
+Implemented (documentation index: [docs/DTRG](docs/DTRG/README.md)):
+* [DTRG CSV Mixer](docs/DTRG/DTRG_CSV_Mixer.md)
+* [Horizontal Thrust Mode (Manual/Stabilized level mode, Position, Offboard; thrust limits)](docs/DTRG/DTRG_Horizontal_Thrust_Mode.md)
+* [Sequential Desaturation](docs/DTRG/DTRG_Sequential_Desaturation.md)
+* [Planar Octo SITL](docs/DTRG/DTRG_Planar_Octo_SITL.md)
+* [Bench Test Mode](docs/DTRG/DTRG_Bench_Test_Mode.md)
+* [RC Channel Conflict Check](docs/DTRG/DTRG_RC_Channel_Conflict_Check.md)
 * [Status Monitor](https://github.com/UoA-DTRG/status_monitor)
+* [Automated Testing](docs/DTRG/DTRG_Automated_Testing.md)
 
 Upcoming:
 * Dynamixel Servo Control with easy configuration
 * Wrench Estimator
 * Admittance Controller
+* [DTRG MAVLink Dialect (DTRG_OFFBOARD)](docs/DTRG/DTRG_MAVLink_Dialect.md)
 
 This DTRG fork is designed with the following airframes in mind:
 

@@ -1,7 +1,8 @@
 """Tier 3: horizontal thrust (HT) in flight, on the fully actuated planarOcto in SIH.
 
 The vehicle really flies here: SIH simulates the eight tilted rotors from the
-airframe's CA_ROTOR* geometry. See Tools/dtrg/DTRG_Automated_Testing.md.
+airframe's CA_ROTOR* geometry, and the checks are on SIH's ground truth. See
+docs/DTRG/DTRG_Automated_Testing.md.
 
 Each test checks the logic (modes, and the setpoints PX4 publishes) with plain
 asserts, which fail the test straight away, and how closely the vehicle followed
