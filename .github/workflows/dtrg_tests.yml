@@ -143,7 +143,8 @@ jobs:
     name: SIH flight tests (tier 3)
     runs-on: ubuntu-latest
     container: px4io/px4-dev-base-focal:2021-09-08
-    timeout-minutes: 60
+    # a flight that misses only its tracking checks is flown up to 3 times
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:

@@ -183,7 +183,7 @@ one that checked out).
 | --- | --- | --- | --- |
 | `unit` | Unit tests (tier 1) | `make tests TESTFILTER=Dtrg`, then `TESTFILTER=ControlAllocation`, then the full `make tests` as a **non-blocking** step (`continue-on-error`) until it has been seen green on this fork | 45 min |
 | `sih` | SIH logic tests (tier 2) | build `px4_sitl_default`, install `test/dtrg/requirements.txt`, `pytest test/dtrg -m "sih and not flight" --airframe=sihsim_planar_octo --px4-build=build/px4_sitl_default --basetemp=test-out --junitxml=test-out/junit.xml` | 60 min |
-| `flight` | SIH flight tests (tier 3) | same build and install, `pytest test/dtrg -m flight --airframe=sihsim_planar_octo --basetemp=test-out --junitxml=test-out/junit.xml` | 60 min |
+| `flight` | SIH flight tests (tier 3) | same build and install, `pytest test/dtrg -m flight --airframe=sihsim_planar_octo --basetemp=test-out --junitxml=test-out/junit.xml` | 90 min (a flight is flown again on a tracking miss) |
 
 On failure `sih` and `flight` upload `test-out/` as `dtrg-sih-test-output` /
 `dtrg-flight-test-output`: the `px4.log` and ULogs of every test, plus the JUnit
@@ -291,9 +291,41 @@ In `test_flight_ht.py`, marked `flight` and `fully_actuated`. Take off with
 `flight.take_off()` (Takeoff mode to `MIS_TAKEOFF_ALT`, 3 m, waits until the
 vehicle holds there), do the manoeuvre, then assert on what the ULog says.
 
+Split the checks in two, and fly through the `reflight` fixture:
+
+```python
+def test_something(sitl, reflight):
+    def flight(tracking):
+        vehicle, px4 = fly(sitl)
+        ...
+        log = read_log(px4)
+        # logic: what the code under test decided -- modes and published setpoints
+        assert nav_states(log, start, end) == {NAV_STATE_OFFBOARD}
+        assert attitude_setpoint(log, start, end).tilt.max() < SP_TILT_TOL_DEG
+        # tracking: how closely the vehicle followed them
+        tracking.check(truth(log, start, end).tilt.max() < 3.0, "tilted ...")
+
+    reflight(flight)
+```
+
+- **Logic** (plain `assert`): modes (`flight.nav_states()`), and the setpoints PX4
+  publishes (`flight.attitude_setpoint()`, `flight.position_setpoint_at()`). These
+  are exact, so their tolerances are tight, and a failure fails the test at once.
+- **Tracking** (`tracking.check()`, or `with tracking.waiting():` around a
+  `vehicle.wait_*` that waits for the vehicle to get somewhere): ground truth, the
+  estimate, and the estimate against its setpoint. These depend on the simulated
+  noise, so a failure is recorded rather than raised and the logic checks after it
+  still run. When the logic passed but a tracking check did not, `reflight` shuts
+  that PX4 down and flies the test again on a fresh one, up to
+  `flight.FLIGHT_ATTEMPTS` (5) flights. Any passing flight passes the test (with a
+  warning naming the missed flights); three misses fail it with every miss listed.
+  The px4.log and ULogs of every flight stay under `tmp_path/run<N>`.
+- A test with no tracking checks (`test_bench_test_rejected_in_flight`) is flown
+  once, with `sitl` directly.
+
 - Mark the phases of the test with `vehicle.boot_time()`: that is PX4 time, the
   clock of the ULog.
-- Assert how the vehicle *moved and tilted* on `flight.truth()`
+- Check how the vehicle *moved and tilted* on `flight.truth()`
   (`vehicle_*_groundtruth`), never on the estimator.
 - Assert *holding* altitude or position on the estimate against its setpoint:
   with SIH's simulated baro and GPS the estimate wanders 0.3-0.5 m in altitude
@@ -700,7 +732,7 @@ file" case can run here.
 ### 5.3 Tier 3: SIH flight tests
 
 16 tests in `test/dtrg/test_flight_ht.py`, helpers in `test/dtrg/flight.py`; about
-14 flights, ~14 minutes. Same harness, RC layout and conventions as tier 2, but
+14 flights, ~14 minutes, more when a flight is flown again (below). Same harness, RC layout and conventions as tier 2, but
 here the planarOcto really flies. All are marked `flight` and `fully_actuated`,
 so they are skipped on `--airframe=sihsim_quadx`.
 
@@ -709,24 +741,33 @@ vehicle holds there, does its manoeuvre, and then reads two things back from the
 ULog: **SIH ground truth** (`vehicle_*_groundtruth`) for how the vehicle really
 moved and tilted, and **the estimate against its setpoint** for "holds altitude /
 position" (called drift below). HT parameters: `DTRG_HT_MAX` 0.5, `DTRG_HT_R_MAX`
-and `DTRG_HT_P_MAX` 10 deg. "Tilt" is max(|roll|, |pitch|).
+and `DTRG_HT_P_MAX` 5 deg. "Tilt" is max(|roll|, |pitch|).
+
+Every test except the bench test one also checks the **logic** first: the nav
+state through the manoeuvre, and that the published `vehicle_attitude_setpoint`
+(tilt within 0.05 deg, horizontal thrust `thrust_body[0/1]`) and
+`vehicle_local_position_setpoint` (the Offboard setpoint within 0.01 m) are what
+the HT code should produce. A logic failure fails the test. The rest of the
+"Passes when" column is the **tracking** part: if only that misses, the flight is
+repeated, up to 3 flights, and one passing flight is enough
+([section 4](#tier-3-a-flight-test)).
 
 Code under test: mc_pos_control and mc_att_control horizontal thrust, and
 commander, in flight.
 
 | Test | Manoeuvre | Passes when |
 |  --- | --- | --- |
-| `test_take_off_hold_and_land` | Take off, hold 10 s, Land | Altitude within 0.5 m of its setpoint and drift < 1 m during the hold; lands and disarms within 30 s. Baseline: if this fails, nothing below means anything |
-| `test_ht_moves_the_vehicle_level` | HT on, Offboard position setpoint 5 m north | Moves 5 m (+-0.5) north and the true tilt stays below 3 deg throughout: HT moves the vehicle without tilting it |
+| `test_take_off_hold_and_land` | Take off, hold 10 s, Land | Logic: in Hold throughout, no horizontal thrust in the setpoint (HT switch off). Altitude within 0.5 m of its setpoint and drift < 1 m during the hold; lands and disarms within 30 s. Baseline: if this fails, nothing below means anything |
+| `test_ht_moves_the_vehicle_level` | HT on, Offboard position setpoint 5 m north | Logic: setpoint level, horizontal thrust within `DTRG_HT_MAX` and pushing north. Moves 5 m (+-0.5) north and the true tilt stays below 3 deg throughout: HT moves the vehicle without tilting it |
 | `test_offboard_split_divides_thrust[mask0-split0.25/mask0-split0.75/mask1-split0.25/mask2-split0.75]` | `DTRG_HT_SPLIT_EN` 1, HT on, Offboard move 4 m forward and 4 m right of the heading | Moves the 5.7 m diagonal (true distance along it +-0.6; each axis settles up to ~0.5 m short from the HT gain loss), and of the force in the published attitude setpoint (samples asking for more than 0.02 on that axis), horizontal thrust gives `DTRG_HT_SPLIT` on an HT axis and nothing on the other (median, +-0.05), tilting the rest. Measured within 0.01 of 0.25 / 0.75 on HT axes and of 0 on the tilt-only axis for every mask. On the setpoint, so the allocator gain loss ([section 6.1](#61-open-issues)) does not enter |
-| `test_without_ht_the_vehicle_tilts_to_move` | Same move with HT off | Moves 5 m (+-0.5) and pitches nose down past -5 deg. Control case for `test_ht_moves_the_vehicle_level`: shows its tilt limit would catch a vehicle that moves by tilting |
-| `test_aux_tilt_reaches_the_limit[roll]` | HT on, Hold, aux roll full | The attitude half of the aux tilt check, independent of the horizontal thrust gain loss ([section 6.1](#61-open-issues)): roll +10 deg (estimate +-2, truth +-3.5), pitch below 3 deg |
-| `test_aux_tilt_reaches_the_limit[pitch]` | HT on, Hold, aux pitch full | pitch +10 deg nose up (estimate +-2, truth +-3.5), roll below 3 deg. The aux channels set the tilt directly, so pitch is the opposite way round to the pitch stick, and Hold agrees with Stabilized |
-| `test_offboard_tilt_setpoint_in_hover` | HT on, Offboard hold, `DEBUG_FLOAT_ARRAY` roll 0.1 rad (5.7 deg) at 10 Hz for 8 s | Estimated roll 5.7 deg (+-2), true roll +-3.5 (the estimate drifts ~2 deg from the truth while tilted), drift < 0.5 m, still in Offboard |
-| `test_offboard_tilt_is_limited` | Same, roll setpoint twice `DTRG_HT_R_MAX` for 5 s, then NaN roll and pitch for 5 s | Estimated roll at `DTRG_HT_R_MAX` (+-2 deg) and true roll below the limit + 3.5 deg, not the doubled setpoint; after the NaN the vehicle is level (estimated tilt < 2 deg, true tilt < 3.5 deg) and still in Offboard. Pins the offboard tilt limit fix |
-| `test_toggling_ht_in_hover_is_smooth` | Hold 8 s as a reference, then HT switch on / off 5 times, 2 s each | Altitude within 0.7 m of its setpoint, drift < 1 m, and tilt below max(8 deg, the reference hover's tilt + 2 deg): switching HT does not kick the vehicle |
-| `test_stabilized_ht_stick_moves_the_vehicle_level` | Take off to 6 m, HT on, Stabilized, full pitch stick for 3 s | Forward speed (true, along the heading) above 1 m/s and tilt below 3 deg. The manual counterpart of `test_ht_moves_the_vehicle_level` |
-| `test_bench_test_rejected_in_flight` | Hovering in Hold, mode switch to the bench test slot | `Bench test mode denied: disarm first`; still armed and in Hold, and stays above 1.5 m. The in-air case of `test_bench_test_rejected_while_armed` |
+| `test_without_ht_the_vehicle_tilts_to_move` | Same move with HT off | Logic: no horizontal thrust in the setpoint, setpoint tilts past 5 deg. Moves 5 m (+-0.5) and pitches nose down past -5 deg. Control case for `test_ht_moves_the_vehicle_level`: shows its tilt limit would catch a vehicle that moves by tilting |
+| `test_aux_tilt_reaches_the_limit[roll]` | HT on, Hold, aux roll full | The attitude half of the aux tilt check, independent of the horizontal thrust gain loss ([section 6.1](#61-open-issues)): logic: roll setpoint at the 5 deg limit, pitch setpoint level. Roll +5 deg (estimate +-2, truth +-3.5), pitch below 3 deg |
+| `test_aux_tilt_reaches_the_limit[pitch]` | HT on, Hold, aux pitch full | Logic: pitch setpoint at +5 deg, roll setpoint level. Pitch +5 deg nose up (estimate +-2, truth +-3.5), roll below 3 deg. The aux channels set the tilt directly, so pitch is the opposite way round to the pitch stick, and Hold agrees with Stabilized |
+| `test_offboard_tilt_setpoint_in_hover` | HT on, Offboard hold, `DEBUG_FLOAT_ARRAY` roll 4 deg (inside the limit) at 10 Hz for 8 s | Logic: still in Offboard, position setpoint unchanged, roll setpoint exactly 4 deg and pitch level. Estimated roll 4 deg (+-2), true roll +-3.5 (the estimate drifts ~2 deg from the truth while tilted) |
+| `test_offboard_tilt_is_limited` | Same, roll setpoint twice `DTRG_HT_R_MAX` for 5 s, then NaN roll and pitch for 5 s | Logic: roll setpoint cut to exactly `DTRG_HT_R_MAX`, level after the NaN, still in Offboard. Estimated roll at `DTRG_HT_R_MAX` (+-2 deg) and true roll below the limit + 3.5 deg, not the doubled setpoint; after the NaN the vehicle is level (estimated tilt < 2 deg, true tilt < 3.5 deg) and still in Offboard. Pins the offboard tilt limit fix |
+| `test_toggling_ht_in_hover_is_smooth` | Hold 8 s as a reference, then HT switch on / off 5 times, 2 s each | Logic: in Hold throughout; every switch on gives a level setpoint and `horizontal_thrust_limit`, every switch off no horizontal thrust and no `horizontal_thrust_limit`. Altitude within 0.7 m of its setpoint, drift < 1 m, and tilt below max(8 deg, the reference hover's tilt + 2 deg): switching HT does not kick the vehicle |
+| `test_stabilized_ht_stick_moves_the_vehicle_level` | Take off to 6 m, HT on, Stabilized, full pitch stick for 3 s | Logic: in Stabilized, setpoint level, forward thrust `DTRG_HT_MAX` (+-0.01) and no sideways thrust. Forward speed (true, along the heading) above 1 m/s and tilt below 3 deg. The manual counterpart of `test_ht_moves_the_vehicle_level` |
+| `test_bench_test_rejected_in_flight` | Hovering in Hold, mode switch to the bench test slot | `Bench test mode denied: disarm first`; still armed and in Hold, and stays above 1.5 m. The in-air case of `test_bench_test_rejected_while_armed`. Logic only, so flown once |
 
 
 Holding position and altitude is judged on the estimate against the setpoint;

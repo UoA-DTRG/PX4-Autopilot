@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Created: 27/09/2026
+#
+# @name Gazebo DTRG planarOcto with interaction rod
+# @type Octorotor x
+# @class Copter
+#
+# planarOcto carrying a rigid forward rod for physical-interaction tests
+# against the interaction_pole push panel:
+#
+#   make px4_sitl gz_planar_octo_rod_mocap_interaction
+#
+# Everything is inherited from 12014, which in turn inherits the flown
+# parameter set from 12013. The rod adds an assumed 0.030 kg to the 1.460 kg
+# airframe, 2% more mass with the centre of mass 8.5 mm forward. The control
+# allocation, rate gains and THR_MDL_FAC are deliberately left at their
+# measured values; the hover-thrust estimator takes up the small offset.
+# Re-tune here, not in 12013, if a heavier rod is fitted.
+#
+
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=planar_octo_rod}
+
+. ${R}etc/init.d-posix/airframes/12014_gz_planar_octo

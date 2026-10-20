@@ -113,7 +113,8 @@ private:
 
 	bool send() override
 	{
-		if (_status_sub.updated() || _cpuload_sub.updated() || _battery_status_subs.updated()) {
+		if (_status_sub.updated() || _cpuload_sub.updated() || _battery_status_subs.updated()
+		    || _actuator_motors_sub.updated()) {
 			vehicle_status_s status{};
 			_status_sub.copy(&status);
 
