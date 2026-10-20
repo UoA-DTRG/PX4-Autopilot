@@ -132,6 +132,10 @@ int GZBridge::init()
 		}
 	}
 
+	if (!subscribeInteractionWrench(false)) {
+		return PX4_ERROR;
+	}
+
 	// ESC mixing interface
 	if (!_mixing_interface_esc.init(_model_name)) {
 		PX4_ERR("failed to init ESC output");
@@ -322,6 +326,22 @@ bool GZBridge::subscribeOpticalFlow(bool required)
 
 	if (!_node.Subscribe(flow_topic, &GZBridge::opticalFlowCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", flow_topic.c_str());
+		return required ? false : true;
+	}
+
+	return true;
+}
+
+bool GZBridge::subscribeInteractionWrench(bool required)
+{
+	// Interaction rod force/torque (planar_octo_rod and any other model carrying
+	// an interaction rod). Absent on every other model, in which case the
+	// subscription simply never fires.
+	std::string interaction_wrench_topic = "/world/" + _world_name + "/model/" + _model_name +
+					       "/joint/interaction_rod_joint/sensor/interaction_force/forcetorque";
+
+	if (!_node.Subscribe(interaction_wrench_topic, &GZBridge::interactionWrenchCallback, this)) {
+		PX4_ERR("failed to subscribe to %s", interaction_wrench_topic.c_str());
 		return required ? false : true;
 	}
 

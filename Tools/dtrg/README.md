@@ -17,7 +17,7 @@ simulation already requires.
 
 ```bash
 make px4_sitl gz_planar_octo_mocap          # terminal 1
-Tools/dtrg/keyboard_teleop.py               # terminal 2, listens on udpin:0.0.0.0:14540
+python3 Tools/dtrg/keyboard_teleop.py               # terminal 2, listens on udpin:0.0.0.0:14540
 ```
 
 Press the keys shown on screen (`m` arm, `t` takeoff, `e` HT mode, `z/x/c/v` HT roll/pitch, `q` quit).

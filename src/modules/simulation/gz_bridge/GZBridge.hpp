@@ -120,6 +120,7 @@ private:
 	bool subscribeAirPressure(bool required);
 	bool subscribeNavsat(bool required);
 	bool subscribeOpticalFlow(bool required);
+	bool subscribeInteractionWrench(bool required);
 
 	void clockCallback(const gz::msgs::Clock &msg);
 	void airspeedCallback(const gz::msgs::AirSpeed &msg);
