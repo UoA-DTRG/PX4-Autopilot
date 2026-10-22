@@ -826,7 +826,7 @@ Re-check these if tests start failing for no obvious reason.
    `Preflight Fail: <A> and <B> both use RC channel <N>`,
    `RC ch <N>: <A> and <B>`, `RC channel conflict resolved`.
 7. DTRG telemetry in `SYS_STATUS`: `errors_count1` desaturation gains,
-   `errors_count2` motors > 0.9, `errors_count3` HT `x_sat` bits 0-1 / `y_sat` bits 2-3 (0 ok, 1 warning > 80 %, 2 at the limit)
+   `errors_count2` 2 bits per motor (bit 2i motor i > 0.9, bit 2i+1 motor i < 0.1, up to 8 motors), `errors_count3` HT `x_sat` bits 0-1 / `y_sat` bits 2-3 (0 ok, 1 warning > 80 %, 2 at the limit)
    (armed only), `errors_count4 == 706` (the DTRG firmware marker).
 8. `SYS_STATUS.onboard_control_sensors_health & MAV_SYS_STATUS_PREARM_CHECK` is
    "can arm in the current mode"; the tests use it as the readiness signal.

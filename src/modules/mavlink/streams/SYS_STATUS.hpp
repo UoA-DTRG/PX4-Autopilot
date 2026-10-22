@@ -197,17 +197,19 @@ private:
 					((fabsf(sequential_desaturation.yaw_sat) > sat_threshold) << 5);
 
 				// check if any motor is near / at saturation
+				// 2 bits per motor: bit 2i = motor i high (> upper_bound), bit 2i+1 = motor i low (< lower_bound).
+				// Unused motors are NaN, so both comparisons are false and their bits stay 0.
 				const float upper_bound = 0.9f;
+				const float lower_bound = 0.1f;
+				constexpr int max_motors = math::min(static_cast<int>(actuator_motors_s::NUM_CONTROLS),
+								     static_cast<int>(sizeof(msg.errors_count2) * 8 / 2));
 
-				msg.errors_count2 =
-					((actuator_motors.control[0] > upper_bound)) |
-					((actuator_motors.control[1] > upper_bound) << 1) |
-					((actuator_motors.control[2] > upper_bound) << 2) |
-					((actuator_motors.control[3] > upper_bound) << 3) |
-					((actuator_motors.control[4] > upper_bound) << 4) |
-					((actuator_motors.control[5] > upper_bound) << 5) |
-					((actuator_motors.control[6] > upper_bound) << 6) |
-					((actuator_motors.control[7] > upper_bound) << 7);
+				msg.errors_count2 = 0;
+
+				for (int i = 0; i < max_motors; i++) {
+					msg.errors_count2 |= ((actuator_motors.control[i] > upper_bound) << (2 * i)) |
+							     ((actuator_motors.control[i] < lower_bound) << (2 * i + 1));
+				}
 
 				// 2 bits per axis: 0 ok, 1 warning (> 80 % of DTRG_HT_MAX), 2 at DTRG_HT_MAX
 				msg.errors_count3 =
