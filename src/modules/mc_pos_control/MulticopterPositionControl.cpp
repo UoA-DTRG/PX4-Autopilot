@@ -42,14 +42,11 @@
 using namespace matrix;
 
 MulticopterPositionControl::MulticopterPositionControl(bool vtol) :
-	SuperBlock(nullptr, "MPC"),
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
-	_vehicle_attitude_setpoint_pub(vtol ? ORB_ID(mc_virtual_attitude_setpoint) : ORB_ID(vehicle_attitude_setpoint)),
-	_vel_x_deriv(this, "VELD"),
-	_vel_y_deriv(this, "VELD"),
-	_vel_z_deriv(this, "VELD")
+	_vehicle_attitude_setpoint_pub(vtol ? ORB_ID(mc_virtual_attitude_setpoint) : ORB_ID(vehicle_attitude_setpoint))
 {
+	_sample_interval_s.update(0.01f); // 100 Hz default
 	parameters_update(true);
 	_tilt_limit_slew_rate.setSlewRate(.2f);
 	_takeoff_status_pub.advertise();
@@ -83,7 +80,42 @@ void MulticopterPositionControl::parameters_update(bool force)
 
 		// update parameters from storage
 		ModuleParams::updateParams();
-		SuperBlock::updateParams();
+
+		float sample_freq_hz = 1.f / _sample_interval_s.mean();
+
+		// velocity notch filter
+		if ((_param_mpc_vel_nf_frq.get() > 0.f) && (_param_mpc_vel_nf_bw.get() > 0.f)) {
+			_vel_xy_notch_filter.setParameters(sample_freq_hz, _param_mpc_vel_nf_frq.get(), _param_mpc_vel_nf_bw.get());
+			_vel_z_notch_filter.setParameters(sample_freq_hz, _param_mpc_vel_nf_frq.get(), _param_mpc_vel_nf_bw.get());
+
+		} else {
+			_vel_xy_notch_filter.disable();
+			_vel_z_notch_filter.disable();
+		}
+
+		// velocity xy/z low pass filter
+		if (_param_mpc_vel_lp.get() > 0.f) {
+			_vel_xy_lp_filter.setCutoffFreq(sample_freq_hz, _param_mpc_vel_lp.get());
+			_vel_z_lp_filter.setCutoffFreq(sample_freq_hz, _param_mpc_vel_lp.get());
+
+		} else {
+			// disable filtering
+			_vel_xy_lp_filter.setAlpha(1.f);
+			_vel_z_lp_filter.setAlpha(1.f);
+		}
+
+		// velocity derivative xy/z low pass filter
+		if (_param_mpc_veld_lp.get() > 0.f) {
+			_vel_deriv_xy_lp_filter.setCutoffFreq(sample_freq_hz, _param_mpc_veld_lp.get());
+			_vel_deriv_z_lp_filter.setCutoffFreq(sample_freq_hz, _param_mpc_veld_lp.get());
+
+		} else {
+			// disable filtering
+			_vel_deriv_xy_lp_filter.setAlpha(1.f);
+			_vel_deriv_z_lp_filter.setAlpha(1.f);
+		}
+
+
 
 		int num_changed = 0;
 
@@ -167,6 +199,18 @@ void MulticopterPositionControl::parameters_update(bool force)
 			Vector3f(_param_mpc_xy_vel_i_acc.get(), _param_mpc_xy_vel_i_acc.get(), _param_mpc_z_vel_i_acc.get()),
 			Vector3f(_param_mpc_xy_vel_d_acc.get(), _param_mpc_xy_vel_d_acc.get(), _param_mpc_z_vel_d_acc.get()));
 		_control.setHorizontalThrustMargin(_param_mpc_thr_xy_marg.get());
+		_control.decoupleHorizontalAndVecticalAcceleration(_param_mpc_acc_decouple.get());
+		_goto_control.setParamMpcAccHor(_param_mpc_acc_hor.get());
+		_goto_control.setParamMpcAccDownMax(_param_mpc_acc_down_max.get());
+		_goto_control.setParamMpcAccUpMax(_param_mpc_acc_up_max.get());
+		_goto_control.setParamMpcJerkAuto(_param_mpc_jerk_auto.get());
+		_goto_control.setParamMpcXyCruise(_param_mpc_xy_cruise.get());
+		_goto_control.setParamMpcXyErrMax(_param_mpc_xy_err_max.get());
+		_goto_control.setParamMpcXyVelMax(_param_mpc_xy_vel_max.get());
+		_goto_control.setParamMpcYawrautoMax(_param_mpc_yawrauto_max.get());
+		_goto_control.setParamMpcYawrautoAcc(_param_mpc_yawrauto_acc.get());
+		_goto_control.setParamMpcZVAutoDn(_param_mpc_z_v_auto_dn.get());
+		_goto_control.setParamMpcZVAutoUp(_param_mpc_z_v_auto_up.get());
 
 		// Check that the design parameters are inside the absolute maximum constraints
 		if (_param_mpc_xy_cruise.get() > _param_mpc_xy_vel_max.get()) {
@@ -261,17 +305,39 @@ void MulticopterPositionControl::parameters_update(bool force)
 		_takeoff.setTakeoffRampTime(_param_mpc_tko_ramp_t.get());
 		_takeoff.generateInitialRampValue(_param_mpc_z_vel_p_acc.get());
 
-
 		//DTRG
-		_dtrg_offboard_en = _param_dtrg_offboard_en.get();
-		_dtrg_ht_off_gain = _param_dtrg_ht_off_gain.get();
+		_ht_en = _param_dtrg_ht_en.get();
 
-		_ht_limit = _param_dtrg_ht_max.get();
+		if (_ht_en) {
+			// RC_MAP_HT_* of 0 means the input is disabled, which maps to index -1
+			_ht_rc_en_add = dtrg_ht::channelIndex(_param_dtrg_ht_rc.get());
+			_ht_r_add = dtrg_ht::channelIndex(_param_dtrg_ht_R.get());
+			_ht_p_add = dtrg_ht::channelIndex(_param_dtrg_ht_P.get());
+			// an out of range mask falls back to 0
+			_dtrg_ht_mask = dtrg_ht::selectableMask(_param_dtrg_ht_mask.get());
+			_ht_split_en = _param_dtrg_ht_split_en.get();
+			_ht_split = _param_dtrg_ht_split.get();
+			_ht_limit = _param_dtrg_ht_max.get();
+			_ht_r_limit = math::radians(_param_dtrg_ht_r_max.get());
+			_ht_p_limit = math::radians(_param_dtrg_ht_p_max.get());
+		}
+
+
 	}
 }
 
+float MulticopterPositionControl::dtrgOffboardTiltSetpoint(float setpoint, float limit)
+{
+	// a non-finite setpoint commands level rather than being passed on to the attitude setpoint
+	if (!PX4_ISFINITE(setpoint)) {
+		return 0.f;
+	}
+
+	return math::constrain(setpoint, -limit, limit);
+}
+
 PositionControlStates MulticopterPositionControl::set_vehicle_states(const vehicle_local_position_s
-		&vehicle_local_position)
+		&vehicle_local_position, const float dt_s)
 {
 	PositionControlStates states;
 
@@ -295,29 +361,42 @@ PositionControlStates MulticopterPositionControl::set_vehicle_states(const vehic
 	const Vector2f velocity_xy(vehicle_local_position.vx, vehicle_local_position.vy);
 
 	if (vehicle_local_position.v_xy_valid && velocity_xy.isAllFinite()) {
-		states.velocity.xy() = velocity_xy;
-		states.acceleration(0) = _vel_x_deriv.update(velocity_xy(0));
-		states.acceleration(1) = _vel_y_deriv.update(velocity_xy(1));
+		const Vector2f vel_xy_prev = _vel_xy_lp_filter.getState();
+
+		// vel xy notch filter, then low pass filter
+		states.velocity.xy() = _vel_xy_lp_filter.update(_vel_xy_notch_filter.apply(velocity_xy));
+
+		// vel xy derivative low pass filter
+		states.acceleration.xy() = _vel_deriv_xy_lp_filter.update((_vel_xy_lp_filter.getState() - vel_xy_prev) / dt_s);
 
 	} else {
 		states.velocity(0) = states.velocity(1) = NAN;
 		states.acceleration(0) = states.acceleration(1) = NAN;
 
-		// reset derivatives to prevent acceleration spikes when regaining velocity
-		_vel_x_deriv.reset();
-		_vel_y_deriv.reset();
+		// reset filters to prevent acceleration spikes when regaining velocity
+		_vel_xy_lp_filter.reset({});
+		_vel_xy_notch_filter.reset();
+		_vel_deriv_xy_lp_filter.reset({});
 	}
 
 	if (PX4_ISFINITE(vehicle_local_position.vz) && vehicle_local_position.v_z_valid) {
-		states.velocity(2) = vehicle_local_position.vz;
-		states.acceleration(2) = _vel_z_deriv.update(states.velocity(2));
+
+		const float vel_z_prev = _vel_z_lp_filter.getState();
+
+		// vel z notch filter, then low pass filter
+		states.velocity(2) = _vel_z_lp_filter.update(_vel_z_notch_filter.apply(vehicle_local_position.vz));
+
+		// vel z derivative low pass filter
+		states.acceleration(2) = _vel_deriv_z_lp_filter.update((_vel_z_lp_filter.getState() - vel_z_prev) / dt_s);
 
 	} else {
 		states.velocity(2) = NAN;
 		states.acceleration(2) = NAN;
 
-		// reset derivative to prevent acceleration spikes when regaining velocity
-		_vel_z_deriv.reset();
+		// reset filters to prevent acceleration spikes when regaining velocity
+		_vel_z_lp_filter.reset({});
+		_vel_z_notch_filter.reset();
+		_vel_deriv_z_lp_filter.reset({});
 	}
 
 	states.yaw = vehicle_local_position.heading;
@@ -346,8 +425,9 @@ void MulticopterPositionControl::Run()
 			math::constrain(((vehicle_local_position.timestamp_sample - _time_stamp_last_loop) * 1e-6f), 0.002f, 0.04f);
 		_time_stamp_last_loop = vehicle_local_position.timestamp_sample;
 
-		// set _dt in controllib Block for BlockDerivative
-		setDt(dt);
+		_rc_channels_sub.update(&_rc_channels); /// DTRG
+
+		_sample_interval_s.update(dt);
 
 		if (_vehicle_control_mode_sub.updated()) {
 			const bool previous_position_control_enabled = _vehicle_control_mode.flag_multicopter_position_control_enabled;
@@ -375,52 +455,20 @@ void MulticopterPositionControl::Run()
 			}
 		}
 
+		PositionControlStates states{set_vehicle_states(vehicle_local_position, dt)};
+
+		// If a goto setpoint is available this publishes a trajectory setpoint to go there
+		// If trajectory_setpoint is published elsewhere, do not use the goto setpoint
+		const bool goto_setpoint_enable = _vehicle_control_mode.flag_multicopter_position_control_enabled
+						  && !_trajectory_setpoint_sub.updated();
+
+		if (_goto_control.checkForSetpoint(vehicle_local_position.timestamp_sample, goto_setpoint_enable)) {
+			_goto_control.update(dt, states.position, states.yaw);
+		}
+
 		_trajectory_setpoint_sub.update(&_setpoint);
 
-		// adjust existing (or older) setpoint with any EKF reset deltas
-		if ((_setpoint.timestamp != 0) && (_setpoint.timestamp < vehicle_local_position.timestamp)) {
-			if (vehicle_local_position.vxy_reset_counter != _vxy_reset_counter) {
-				_setpoint.velocity[0] += vehicle_local_position.delta_vxy[0];
-				_setpoint.velocity[1] += vehicle_local_position.delta_vxy[1];
-			}
-
-			if (vehicle_local_position.vz_reset_counter != _vz_reset_counter) {
-				_setpoint.velocity[2] += vehicle_local_position.delta_vz;
-			}
-
-			if (vehicle_local_position.xy_reset_counter != _xy_reset_counter) {
-				_setpoint.position[0] += vehicle_local_position.delta_xy[0];
-				_setpoint.position[1] += vehicle_local_position.delta_xy[1];
-			}
-
-			if (vehicle_local_position.z_reset_counter != _z_reset_counter) {
-				_setpoint.position[2] += vehicle_local_position.delta_z;
-			}
-
-			if (vehicle_local_position.heading_reset_counter != _heading_reset_counter) {
-				_setpoint.yaw = wrap_pi(_setpoint.yaw + vehicle_local_position.delta_heading);
-			}
-		}
-
-		if (vehicle_local_position.vxy_reset_counter != _vxy_reset_counter) {
-			_vel_x_deriv.reset();
-			_vel_y_deriv.reset();
-		}
-
-		if (vehicle_local_position.vz_reset_counter != _vz_reset_counter) {
-			_vel_z_deriv.reset();
-		}
-
-		// save latest reset counters
-		_vxy_reset_counter = vehicle_local_position.vxy_reset_counter;
-		_vz_reset_counter = vehicle_local_position.vz_reset_counter;
-		_xy_reset_counter = vehicle_local_position.xy_reset_counter;
-		_z_reset_counter = vehicle_local_position.z_reset_counter;
-		_heading_reset_counter = vehicle_local_position.heading_reset_counter;
-
-
-		PositionControlStates states{set_vehicle_states(vehicle_local_position)};
-
+		adjustSetpointForEKFResets(vehicle_local_position, _setpoint);
 
 		if (_vehicle_control_mode.flag_multicopter_position_control_enabled) {
 			// set failsafe setpoint if there hasn't been a new
@@ -473,10 +521,11 @@ void MulticopterPositionControl::Run()
 				_vehicle_constraints.speed_down = _param_mpc_z_vel_max_dn.get();
 			}
 
+			bool skip_takeoff = _param_com_throw_en.get();
 			// handle smooth takeoff
 			_takeoff.updateTakeoffState(_vehicle_control_mode.flag_armed, _vehicle_land_detected.landed,
 						    _vehicle_constraints.want_takeoff,
-						    _vehicle_constraints.speed_up, false, vehicle_local_position.timestamp_sample);
+						    _vehicle_constraints.speed_up, skip_takeoff, vehicle_local_position.timestamp_sample);
 
 			const bool not_taken_off             = (_takeoff.getTakeoffState() < TakeoffState::rampup);
 			const bool flying                    = (_takeoff.getTakeoffState() >= TakeoffState::flight);
@@ -541,16 +590,42 @@ void MulticopterPositionControl::Run()
 				states.velocity(2) = vehicle_local_position.z_deriv * weighting + vehicle_local_position.vz * (1.f - weighting);
 			}
 
+			if ((!PX4_ISFINITE(_setpoint.velocity[0]) || !PX4_ISFINITE(_setpoint.velocity[1]))
+			    && (!PX4_ISFINITE(_setpoint.position[0]) || !PX4_ISFINITE(_setpoint.position[1]))) {
+				// Horizontal velocity is not controlled, reset the integrators to avoid
+				// over-corrections when starting again.
+				_control.resetIntegralXY();
+			}
+
 			_control.setState(states);
 
-			// Run position control
-			if (!_control.update(dt)) {
-				// Failsafe
-				_vehicle_constraints = {0, NAN, NAN, false, {}}; // reset constraints
+			const hrt_abstime now = hrt_absolute_time();
 
-				_control.setInputSetpoint(generateFailsafeSetpoint(vehicle_local_position.timestamp_sample, states, true));
-				_control.setVelocityLimits(_param_mpc_xy_vel_max.get(), _param_mpc_z_vel_max_up.get(), _param_mpc_z_vel_max_dn.get());
-				_control.update(dt);
+			// Run position control
+			if (_control.update(dt)) {
+
+				// Valid control update - store for fallback
+				_last_valid_setpoint = _setpoint;
+
+			} else {
+
+				// Initial update failed - Try fallback if within timeout
+				if (now < _last_valid_setpoint.timestamp + 200_ms) {
+					// Use last valid setpoint
+					adjustSetpointForEKFResets(vehicle_local_position, _last_valid_setpoint);
+					_control.setInputSetpoint(_last_valid_setpoint);
+				}
+
+				// Still failing / not within timeout - Go to failsafe
+				if (!_control.update(dt)) {
+
+					_vehicle_constraints = {0, NAN, NAN, false, {}}; // reset constraints
+
+					_control.setInputSetpoint(generateFailsafeSetpoint(vehicle_local_position.timestamp_sample, states, true));
+					_control.setVelocityLimits(_param_mpc_xy_vel_max.get(), _param_mpc_z_vel_max_up.get(), _param_mpc_z_vel_max_dn.get());
+
+					_control.update(dt);
+				}
 			}
 
 			// Publish internal position control setpoints
@@ -561,83 +636,84 @@ void MulticopterPositionControl::Run()
 			local_pos_sp.timestamp = hrt_absolute_time();
 			_local_pos_sp_pub.publish(local_pos_sp);
 
+
+			// DTRG changes
+
+			//get roll and pitch commands from offboard via the DEBUG_FLOAT_ARRAY MAVlink msg that
+			//corresponds to the debug_array uorb msg
+			//TODO swap this out for dtrg offboard sp topic
+
 			// Publish attitude setpoint output
 			vehicle_attitude_setpoint_s attitude_setpoint{};
 
-			if(_dtrg_offboard_en){
-				// set the roll and pitch setpoints to the values received from offboard
-				// attitude_setpoint.roll_body = roll_setpoint;
-				// attitude_setpoint.pitch_body = pitch_setpoint;
-				attitude_setpoint.roll_body = 0;
-				attitude_setpoint.pitch_body = 0;
-				// PX4_INFO("roll: %8.4f", (double)roll_setpoint);
-				// PX4_INFO("pitch: %8.4f", (double)pitch_setpoint);
-				// set the yaw setpoint
+			if (dtrg_ht::switchActive(_rc_channels, _ht_en != 0, _ht_rc_en_add)) {
+
+				if (!_vehicle_control_mode.flag_control_offboard_enabled) {
+					// if offboard is not enabled, use the RC channels to get roll and pitch setpoints
+					// setpoints are constrained to the limits set by the with 0.02f deadzone.
+					// RC_MAP_HT_ROLL / RC_MAP_HT_PITCH of 0 disables that axis' stick input, which
+					// leaves the corresponding setpoint at 0 (level).
+					roll_setpoint = dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_r_add, _ht_r_limit);
+					pitch_setpoint = dtrg_ht::auxTiltSetpoint(_rc_channels, _ht_p_add, _ht_p_limit);
+
+				} else {
+					if (_debug_array_sub.update(&_debug_array)) {
+
+						// if offboard is enabled, use the roll and pitch setpoints from the debug array.
+						// DEBUG_FLOAT_ARRAY is accepted from any MAVLink source, so limit it like the aux channels.
+						roll_setpoint = dtrgOffboardTiltSetpoint(_debug_array.data[0], _ht_r_limit); //first index is roll setpoint
+						pitch_setpoint = dtrgOffboardTiltSetpoint(_debug_array.data[1], _ht_p_limit); //second index is pitch setpoint
+					}
+				}
+
+				// Get standard attitude setpoint for mixed actuation
+				vehicle_attitude_setpoint_s attitude_RP{};
+
+				if (_ht_split_en) {
+					// on the HT axes tilt for only (1 - DTRG_HT_SPLIT) of the thrust; the full thrust is
+					// still converted to the body frame below, so horizontal thrust produces the rest
+					const dtrg_ht::NorthEast thrust_tilt = dtrg_ht::tiltThrust(_dtrg_ht_mask, _ht_split_en, _ht_split,
+									       local_pos_sp.thrust[0], local_pos_sp.thrust[1], local_pos_sp.yaw);
+					ControlMath::thrustToAttitude(Vector3f(thrust_tilt.north, thrust_tilt.east, local_pos_sp.thrust[2]),
+								      local_pos_sp.yaw, attitude_RP);
+
+				} else {
+					_control.getAttitudeSetpoint(attitude_RP);
+				}
+
+				// Extract roll/pitch from standard attitude setpoint quaternion
+				Eulerf euler_RP(Quatf(attitude_RP.q_d));
+				float roll_RP = euler_RP.phi();
+				float pitch_RP = euler_RP.theta();
+
+				// Pick the HT or the controller tilt per axis using the mask
+				const dtrg_ht::Tilt tilt = dtrg_ht::positionControlTilt(_dtrg_ht_mask, _ht_split_en, roll_setpoint,
+							   pitch_setpoint, roll_RP, pitch_RP);
+
+				// set the yaw setpoint and complete the qd quaternion
 				attitude_setpoint.yaw_sp_move_rate = local_pos_sp.yawspeed;
-				Quatf q_sp = Eulerf(attitude_setpoint.roll_body, attitude_setpoint.pitch_body, local_pos_sp.yaw);
-				// Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0] , local_pos_sp.thrust[1] , local_pos_sp.thrust[2]));
+				Quatf q_sp = Eulerf(tilt.roll, tilt.pitch, local_pos_sp.yaw);
 				q_sp.copyTo(attitude_setpoint.q_d);
-				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(_dtrg_ht_off_gain * local_pos_sp.thrust[0],
-							_dtrg_ht_off_gain * local_pos_sp.thrust[1]
-							, local_pos_sp.thrust[2]));
+				// convert thrusts from inertial to body frame
+				Vector3f thrust_frd = q_sp.rotateVectorInverse(Vector3f(local_pos_sp.thrust[0],
+						      local_pos_sp.thrust[1], local_pos_sp.thrust[2]));
 
+				// horizontal thrust on the axes selected by the mask, constrained to DTRG_HT_MAX
+				const dtrg_ht::HorizontalThrust ht = dtrg_ht::horizontalThrust(_dtrg_ht_mask, thrust_frd(0), thrust_frd(1),
+								     _ht_limit);
+				attitude_setpoint.thrust_body[0] = ht.x;
+				attitude_setpoint.thrust_body[1] = ht.y;
 
-				// Saturate horizontal thrust between thrust limit paramter
-
-				// Assemble into a message
 				horizontal_thrust_limit_s hzlim_msg{};
 				hzlim_msg.timestamp = hrt_absolute_time();
-				hzlim_msg.x_sat = 0;
-				hzlim_msg.y_sat = 0;
-
-				const float warn_level = 0.8f;
-
-				if(thrust_frd(0) > (_ht_limit * warn_level) || thrust_frd(0) < -(_ht_limit * warn_level)) {
-					hzlim_msg.x_sat = 1;
-				}
-
-				if(thrust_frd(1) > (_ht_limit * warn_level) || thrust_frd(1) < -(_ht_limit * warn_level)) {
-					hzlim_msg.y_sat = 1;
-				}
-
-				if(thrust_frd(0) > _ht_limit) {
-					thrust_frd(0) = _ht_limit;
-					hzlim_msg.x_sat = 2;
-				}
-
-				if(thrust_frd(0) < -(_ht_limit)) {
-					thrust_frd(0) = -(_ht_limit);
-					hzlim_msg.x_sat = 2;
-				}
-
-				if(thrust_frd(1) > _ht_limit) {
-					thrust_frd(1) = _ht_limit;
-					hzlim_msg.y_sat = 2;
-				}
-
-				if(thrust_frd(1) < -(_ht_limit)) {
-					thrust_frd(1) = -(_ht_limit);
-					hzlim_msg.y_sat = 2;
-				}
-
+				hzlim_msg.x_sat = ht.x_sat;
+				hzlim_msg.y_sat = ht.y_sat;
 				_horizontal_thrust_limit_pub.publish(hzlim_msg);
 
-				// attitude_setpoint.q_d = Eulerf(roll_setpoint, pitch_setpoint, local_pos_sp.yaw);
-				//set the horizontal thrust vector to the values from the position controller
-				//copies all 3 values from the position controller to the attitude controller
-				attitude_setpoint.thrust_body[1] = thrust_frd(1);
+				//vertical thrust
 				attitude_setpoint.thrust_body[2] = thrust_frd(2);
-				attitude_setpoint.thrust_body[0] = thrust_frd(0);
-				// Print the whole attitude setpoint to the console
-				// PX4_INFO("Attitude Setpoint: roll=%8.4f, pitch=%8.4f, yaw=%8.4f, thrust x=%8.4f, thrust y=%8.4f, thrust z=%8.4f",
-				// 		 (double)attitude_setpoint.roll_body,
-				// 		 (double)attitude_setpoint.pitch_body,
-				// 		 (double)attitude_setpoint.yaw_body,
-				// 		 (double)attitude_setpoint.thrust_body[0],
-				// 		 (double)attitude_setpoint.thrust_body[1],
-				// 		 (double)attitude_setpoint.thrust_body[2]);
 
-			}else{
+			} else {
 				//Standard attitude setpoint
 				_control.getAttitudeSetpoint(attitude_setpoint);
 			}
@@ -649,6 +725,7 @@ void MulticopterPositionControl::Run()
 			// an update is necessary here because otherwise the takeoff state doesn't get skipped with non-altitude-controlled modes
 			_takeoff.updateTakeoffState(_vehicle_control_mode.flag_armed, _vehicle_land_detected.landed, false, 10.f, true,
 						    vehicle_local_position.timestamp_sample);
+			_control.resetIntegral();
 		}
 
 		// Publish takeoff status
@@ -715,6 +792,51 @@ trajectory_setpoint_s MulticopterPositionControl::generateFailsafeSetpoint(const
 	}
 
 	return failsafe_setpoint;
+}
+
+void MulticopterPositionControl::adjustSetpointForEKFResets(const vehicle_local_position_s &vehicle_local_position,
+		trajectory_setpoint_s &setpoint)
+{
+	if ((setpoint.timestamp != 0) && (setpoint.timestamp < vehicle_local_position.timestamp)) {
+		if (vehicle_local_position.vxy_reset_counter != _vxy_reset_counter) {
+			setpoint.velocity[0] += vehicle_local_position.delta_vxy[0];
+			setpoint.velocity[1] += vehicle_local_position.delta_vxy[1];
+		}
+
+		if (vehicle_local_position.vz_reset_counter != _vz_reset_counter) {
+			setpoint.velocity[2] += vehicle_local_position.delta_vz;
+		}
+
+		if (vehicle_local_position.xy_reset_counter != _xy_reset_counter) {
+			setpoint.position[0] += vehicle_local_position.delta_xy[0];
+			setpoint.position[1] += vehicle_local_position.delta_xy[1];
+		}
+
+		if (vehicle_local_position.z_reset_counter != _z_reset_counter) {
+			setpoint.position[2] += vehicle_local_position.delta_z;
+		}
+
+		if (vehicle_local_position.heading_reset_counter != _heading_reset_counter) {
+			setpoint.yaw = wrap_pi(setpoint.yaw + vehicle_local_position.delta_heading);
+		}
+	}
+
+	if (vehicle_local_position.vxy_reset_counter != _vxy_reset_counter) {
+		_vel_xy_lp_filter.reset(_vel_xy_lp_filter.getState() + Vector2f(vehicle_local_position.delta_vxy));
+		_vel_xy_notch_filter.reset();
+	}
+
+	if (vehicle_local_position.vz_reset_counter != _vz_reset_counter) {
+		_vel_z_lp_filter.reset(_vel_z_lp_filter.getState() + vehicle_local_position.delta_vz);
+		_vel_z_notch_filter.reset();
+	}
+
+	// save latest reset counters
+	_vxy_reset_counter = vehicle_local_position.vxy_reset_counter;
+	_vz_reset_counter = vehicle_local_position.vz_reset_counter;
+	_xy_reset_counter = vehicle_local_position.xy_reset_counter;
+	_z_reset_counter = vehicle_local_position.z_reset_counter;
+	_heading_reset_counter = vehicle_local_position.heading_reset_counter;
 }
 
 int MulticopterPositionControl::task_spawn(int argc, char *argv[])

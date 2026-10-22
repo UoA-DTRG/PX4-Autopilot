@@ -5,7 +5,6 @@
 # tests command arguments
 set(tests
 	atomic_bitset
-	bezier
 	bitset
 	bson
 	dataman
@@ -71,20 +70,6 @@ foreach(test_name ${cmd_tests})
 	sanitizer_fail_test_on_error(${test_name_prefix})
 endforeach()
 
-
-
-# Mavlink test requires mavlink running
-add_test(NAME sitl-mavlink
-	COMMAND $<TARGET_FILE:px4>
-		-s ${PX4_SOURCE_DIR}/posix-configs/SITL/init/test/test_mavlink
-		-t ${PX4_SOURCE_DIR}/test_data
-		${PX4_SOURCE_DIR}/ROMFS/px4fmu_test
-	WORKING_DIRECTORY ${SITL_WORKING_DIR}
-)
-
-set_tests_properties(sitl-mavlink PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
-set_tests_properties(sitl-mavlink PROPERTIES PASS_REGULAR_EXPRESSION "ALL TESTS PASSED")
-sanitizer_fail_test_on_error(sitl-mavlink)
 
 
 # IMU filtering

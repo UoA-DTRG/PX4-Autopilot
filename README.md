@@ -1,42 +1,52 @@
 # DTRG - PX4 Autopilot Firmware
-<a href="https://dtrg.org" style="padding:20px" ><img src="https://dtrg.org/wp-content/uploads/2023/03/drone_logo-v2-300x81.png" alt="DTRG Logo" width="250px"/></a>
+<a href="" style="padding:20px" ><img src="https://www.auckland.ac.nz/content/auckland/en/news/2025/04/15/refreshed-university-logo-unifies-brand/jcr:content/leftpar/imagecomponent/image.img.1024.medium.jpg/1744667894355.jpg" alt="DTRG Logo" height="100px"/></a>
+<a href="https://dtrg.org" style="padding:20px" ><img src="https://dtrg.org/wp-content/uploads/2023/03/drone_logo-v2-300x81.png" alt="DTRG Logo" height="100px"/></a>
 
 This repository holds the [DTRG](https://dtrg.org/) fork of the [PX4](http://px4.io) flight control solution for drones, with the main applications located in the [src/modules](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules) directory. It also contains the PX4 Drone Middleware Platform, which provides drivers and middleware to run drones.
 
-This firmware is build upon the v1.14 release of PX4
+This firmware is build upon the v1.16 release of PX4
 * Official Website: http://px4.io (License: BSD 3-clause, [LICENSE](https://github.com/PX4/PX4-Autopilot/blob/main/LICENSE))
 
 ## DTRG Additions
 
 The DTRG fork of PX4 includes the following additions:
 
-Implemented:
-* Mixer Injection from csv file
-* Manual Horizontal Thrust Control via RC
+Implemented (documentation index: [docs/DTRG](docs/DTRG/README.md)):
+* [DTRG CSV Mixer](docs/DTRG/DTRG_CSV_Mixer.md)
+* [Horizontal Thrust Mode (Manual/Stabilized level mode, Position, Offboard; thrust limits)](docs/DTRG/DTRG_Horizontal_Thrust_Mode.md)
+* [Sequential Desaturation](docs/DTRG/DTRG_Sequential_Desaturation.md)
+* [Planar Octo SITL](docs/DTRG/DTRG_Planar_Octo_SITL.md)
+* [Bench Test Mode](docs/DTRG/DTRG_Bench_Test_Mode.md)
+* [RC Channel Conflict Check](docs/DTRG/DTRG_RC_Channel_Conflict_Check.md)
+* [Status Monitor](https://github.com/UoA-DTRG/status_monitor)
+* [Automated Testing](docs/DTRG/DTRG_Automated_Testing.md)
 
 Upcoming:
 * Dynamixel Servo Control with easy configuration
 * Wrench Estimator
 * Admittance Controller
+* [DTRG MAVLink Dialect (DTRG_OFFBOARD)](docs/DTRG/DTRG_MAVLink_Dialect.md)
 
 This DTRG fork is designed with the following airframes in mind:
 
 * BlueOcto (stacked octocopter)
 * PlanarOcto (flat octocopter)
 * Planatary Hex (modified flat hexacopter)
+* P#1
+* Fantail (quadcopter with additonal rear forward-facing propellor)
+
+Precompiled binaries for relevant flight controllers and information about the firmware can be found in the releases tab of this reporitory
 
 Documentation for features implemented in v1.14 can be found in the DTRG teams drive documentation folder. It is highly recommended to read the documentation before attempting to use the firmware as some features may pose a safety risk if not used correctly.
 
-### Python Mavlink Generation
-To generate the custom dialect for use in python run the following inside `src/modules/mavlink/mavlink'
-```bash
-python3 pymavlink/tools/mavgen.py   --lang Python   --wire-protocol 2.0   --output dtrg   message_definitions/v1.0/dtrg.xml
-```
+## Developer Notes
+ When modifying please use your own branch following the following convention:
+ yourname/feature-or-specific-branch-name
+ If you are developing a feature please ensure that the feature is fully parameterised and tested before creating a Pull Request. On acceptance of the merge request a release with commonly used binaries should be made. Binaries should be built with the git version tag v{major_version}-{dtrg-version} i.e. v1.16.0-1.2.3
 
 ## Project Governance
 
 The PX4 Autopilot project including all of its trademarks is hosted under [Dronecode](https://www.dronecode.org/), part of the Linux Foundation.
 
-<a href="https://www.dronecode.org/" style="padding:20px" ><img src="https://mavlink.io/assets/site/logo_dronecode.png" alt="Dronecode Logo" width="110px"/></a>
-<a href="https://www.linuxfoundation.org/projects" style="padding:20px;"><img src="https://mavlink.io/assets/site/logo_linux_foundation.png" alt="Linux Foundation Logo" width="80px" /></a>
+<a href="https://www.dronecode.org/" style="padding:20px" ><img src="https://dronecode.org/wp-content/uploads/sites/24/2020/08/dronecode_logo_default-1.png" alt="Dronecode Logo" width="110px"/></a>
 <div style="padding:10px">&nbsp;</div>

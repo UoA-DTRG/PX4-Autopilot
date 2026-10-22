@@ -32,7 +32,7 @@
  ****************************************************************************/
 
 /**
- * @file test_mount.c
+ * @file test_mount.cpp
  * Device mount / unmount stress test
  * @author Lorenz Meier <lm@inf.ethz.ch>
  */
@@ -62,7 +62,7 @@ int test_mount(int argc, char *argv[])
 	const unsigned iterations = 2000;
 	const unsigned alignments = 10;
 
-	const char *cmd_filename = "/fs/microsd/mount_test_cmds.txt";
+	const char *cmd_filename = CONFIG_BOARD_ROOT_PATH "/mount_test_cmds.txt";
 
 
 	/* check if microSD card is mounted */
@@ -169,7 +169,7 @@ int test_mount(int argc, char *argv[])
 	}
 
 	char buf[64];
-	(void)sprintf(buf, "TEST: %d %d ", it_left_fsync, it_left_abort);
+	(void)snprintf(buf, sizeof(buf), "TEST: %d %d ", it_left_fsync, it_left_abort);
 	lseek(cmd_fd, 0, SEEK_SET);
 	write(cmd_fd, buf, strlen(buf) + 1);
 	fsync(cmd_fd);

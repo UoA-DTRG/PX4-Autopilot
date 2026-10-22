@@ -51,6 +51,11 @@
 #include <errno.h>
 #include "hrt_work.h"
 
+// Voxl2 board specific API definitions to get time offset
+#if defined(CONFIG_MUORB_APPS_SYNC_TIMESTAMP)
+#include "fc_sensor.h"
+#endif
+
 #if defined(ENABLE_LOCKSTEP_SCHEDULER)
 #include <lockstep_scheduler/lockstep_scheduler.h>
 static LockstepScheduler lockstep_scheduler {true};
@@ -107,6 +112,29 @@ hrt_abstime hrt_absolute_time()
 #else // defined(ENABLE_LOCKSTEP_SCHEDULER)
 	struct timespec ts;
 	px4_clock_gettime(CLOCK_MONOTONIC, &ts);
+
+# if defined(CONFIG_MUORB_APPS_SYNC_TIMESTAMP)
+	hrt_abstime temp_abstime = ts_to_abstime(&ts);
+	int apps_time_offset = fc_sensor_get_time_offset();
+
+	if (apps_time_offset < 0) {
+		hrt_abstime temp_offset = -apps_time_offset;
+
+		if (temp_offset >= temp_abstime) {
+			temp_abstime = 0;
+
+		} else {
+			temp_abstime -= temp_offset;
+		}
+
+	} else {
+		temp_abstime += (hrt_abstime) apps_time_offset;
+	}
+
+	ts.tv_sec = temp_abstime / 1000000;
+	ts.tv_nsec = (temp_abstime % 1000000) * 1000;
+# endif // defined(CONFIG_MUORB_APPS_SYNC_TIMESTAMP)
+
 	return ts_to_abstime(&ts);
 #endif // defined(ENABLE_LOCKSTEP_SCHEDULER)
 }
@@ -200,6 +228,19 @@ void	hrt_init()
 	}
 
 	memset(&_hrt_work, 0, sizeof(_hrt_work));
+}
+
+static bool
+hrt_call_queued(struct hrt_call *entry)
+{
+	for (struct hrt_call *call = (struct hrt_call *)sq_peek(&callout_queue); call != nullptr;
+	     call = (struct hrt_call *)sq_next(&call->link)) {
+		if (call == entry) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 static void
@@ -421,8 +462,16 @@ hrt_call_invoke()
 			hrt_lock();
 		}
 
-		/* if the callout has a non-zero period, it has to be re-entered */
-		if (call->period != 0) {
+		/* if the callout has a non-zero period, it has to be re-entered
+		 *
+		 * Unlike the NuttX ISR, the callout runs unlocked here, and the work item it
+		 * schedules runs on another thread. If that thread re-registered this entry
+		 * meanwhile (e.g. ScheduleOnInterval() with a new interval, as GyroCalibration
+		 * does on arming), the entry is already queued: entering it a second time
+		 * links it twice and drops every call queued between the two positions,
+		 * which silently stops all other periodic work items.
+		 */
+		if (call->period != 0 && !hrt_call_queued(call)) {
 			// re-check call->deadline to allow for
 			// callouts to re-schedule themselves
 			// using hrt_call_delay()
@@ -449,6 +498,7 @@ int px4_clock_gettime(clockid_t clk_id, struct timespec *tp)
 
 #endif // defined(ENABLE_LOCKSTEP_SCHEDULER)
 	return system_clock_gettime(clk_id, tp);
+
 }
 
 #if defined(ENABLE_LOCKSTEP_SCHEDULER)

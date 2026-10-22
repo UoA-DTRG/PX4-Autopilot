@@ -197,12 +197,22 @@ int BST::probe()
 	}
 
 	uint8_t *reply_raw = reinterpret_cast<uint8_t *>(&dev_info_reply);
+
+	if (dev_info_reply.length >= sizeof(dev_info_reply)) {
+		PX4_ERR("invalid reply length: %u", dev_info_reply.length);
+		return -EIO;
+	}
+
 	uint8_t crc_calc = crc8(reinterpret_cast<uint8_t *>(&dev_info_reply.type), dev_info_reply.length - 1);
 	uint8_t crc_recv = reply_raw[dev_info_reply.length];
 
 	if (crc_recv != crc_calc) {
 		PX4_ERR("CRC error: got %02x, should be %02x", (int)crc_recv, (int)crc_calc);
 		return -EIO;
+	}
+
+	if (dev_info_reply.payload.dev_name_len >= sizeof(dev_info_reply.payload.dev_name)) {
+		dev_info_reply.payload.dev_name_len = sizeof(dev_info_reply.payload.dev_name) - 1;
 	}
 
 	dev_info_reply.payload.dev_name[dev_info_reply.payload.dev_name_len] = '\0';
@@ -268,9 +278,9 @@ void BST::RunImpl()
 		if (gps.fix_type >= 3 && gps.eph < 50.0f) {
 			BSTPacket<BSTGPSPosition> bst_gps = {};
 			bst_gps.type = 0x02;
-			bst_gps.payload.lat = swap_int32(gps.lat);
-			bst_gps.payload.lon = swap_int32(gps.lon);
-			bst_gps.payload.alt = swap_int16(gps.alt / 1000 + 1000);
+			bst_gps.payload.lat = swap_int32(static_cast<int32_t>(round(gps.latitude_deg * 1e7)));
+			bst_gps.payload.lon = swap_int32(static_cast<int32_t>(round(gps.longitude_deg * 1e7)));
+			bst_gps.payload.alt = swap_int16(static_cast<int16_t>(round(gps.altitude_msl_m)) + 1000);
 			bst_gps.payload.gs = swap_int16(gps.vel_m_s * 360.0f);
 			bst_gps.payload.heading = swap_int16(gps.cog_rad * 18000.0f / M_PI_F);
 			bst_gps.payload.sats = gps.satellites_used;

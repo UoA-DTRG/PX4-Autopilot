@@ -32,17 +32,6 @@
  ****************************************************************************/
 
 /**
- * UAVCAN Node ID.
- *
- * Read the specs at http://uavcan.org to learn more about Node ID.
- *
- * @min 1
- * @max 125
- * @group UAVCAN
- */
-PARAM_DEFINE_INT32(CANNODE_NODE_ID, 120);
-
-/**
  * UAVCAN CAN bus bitrate.
  *
  * @min 20000
@@ -87,3 +76,12 @@ PARAM_DEFINE_INT32(CANNODE_SUB_RTCM, 0);
  * @group UAVCAN
  */
 PARAM_DEFINE_INT32(CANNODE_PUB_MBD, 0);
+
+/**
+ * Enable RawIMU pub
+ *
+ * @boolean
+ * @max 1
+ * @group UAVCAN
+ */
+PARAM_DEFINE_INT32(CANNODE_PUB_IMU, 0);

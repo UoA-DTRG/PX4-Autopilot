@@ -64,7 +64,7 @@ class Mavlink;
 class MavlinkParametersManager
 {
 public:
-	explicit MavlinkParametersManager(Mavlink *mavlink);
+	explicit MavlinkParametersManager(Mavlink &mavlink);
 	~MavlinkParametersManager() = default;
 
 	/**
@@ -76,6 +76,17 @@ public:
 	unsigned get_size();
 
 	void handle_message(const mavlink_message_t *msg);
+
+	/**
+	 * Check if parameters are sent out. This includes:
+	 * - while sending all parameters
+	 * - while sending a single requested parameter
+	 * - while sending out changed parameters
+	 */
+	bool send_active() const
+	{
+		return hrt_absolute_time() < _last_param_sent + 2_s;
+	}
 
 private:
 	int		_send_all_index{-1};
@@ -159,7 +170,10 @@ protected:
 	hrt_abstime _param_update_time{0};
 	int _param_update_index{0};
 
-	Mavlink *_mavlink;
+	Mavlink &_mavlink;
+
+	hrt_abstime _last_param_sent{0};
 
 	bool _first_send{false};
+	hrt_abstime _last_param_sent_timestamp{0}; // time at which the last parameter was sent
 };

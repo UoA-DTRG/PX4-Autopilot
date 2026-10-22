@@ -98,11 +98,6 @@ ControlAllocator::init()
 		return false;
 	}
 
-	if (!_vehicle_thrust_setpoint_sub.registerCallback()) {
-		PX4_ERR("callback registration failed");
-		return false;
-	}
-
 #ifndef ENABLE_LOCKSTEP_SCHEDULER // Backup schedule would interfere with lockstep
 	ScheduleDelayed(50_ms);
 #endif
@@ -153,7 +148,7 @@ ControlAllocator::update_allocation_method(bool force)
 
 	if (_allocation_method_id != configured_method || force) {
 
-		matrix::Vector<float, NUM_ACTUATORS> actuator_sp[ActuatorEffectiveness::MAX_NUM_MATRICES];
+		ActuatorVector actuator_sp[ActuatorEffectiveness::MAX_NUM_MATRICES];
 
 		// Cleanup first
 		for (int i = 0; i < ActuatorEffectiveness::MAX_NUM_MATRICES; ++i) {
@@ -242,7 +237,7 @@ ControlAllocator::update_effectiveness_source()
 			break;
 
 		case EffectivenessSource::ROVER_DIFFERENTIAL:
-			tmp = new ActuatorEffectivenessRoverDifferential();
+			// rover_differential_control does allocation and publishes directly to actuator_motors topic
 			break;
 
 		case EffectivenessSource::FIXED_WING:
@@ -261,8 +256,24 @@ ControlAllocator::update_effectiveness_source()
 			tmp = new ActuatorEffectivenessCustom(this);
 			break;
 
-		case EffectivenessSource::HELICOPTER:
-			tmp = new ActuatorEffectivenessHelicopter(this);
+		case EffectivenessSource::HELICOPTER_TAIL_ESC:
+			tmp = new ActuatorEffectivenessHelicopter(this, ActuatorType::MOTORS);
+			break;
+
+		case EffectivenessSource::HELICOPTER_TAIL_SERVO:
+			tmp = new ActuatorEffectivenessHelicopter(this, ActuatorType::SERVOS);
+			break;
+
+		case EffectivenessSource::HELICOPTER_COAXIAL:
+			tmp = new ActuatorEffectivenessHelicopterCoaxial(this);
+			break;
+
+		case EffectivenessSource::SPACECRAFT_2D:
+			tmp = new ActuatorEffectivenessSpacecraft(this);
+			break;
+
+		case EffectivenessSource::SPACECRAFT_3D:
+			tmp = new ActuatorEffectivenessSpacecraft(this);
 			break;
 
 		default:
@@ -296,7 +307,6 @@ ControlAllocator::Run()
 {
 	if (should_exit()) {
 		_vehicle_torque_setpoint_sub.unregisterCallback();
-		_vehicle_thrust_setpoint_sub.unregisterCallback();
 		exit_and_cleanup();
 		return;
 	}
@@ -309,7 +319,7 @@ ControlAllocator::Run()
 #endif
 
 	// Check if parameters have changed
-	if (_parameter_update_sub.updated() && !_armed) {
+	if (_parameter_update_sub.updated()) {
 		// clear update
 		parameter_update_s param_update;
 		_parameter_update_sub.copy(&param_update);
@@ -358,6 +368,14 @@ ControlAllocator::Run()
 		}
 	}
 
+	{
+		vehicle_control_mode_s vehicle_control_mode;
+
+		if (_vehicle_control_mode_sub.update(&vehicle_control_mode)) {
+			_publish_controls = vehicle_control_mode.flag_control_allocation_enabled;
+		}
+	}
+
 	// Guard against too small (< 0.2ms) and too large (> 20ms) dt's.
 	const hrt_abstime now = hrt_absolute_time();
 	const float dt = math::constrain(((now - _last_run) / 1e6f), 0.0002f, 0.02f);
@@ -375,15 +393,8 @@ ControlAllocator::Run()
 
 	}
 
-	// Also run allocator on thrust setpoint changes if the torque setpoint
-	// has not been updated for more than 5ms
 	if (_vehicle_thrust_setpoint_sub.update(&vehicle_thrust_setpoint)) {
 		_thrust_sp = matrix::Vector3f(vehicle_thrust_setpoint.xyz);
-
-		if (dt > 5_ms) {
-			do_update = true;
-			_timestamp_sample = vehicle_thrust_setpoint.timestamp_sample;
-		}
 	}
 
 	if (do_update) {
@@ -449,7 +460,55 @@ ControlAllocator::Run()
 		_last_status_pub = now;
 	}
 
+	publish_dtrg_mixer_status();
+
 	perf_end(_loop_perf);
+}
+
+void
+ControlAllocator::publish_dtrg_mixer_status()
+{
+	using CsvMixerStatus = ControlAllocation::CsvMixerStatus;
+	static_assert((uint8_t)CsvMixerStatus::DISABLED == dtrg_mixer_status_s::STATUS_DISABLED, "");
+	static_assert((uint8_t)CsvMixerStatus::LOADED == dtrg_mixer_status_s::STATUS_LOADED, "");
+	static_assert((uint8_t)CsvMixerStatus::FILE_NOT_FOUND == dtrg_mixer_status_s::STATUS_FILE_NOT_FOUND, "");
+	static_assert((uint8_t)CsvMixerStatus::EMPTY == dtrg_mixer_status_s::STATUS_EMPTY, "");
+	static_assert((uint8_t)CsvMixerStatus::SHORT_ROW == dtrg_mixer_status_s::STATUS_SHORT_ROW, "");
+	static_assert((uint8_t)CsvMixerStatus::INVALID_VALUE == dtrg_mixer_status_s::STATUS_INVALID_VALUE, "");
+	static_assert((uint8_t)CsvMixerStatus::ROW_COUNT_MISMATCH == dtrg_mixer_status_s::STATUS_ROW_COUNT_MISMATCH, "");
+	static_assert((uint8_t)CsvMixerStatus::ALL_ZERO == dtrg_mixer_status_s::STATUS_ALL_ZERO, "");
+
+	// Report the first instance whose mixer file was rejected, else the first one
+	int reported = 0;
+
+	for (int i = 0; i < _num_control_allocation; ++i) {
+		const CsvMixerStatus status = _control_allocation[i]->getCsvMixerResult().status;
+
+		if (status != CsvMixerStatus::DISABLED && status != CsvMixerStatus::LOADED) {
+			reported = i;
+			break;
+		}
+	}
+
+	const ControlAllocation::CsvMixerResult result = _control_allocation[reported]->getCsvMixerResult();
+
+	dtrg_mixer_status_s status{};
+	status.status = (uint8_t)result.status;
+	status.line = (uint16_t)math::constrain(result.line, 0, (int)UINT16_MAX);
+	status.num_rows = (uint8_t)result.num_rows;
+	status.num_actuators = (uint8_t)_control_allocation[reported]->numConfiguredActuators();
+
+	const bool changed = (status.status != _dtrg_mixer_status.status) || (status.line != _dtrg_mixer_status.line)
+			     || (status.num_rows != _dtrg_mixer_status.num_rows)
+			     || (status.num_actuators != _dtrg_mixer_status.num_actuators);
+
+	const hrt_abstime now = hrt_absolute_time();
+
+	if (changed || (now - _dtrg_mixer_status.timestamp >= 1_s)) {
+		status.timestamp = now;
+		_dtrg_mixer_status_pub.publish(status);
+		_dtrg_mixer_status = status;
+	}
 }
 
 void
@@ -618,9 +677,9 @@ ControlAllocator::publish_control_allocator_status(int matrix_index)
 			control_allocator_status.unallocated_thrust[2]).norm_squared() < 1e-6f);
 
 	// Actuator saturation
-	const matrix::Vector<float, NUM_ACTUATORS> &actuator_sp = _control_allocation[matrix_index]->getActuatorSetpoint();
-	const matrix::Vector<float, NUM_ACTUATORS> &actuator_min = _control_allocation[matrix_index]->getActuatorMin();
-	const matrix::Vector<float, NUM_ACTUATORS> &actuator_max = _control_allocation[matrix_index]->getActuatorMax();
+	const ActuatorVector &actuator_sp = _control_allocation[matrix_index]->getActuatorSetpoint();
+	const ActuatorVector &actuator_min = _control_allocation[matrix_index]->getActuatorMin();
+	const ActuatorVector &actuator_max = _control_allocation[matrix_index]->getActuatorMax();
 
 	for (int i = 0; i < NUM_ACTUATORS; i++) {
 		if (actuator_sp(i) > (actuator_max(i) - FLT_EPSILON)) {
@@ -633,6 +692,7 @@ ControlAllocator::publish_control_allocator_status(int matrix_index)
 
 	// Handled motor failures
 	control_allocator_status.handled_motor_failure_mask = _handled_motor_failure_bitmask;
+	control_allocator_status.motor_stop_mask = _motor_stop_mask;
 
 	_control_allocator_status_pub[matrix_index].publish(control_allocator_status);
 }
@@ -640,6 +700,10 @@ ControlAllocator::publish_control_allocator_status(int matrix_index)
 void
 ControlAllocator::publish_actuator_controls()
 {
+	if (!_publish_controls) {
+		return;
+	}
+
 	actuator_motors_s actuator_motors;
 	actuator_motors.timestamp = hrt_absolute_time();
 	actuator_motors.timestamp_sample = _timestamp_sample;
@@ -653,7 +717,9 @@ ControlAllocator::publish_actuator_controls()
 	int actuator_idx = 0;
 	int actuator_idx_matrix[ActuatorEffectiveness::MAX_NUM_MATRICES] {};
 
-	uint32_t stopped_motors = _actuator_effectiveness->getStoppedMotors() | _handled_motor_failure_bitmask;
+	uint32_t stopped_motors = _actuator_effectiveness->getStoppedMotors()
+				  | _handled_motor_failure_bitmask
+				  | _motor_stop_mask;
 
 	// motors
 	int motors_idx;
@@ -704,8 +770,13 @@ ControlAllocator::check_for_motor_failures()
 
 	if ((FailureMode)_param_ca_failure_mode.get() > FailureMode::IGNORE
 	    && _failure_detector_status_sub.update(&failure_detector_status)) {
-		if (failure_detector_status.fd_motor) {
 
+		if (_motor_stop_mask != failure_detector_status.motor_stop_mask) {
+			_motor_stop_mask = failure_detector_status.motor_stop_mask;
+			PX4_WARN("Stopping motors (%d)", _motor_stop_mask);
+		}
+
+		if (failure_detector_status.fd_motor) {
 			if (_handled_motor_failure_bitmask != failure_detector_status.motor_failure_mask) {
 				// motor failure bitmask changed
 				switch ((FailureMode)_param_ca_failure_mode.get()) {
@@ -800,6 +871,11 @@ int ControlAllocator::print_status()
 
 	//Is Overide Used
 	PX4_INFO("DTRG CSV OVERIDE IS %s", (_csv_mixer.get() == 1) ? "Enabled" : "Disabled");
+
+	if (_csv_mixer.get() == 1) {
+		PX4_INFO("DTRG CSV mixer status: %d (line %d, %d rows, %d actuators)", _dtrg_mixer_status.status,
+			 _dtrg_mixer_status.line, _dtrg_mixer_status.num_rows, _dtrg_mixer_status.num_actuators);
+	}
 
 	///Print current effectiveness matrix
 	for (int i = 0; i < _num_control_allocation; ++i) {

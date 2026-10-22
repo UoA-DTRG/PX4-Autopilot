@@ -46,12 +46,13 @@ using math::radians;
 MulticopterRateControl::MulticopterRateControl(bool vtol) :
 	ModuleParams(nullptr),
 	WorkItem(MODULE_NAME, px4::wq_configurations::rate_ctrl),
-	_vehicle_torque_setpoint_pub(vtol ? ORB_ID(vehicle_torque_setpoint_virtual_mc) : ORB_ID(vehicle_torque_setpoint)),
 	_vehicle_thrust_setpoint_pub(vtol ? ORB_ID(vehicle_thrust_setpoint_virtual_mc) : ORB_ID(vehicle_thrust_setpoint)),
+	_vehicle_torque_setpoint_pub(vtol ? ORB_ID(vehicle_torque_setpoint_virtual_mc) : ORB_ID(vehicle_torque_setpoint)),
 	_loop_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle"))
 {
 	_vehicle_status.vehicle_type = vehicle_status_s::VEHICLE_TYPE_ROTARY_WING;
 
+	_vector_thrust_sp.setAll(0.f); //DTRG
 	parameters_updated();
 	_controller_status_pub.advertise();
 }
@@ -80,7 +81,7 @@ MulticopterRateControl::parameters_updated()
 	// to the ideal (K * [1 + 1/sTi + sTd]) form
 	const Vector3f rate_k = Vector3f(_param_mc_rollrate_k.get(), _param_mc_pitchrate_k.get(), _param_mc_yawrate_k.get());
 
-	_rate_control.setGains(
+	_rate_control.setPidGains(
 		rate_k.emult(Vector3f(_param_mc_rollrate_p.get(), _param_mc_pitchrate_p.get(), _param_mc_yawrate_p.get())),
 		rate_k.emult(Vector3f(_param_mc_rollrate_i.get(), _param_mc_pitchrate_i.get(), _param_mc_yawrate_i.get())),
 		rate_k.emult(Vector3f(_param_mc_rollrate_d.get(), _param_mc_pitchrate_d.get(), _param_mc_yawrate_d.get())));
@@ -95,6 +96,8 @@ MulticopterRateControl::parameters_updated()
 	// manual rate control acro mode rate limits
 	_acro_rate_max = Vector3f(radians(_param_mc_acro_r_max.get()), radians(_param_mc_acro_p_max.get()),
 				  radians(_param_mc_acro_y_max.get()));
+
+	_output_lpf_yaw.setCutoffFreq(_param_mc_yaw_tq_cutoff.get());
 }
 
 void
@@ -194,30 +197,43 @@ MulticopterRateControl::Run()
 			// update saturation status from control allocation feedback
 			control_allocator_status_s control_allocator_status;
 
-			// Remove anti windup because there is no effectivness matrix
-			if(false) {
-				if (_control_allocator_status_sub.update(&control_allocator_status)) {
-					Vector<bool, 3> saturation_positive;
-					Vector<bool, 3> saturation_negative;
+			//prevent further positive control saturation
+			if (_param_antiwindup_en.get() == 1) {
+				if (_csv_mixer.get() == 0) {
 
-					if (!control_allocator_status.torque_setpoint_achieved) {
-						for (size_t i = 0; i < 3; i++) {
-							if (control_allocator_status.unallocated_torque[i] > FLT_EPSILON) {
-								saturation_positive(i) = true;
+					if (_control_allocator_status_sub.update(&control_allocator_status)) {
+						Vector<bool, 3> saturation_positive;
+						Vector<bool, 3> saturation_negative;
 
-							} else if (control_allocator_status.unallocated_torque[i] < -FLT_EPSILON) {
-								saturation_negative(i) = true;
+						if (!control_allocator_status.torque_setpoint_achieved) {
+							for (size_t i = 0; i < 3; i++) {
+								if (control_allocator_status.unallocated_torque[i] > FLT_EPSILON) {
+									saturation_positive(i) = true;
+
+								} else if (control_allocator_status.unallocated_torque[i] < -FLT_EPSILON) {
+									saturation_negative(i) = true;
+								}
 							}
 						}
+
+
+						// TODO: send the unallocated value directly for better anti-windup
+						_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
 					}
 
-					// TODO: send the unallocated value directly for better anti-windup
-					_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
+
+				} else {
+					_param_antiwindup_en.set(0);
+					_param_antiwindup_en.commit();
 				}
 			}
 
 			// run rate controller
-			const Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
+			Vector3f torque_setpoint =
+				_rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
+
+			// apply low-pass filtering on yaw axis to reduce high frequency torque caused by rotor acceleration
+			torque_setpoint(2) = _output_lpf_yaw.update(torque_setpoint(2), dt);
 
 			// publish rate controller status
 			rate_ctrl_status_s rate_ctrl_status{};
@@ -230,9 +246,9 @@ MulticopterRateControl::Run()
 			vehicle_torque_setpoint_s vehicle_torque_setpoint{};
 
 			_thrust_setpoint.copyTo(vehicle_thrust_setpoint.xyz);
-			vehicle_torque_setpoint.xyz[0] = PX4_ISFINITE(att_control(0)) ? att_control(0) : 0.f;
-			vehicle_torque_setpoint.xyz[1] = PX4_ISFINITE(att_control(1)) ? att_control(1) : 0.f;
-			vehicle_torque_setpoint.xyz[2] = PX4_ISFINITE(att_control(2)) ? att_control(2) : 0.f;
+			vehicle_torque_setpoint.xyz[0] = PX4_ISFINITE(torque_setpoint(0)) ? torque_setpoint(0) : 0.f;
+			vehicle_torque_setpoint.xyz[1] = PX4_ISFINITE(torque_setpoint(1)) ? torque_setpoint(1) : 0.f;
+			vehicle_torque_setpoint.xyz[2] = PX4_ISFINITE(torque_setpoint(2)) ? torque_setpoint(2) : 0.f;
 
 			// scale setpoints by battery status if enabled
 			if (_param_mc_bat_scale_en.get()) {

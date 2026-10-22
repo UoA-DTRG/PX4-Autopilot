@@ -39,14 +39,15 @@ px4_add_romfs_files(
 	1012_gazebo-classic_iris_rplidar
 	1013_gazebo-classic_iris_vision
 	1013_gazebo-classic_iris_vision.post
-	1015_gazebo-classic_iris_obs_avoid
-	1015_gazebo-classic_iris_obs_avoid.post
+	1015_gazebo-classic_iris_depth_camera
+	1016_gazebo-classic_iris_downward_depth_camera
 	1017_gazebo-classic_iris_opt_flow_mockup
 	1019_gazebo-classic_iris_dual_gps
 	1021_gazebo-classic_uuv_hippocampus
 	1022_gazebo-classic_uuv_bluerov2_heavy
 	1030_gazebo-classic_plane
 	1031_gazebo-classic_plane_cam
+	1031_gazebo-classic_plane_cam.post
 	1032_gazebo-classic_plane_catapult
 	1033_jsbsim_rascal
 	1034_flightgear_rascal-electric
@@ -61,8 +62,6 @@ px4_add_romfs_files(
 	1043_gazebo-classic_standard_vtol_drop
 	1044_gazebo-classic_plane_lidar
 	1045_gazebo-classic_quadtailsitter
-	1060_gazebo-classic_rover
-	1061_gazebo-classic_r1_rover
 	1062_flightgear_tf-r1
 	1070_gazebo-classic_boat
 
@@ -77,9 +76,27 @@ px4_add_romfs_files(
 	4004_gz_standard_vtol
 	4005_gz_x500_vision
 	4006_gz_px4vision
+	4008_gz_advanced_plane
+	4009_gz_r1_rover
+	4010_gz_x500_mono_cam
+	4011_gz_lawnmower
+	4013_gz_x500_lidar_2d
+	4014_gz_x500_mono_cam_down
+	4016_gz_x500_lidar_down
+	4017_gz_x500_lidar_front
+	4018_gz_quadtailsitter
+	4019_gz_x500_gimbal
+	4020_gz_tiltrotor
+	4021_gz_x500_flow
 
 	6011_gazebo-classic_typhoon_h480
 	6011_gazebo-classic_typhoon_h480.post
+
+	8011_gz_omnicopter
+
+	# planarOcto Gazebo SITL registration
+	12014_gz_planar_octo
+	12018_gz_planar_octo_rod
 
 	10015_gazebo-classic_iris
 	10016_none_iris
@@ -91,7 +108,23 @@ px4_add_romfs_files(
 	10040_sihsim_quadx
 	10041_sihsim_airplane
 	10042_sihsim_xvert
+	10043_sihsim_standard_vtol
+	10044_sihsim_hex
+	10045_sihsim_rover_ackermann
+
+	# planarOcto SIH SITL registration (DTRG flight tests)
+	12016_sihsim_planar_octo
 
 	17001_flightgear_tf-g1
 	17002_flightgear_tf-g2
+
+	50000_gz_rover_differential
+	51000_gz_rover_ackermann
+	52000_gz_rover_mecanum
+
+	60002_gz_uuv_bluerov2_heavy
+
+	70000_gz_atmos
+
+	# [22000, 22999] Reserve for custom models
 )

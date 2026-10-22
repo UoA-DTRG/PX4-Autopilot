@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2013-2022 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013-2025 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,7 +33,7 @@
 
 /**
  * @file sih_params.c
- * Parameters for quadcopter X simulator in hardware.
+ * Parameters for simulator in hardware.
  *
  * @author Romain Chiappinelli <romain.chiap@gmail.com>
  * February 2019
@@ -141,6 +141,10 @@ PARAM_DEFINE_FLOAT(SIH_IYZ, 0.0f);
  *
  * This value is usually about 5 times the mass of the quadrotor.
  *
+ * For the generic multirotor (SIH_VEHICLE_TYPE 4) this is the thrust of a rotor
+ * with the average CA_ROTORn_CT; rotors with a different CA_ROTORn_CT are scaled
+ * by their ratio to the average.
+ *
  * @unit N
  * @min 0.0
  * @decimal 2
@@ -156,6 +160,9 @@ PARAM_DEFINE_FLOAT(SIH_T_MAX, 5.0f);
  * when the motor is running at full speed.
  *
  * This value is usually about few percent of the maximum thrust force.
+ *
+ * Not used by the generic multirotor (SIH_VEHICLE_TYPE 4), which takes the
+ * torque from CA_ROTORn_KM.
  *
  * @unit Nm
  * @min 0.0
@@ -235,33 +242,31 @@ PARAM_DEFINE_FLOAT(SIH_KDW, 0.025f);
  * Initial geodetic latitude
  *
  * This value represents the North-South location on Earth where the simulation begins.
- * A value of 45 deg should be written 450000000.
  *
  * LAT0, LON0, H0, MU_X, MU_Y, and MU_Z should ideally be consistent among each others
  * to represent a physical ground location on Earth.
  *
- * @unit deg*1e7
- * @min -850000000
- * @max  850000000
+ * @unit deg
+ * @min -90
+ * @max  90
  * @group Simulation In Hardware
  */
-PARAM_DEFINE_INT32(SIH_LOC_LAT0, 454671160);
+PARAM_DEFINE_FLOAT(SIH_LOC_LAT0, 47.397742f);
 
 /**
  * Initial geodetic longitude
  *
  * This value represents the East-West location on Earth where the simulation begins.
- * A value of 45 deg should be written 450000000.
  *
  * LAT0, LON0, H0, MU_X, MU_Y, and MU_Z should ideally be consistent among each others
  * to represent a physical ground location on Earth.
  *
- * @unit deg*1e7
- * @min -1800000000
- * @max  1800000000
+ * @unit deg
+ * @min -180
+ * @max  180
  * @group Simulation In Hardware
  */
-PARAM_DEFINE_INT32(SIH_LOC_LON0, -737578370);
+PARAM_DEFINE_FLOAT(SIH_LOC_LON0, 8.545594f);
 
 /**
  * Initial AMSL ground altitude
@@ -282,7 +287,7 @@ PARAM_DEFINE_INT32(SIH_LOC_LON0, -737578370);
  * @increment 0.01
  * @group Simulation In Hardware
  */
-PARAM_DEFINE_FLOAT(SIH_LOC_H0, 32.34f);
+PARAM_DEFINE_FLOAT(SIH_LOC_H0, 489.4f);
 
 /**
  * distance sensor minimum range
@@ -329,11 +334,35 @@ PARAM_DEFINE_FLOAT(SIH_DISTSNSR_OVR, -1.0f);
 PARAM_DEFINE_FLOAT(SIH_T_TAU, 0.05f);
 
 /**
+ * Thrust curve factor of the generic multirotor
+ *
+ * Thrust of a rotor as a function of its motor output u (0 to 1):
+ * thrust = SIH_T_MAX * (factor * u^2 + (1 - factor) * u).
+ *
+ * This is the curve that THR_MDL_FAC compensates, so setting both to the same
+ * value makes the thrust linear in the controller's thrust setpoint. 0 is a
+ * linear motor, 1 a pure quadratic one.
+ *
+ * Only used with SIH_VEHICLE_TYPE 4.
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Simulation In Hardware
+ */
+PARAM_DEFINE_FLOAT(SIH_THR_MDL_FAC, 0.0f);
+
+/**
  * Vehicle type
  *
- * @value 0 Multicopter
+ * @value 0 Quadcopter
  * @value 1 Fixed-Wing
  * @value 2 Tailsitter
+ * @value 3 Standard VTOL
+ * @value 4 Hexacopter
+ * @value 5 Rover Ackermann
+ * @value 6 Generic multirotor (geometry from CA_ROTOR*)
  * @reboot_required true
  * @group Simulation In Hardware
  */

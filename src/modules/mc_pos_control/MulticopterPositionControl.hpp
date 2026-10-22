@@ -39,9 +39,14 @@
 
 #include "PositionControl/PositionControl.hpp"
 #include "Takeoff/Takeoff.hpp"
+#include "GotoControl/GotoControl.hpp"
 
 #include <drivers/drv_hrt.h>
-#include <lib/controllib/blocks.hpp>
+#include <lib/dtrg_horizontal_thrust/dtrg_horizontal_thrust.hpp>
+#include <lib/mathlib/mathlib.h>
+#include <lib/mathlib/math/filter/AlphaFilter.hpp>
+#include <lib/mathlib/math/filter/NotchFilter.hpp>
+#include <lib/mathlib/math/WelfordMean.hpp>
 #include <lib/perf/perf_counter.h>
 #include <lib/slew_rate/SlewRateYaw.hpp>
 #include <lib/systemlib/mavlink_log.h>
@@ -64,17 +69,16 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
-#include <uORB/topics/horizontal_thrust_limit.h>
-
 // Dtrg includes
 #include <uORB/topics/rc_channels.h>
-// #include <uORB/topics/debug_array.h>
-// #include <uORB/topics/dtrg_custom.h>
+#include <uORB/topics/debug_array.h>
+#include <uORB/topics/dtrg_custom.h>
+#include <uORB/topics/horizontal_thrust_limit.h>
 
 using namespace time_literals;
 
-class MulticopterPositionControl : public ModuleBase<MulticopterPositionControl>, public control::SuperBlock,
-	public ModuleParams, public px4::ScheduledWorkItem
+class MulticopterPositionControl : public ModuleBase<MulticopterPositionControl>, public ModuleParams,
+	public px4::ScheduledWorkItem
 {
 public:
 	MulticopterPositionControl(bool vtol = false);
@@ -101,22 +105,29 @@ private:
 	uORB::PublicationData<takeoff_status_s>              _takeoff_status_pub{ORB_ID(takeoff_status)};
 	uORB::Publication<vehicle_attitude_setpoint_s>	     _vehicle_attitude_setpoint_pub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Publication<vehicle_local_position_setpoint_s> _local_pos_sp_pub{ORB_ID(vehicle_local_position_setpoint)};	/**< vehicle local position setpoint publication */
-	uORB::Publication<horizontal_thrust_limit_s>	     _horizontal_thrust_limit_pub{ORB_ID(horizontal_thrust_limit)};
 
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};	/**< vehicle local position */
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
-	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
+	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)}; //TODO this was commented out in the old 6D offboard with the tag "Using Addmittance"
 	uORB::Subscription _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
+
+	//TODO this existed replacing the trajectory_setpoint_sub
+	// uORB::Subscription _admittance_setpoint_sub{ORB_ID(admittance_setpoint)};
+
+	uORB::Subscription _debug_array_sub{ORB_ID(debug_array)};
+	uORB::Subscription _rc_channels_sub{ORB_ID(rc_channels)};
+	uORB::Publication<horizontal_thrust_limit_s> _horizontal_thrust_limit_pub{ORB_ID(horizontal_thrust_limit)};
 
 	hrt_abstime _time_stamp_last_loop{0};		/**< time stamp of last loop iteration */
 	hrt_abstime _time_position_control_enabled{0};
 
 	trajectory_setpoint_s _setpoint{PositionControl::empty_trajectory_setpoint};
+	trajectory_setpoint_s _last_valid_setpoint{PositionControl::empty_trajectory_setpoint};
 	vehicle_control_mode_s _vehicle_control_mode{};
 
 	vehicle_constraints_s _vehicle_constraints {
@@ -126,16 +137,33 @@ private:
 		.want_takeoff = false,
 	};
 
-
 	// Dtrg
-	// rc_channels_s _rc_channels{}; /**< PMEN RC channels*/
-	// debug_array_s _debug_array{}; //Joao changed here
+	rc_channels_s _rc_channels{};
+	debug_array_s _debug_array{}; //Joao changed here
 	float roll_setpoint = 0.0f;
 	float pitch_setpoint = 0.0f;
-	int _dtrg_offboard_en = 0; /**< enable the dtrg 6d offboard control*/
-	float _dtrg_ht_off_gain = 2.000f; /**< hover thrust offboard gain*/
+	float _ht_limit = 0.5f; 		/**< DTRG horizontal horizontal thrust limit */
+	// Assigned as radians in parameters_update(); the in-class default must match the
+	// unit or an un-updated instance would carry a 573 deg limit.
+	float _ht_r_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Roll limit [rad] */
+	float _ht_p_limit{math::radians(10.f)};	/**< DTRG horizontal thrust Pitch limit [rad] */
+	int _ht_en{0}; 				/**< DTRG horizontal thrust Enabled*/
+	int _ht_rc_en_add{-1};			/**< DTRF HT RC enable channel */
+	int _dtrg_ht_mask = 0;
+	bool _ht_split_en{false};			/**< DTRG_HT_SPLIT_EN, HT axes also move by tilting */
+	float _ht_split{dtrg_ht::kDefaultSplit};	/**< DTRG_HT_SPLIT, horizontal thrust share on the HT axes */
+	// 0-based RC channel indices, -1 when the channel parameter is 0 (input disabled)
+	int _ht_r_add{-1};                     	/**< DTRG horizontal thrust Roll channel */
+	int _ht_p_add{-1}; 	       		/**< DTRG horizontal thrust Pitch channel */
 
-	float _ht_limit = 1.0f;
+	/**
+	 * Tilt setpoint from Offboard (DEBUG_FLOAT_ARRAY), limited to DTRG_HT_R_MAX / DTRG_HT_P_MAX.
+	 *
+	 * @param setpoint      commanded tilt [rad]
+	 * @param limit         magnitude limit [rad]
+	 * @return              the setpoint constrained to +-limit, 0 when it is not finite
+	 */
+	static float dtrgOffboardTiltSetpoint(float setpoint, float limit);
 
 	vehicle_land_detected_s _vehicle_land_detected {
 		.timestamp = 0,
@@ -163,9 +191,16 @@ private:
 		(ParamFloat<px4::params::MPC_TILTMAX_AIR>)  _param_mpc_tiltmax_air,
 		(ParamFloat<px4::params::MPC_THR_HOVER>)    _param_mpc_thr_hover,
 		(ParamBool<px4::params::MPC_USE_HTE>)       _param_mpc_use_hte,
+		(ParamBool<px4::params::MPC_ACC_DECOUPLE>)  _param_mpc_acc_decouple,
+
+		(ParamFloat<px4::params::MPC_VEL_LP>)       _param_mpc_vel_lp,
+		(ParamFloat<px4::params::MPC_VEL_NF_FRQ>)   _param_mpc_vel_nf_frq,
+		(ParamFloat<px4::params::MPC_VEL_NF_BW>)    _param_mpc_vel_nf_bw,
+		(ParamFloat<px4::params::MPC_VELD_LP>)      _param_mpc_veld_lp,
 
 		// Takeoff / Land
 		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time, /**< time to let motors spool up after arming */
+		(ParamBool<px4::params::COM_THROW_EN>)      _param_com_throw_en, /**< throw launch enabled  */
 		(ParamFloat<px4::params::MPC_TKO_RAMP_T>)   _param_mpc_tko_ramp_t,   /**< time constant for smooth takeoff ramp */
 		(ParamFloat<px4::params::MPC_TKO_SPEED>)    _param_mpc_tko_speed,
 		(ParamFloat<px4::params::MPC_LAND_SPEED>)   _param_mpc_land_speed,
@@ -175,7 +210,6 @@ private:
 		(ParamFloat<px4::params::MPC_VEL_MAN_SIDE>) _param_mpc_vel_man_side,
 		(ParamFloat<px4::params::MPC_XY_CRUISE>)    _param_mpc_xy_cruise,
 		(ParamFloat<px4::params::MPC_LAND_ALT2>)    _param_mpc_land_alt2,    /**< downwards speed limited below this altitude */
-		(ParamInt<px4::params::MPC_POS_MODE>)       _param_mpc_pos_mode,
 		(ParamInt<px4::params::MPC_ALT_MODE>)       _param_mpc_alt_mode,
 		(ParamFloat<px4::params::MPC_TILTMAX_LND>)  _param_mpc_tiltmax_lnd,  /**< maximum tilt for landing and smooth takeoff */
 		(ParamFloat<px4::params::MPC_THR_MIN>)      _param_mpc_thr_min,
@@ -195,17 +229,37 @@ private:
 		(ParamFloat<px4::params::MPC_XY_VEL_ALL>)   _param_mpc_xy_vel_all,
 		(ParamFloat<px4::params::MPC_Z_VEL_ALL>)    _param_mpc_z_vel_all,
 
+		(ParamFloat<px4::params::MPC_XY_ERR_MAX>) _param_mpc_xy_err_max,
+		(ParamFloat<px4::params::MPC_YAWRAUTO_MAX>) _param_mpc_yawrauto_max,
+		(ParamFloat<px4::params::MPC_YAWRAUTO_ACC>) _param_mpc_yawrauto_acc,
+
 		//DTRG
-		(ParamInt<px4::params::DTRG_OFFBOARD_EN>)   _param_dtrg_offboard_en, /**< enable the dtrg 6d offboard control*/
-		(ParamFloat<px4::params::DTRG_HT_OFF_GAIN>) _param_dtrg_ht_off_gain, /**< HT gain for the offboard control*/
-		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max	/**< horizontal thrust Limit */
+		(ParamInt<px4::params::DTRG_HT_EN>)         _param_dtrg_ht_en, 		/**< enable the dtrg 6d offboard control*/
+		(ParamInt<px4::params::RC_MAP_HT_MODE>)     _param_dtrg_ht_rc,	/**< horizontal thrust enable RC channel*/
+		(ParamInt<px4::params::DTRG_HT_MASK>)
+		_param_dtrg_ht_mask,	/**< HT gmask for pitching and rolling using HT thrust*/
+		(ParamInt<px4::params::RC_MAP_HT_ROLL>)  	    _param_dtrg_ht_R,		/**< horizontal thrust Roll channel */
+		(ParamInt<px4::params::RC_MAP_HT_PITCH>)  	    _param_dtrg_ht_P,		/**< horizontal thrust Pitch channel */
+		(ParamFloat<px4::params::DTRG_HT_MAX>)      _param_dtrg_ht_max,		/**< horizontal thrust Limit */
+		(ParamFloat<px4::params::DTRG_HT_R_MAX>)    _param_dtrg_ht_r_max,	/**< horizontal thrust roll angle Limit */
+		(ParamFloat<px4::params::DTRG_HT_P_MAX>)    _param_dtrg_ht_p_max,
+		(ParamInt<px4::params::DTRG_HT_SPLIT_EN>)   _param_dtrg_ht_split_en,	/**< split the HT axes between HT and tilt */
+		(ParamFloat<px4::params::DTRG_HT_SPLIT>)    _param_dtrg_ht_split	/**< horizontal thrust share on the HT axes */
 	);
 
-	control::BlockDerivative _vel_x_deriv; /**< velocity derivative in x */
-	control::BlockDerivative _vel_y_deriv; /**< velocity derivative in y */
-	control::BlockDerivative _vel_z_deriv; /**< velocity derivative in z */
+	math::WelfordMean<float> _sample_interval_s{};
 
-	PositionControl _control;  /**< class for core PID position control */
+	AlphaFilter<matrix::Vector2f> _vel_xy_lp_filter{};
+	AlphaFilter<float> _vel_z_lp_filter{};
+
+	math::NotchFilter<matrix::Vector2f> _vel_xy_notch_filter{};
+	math::NotchFilter<float> _vel_z_notch_filter{};
+
+	AlphaFilter<matrix::Vector2f> _vel_deriv_xy_lp_filter{};
+	AlphaFilter<float> _vel_deriv_z_lp_filter{};
+
+	GotoControl _goto_control; ///< class for handling smooth goto position setpoints
+	PositionControl _control; ///< class for core PID position control
 
 	hrt_abstime _last_warn{0}; /**< timer when the last warn message was sent out */
 
@@ -239,7 +293,7 @@ private:
 	/**
 	 * Check for validity of positon/velocity states.
 	 */
-	PositionControlStates set_vehicle_states(const vehicle_local_position_s &local_pos);
+	PositionControlStates set_vehicle_states(const vehicle_local_position_s &local_pos, const float dt_s);
 
 	/**
 	 * Generate setpoint to bridge no executable setpoint being available.
@@ -247,4 +301,13 @@ private:
 	 * This should only happen briefly when transitioning and never during mode operation or by design.
 	 */
 	trajectory_setpoint_s generateFailsafeSetpoint(const hrt_abstime &now, const PositionControlStates &states, bool warn);
+
+	/**
+	 * @brief adjust existing (or older) setpoint with any EKF reset deltas and update the local counters
+	 *
+	 * @param[in] vehicle_local_position struct containing EKF reset deltas and counters
+	 * @param[out] setpoint trajectory setpoint struct to be adjusted
+	 */
+	void adjustSetpointForEKFResets(const vehicle_local_position_s &vehicle_local_position,
+					trajectory_setpoint_s &setpoint);
 };

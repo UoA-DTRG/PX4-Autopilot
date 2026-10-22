@@ -96,9 +96,16 @@ void TattuCan::Run()
 
 		while (receive(&received_frame) > 0) {
 
+			if (received_frame.payload_size == 0) {
+				break;
+			}
+
 			size_t payload_size = received_frame.payload_size - 1;
-			// TODO: add check to prevent buffer overflow from a corrupt 'payload_size' value
-			// TODO: AND look for TAIL_BYTE_START_OF_TRANSFER to indicate end of transfer. Untested...
+
+			if (offset + payload_size > sizeof(tattu_message)) {
+				break;
+			}
+
 			memcpy(((char *)&tattu_message) + offset, received_frame.payload, payload_size);
 			offset += payload_size;
 		}
@@ -115,9 +122,7 @@ void TattuCan::Run()
 		battery_status.state_of_health = static_cast<uint16_t>(tattu_message.health_status);
 
 		battery_status.voltage_v = static_cast<float>(tattu_message.voltage) / 1000.0f;
-		battery_status.voltage_filtered_v = static_cast<float>(tattu_message.voltage) / 1000.0f;
 		battery_status.current_a = static_cast<float>(tattu_message.current) / 1000.0f;
-		battery_status.current_filtered_a = static_cast<float>(tattu_message.current) / 1000.0f;
 		battery_status.remaining = static_cast<float>(tattu_message.remaining_percent) / 100.0f;
 		battery_status.temperature = static_cast<float>(tattu_message.temperature);
 		battery_status.capacity = tattu_message.standard_capacity;

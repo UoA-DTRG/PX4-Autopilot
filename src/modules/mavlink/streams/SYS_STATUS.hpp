@@ -66,11 +66,11 @@ private:
 	uORB::Subscription _status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _cpuload_sub{ORB_ID(cpuload)};
 	uORB::Subscription _health_report{ORB_ID(health_report)};
+	uORB::SubscriptionMultiArray<battery_status_s, battery_status_s::MAX_INSTANCES> _battery_status_subs{ORB_ID::battery_status};
 	uORB::Subscription _sequential_desaturation_sub{ORB_ID(sequential_desaturation)};
 	uORB::Subscription _actuator_motors_sub{ORB_ID(actuator_motors)};
 	uORB::Subscription _horizontal_thrust_limit_sub{ORB_ID(horizontal_thrust_limit)};
 
-	uORB::SubscriptionMultiArray<battery_status_s, battery_status_s::MAX_INSTANCES> _battery_status_subs{ORB_ID::battery_status};
 
 	using health_component_t = events::px4::enums::health_component_t;
 
@@ -113,11 +113,8 @@ private:
 
 	bool send() override
 	{
-
-		//const hrt_abstime start = hrt_absolute_time();
-
-		if (_status_sub.updated() || _cpuload_sub.updated() || _battery_status_subs.updated() || _sequential_desaturation_sub.updated()|| _horizontal_thrust_limit_sub.updated() || _actuator_motors_sub.updated()) {
-
+		if (_status_sub.updated() || _cpuload_sub.updated() || _battery_status_subs.updated()
+		    || _actuator_motors_sub.updated()) {
 			vehicle_status_s status{};
 			_status_sub.copy(&status);
 
@@ -165,13 +162,17 @@ private:
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_BATTERY, health_component_t::battery, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_MOTOR_OUTPUTS, health_component_t::motors_escs, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_RECOVERY_SYSTEM, health_component_t::parachute, msg);
-			fillOutComponent(health_report, MAV_SYS_STATUS_OBSTACLE_AVOIDANCE, health_component_t::avoidance, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_3D_ACCEL, health_component_t::accel, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_3D_GYRO, health_component_t::gyro, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_3D_MAG, health_component_t::magnetometer, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_GPS, health_component_t::gps, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_RC_RECEIVER, health_component_t::remote_control, msg);
-			fillOutComponent(health_report, MAV_SYS_STATUS_AHRS, health_component_t::local_position_estimate, msg);
+			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_ATTITUDE_STABILIZATION, health_component_t::attitude_estimate,
+					 msg);
+			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_XY_POSITION_CONTROL, health_component_t::local_position_estimate,
+					 msg);
+			fillOutComponent(health_report, MAV_SYS_STATUS_AHRS, health_component_t::attitude_estimate, msg);
+			fillOutComponent(health_report, MAV_SYS_STATUS_LOGGING, health_component_t::logging, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE, health_component_t::absolute_pressure, msg);
 			fillOutComponent(health_report, MAV_SYS_STATUS_SENSOR_DIFFERENTIAL_PRESSURE, health_component_t::differential_pressure,
 					 msg);
@@ -179,50 +180,40 @@ private:
 			msg.load = cpuload.load * 1000.0f;
 
 			// Fill in the errors_count fields
-			msg.errors_count1 =
-			// ((sequential_desaturation.x_sat > 0.01f)) |
-			// ((sequential_desaturation.y_sat > 0.01f) << 1) |
-			((sequential_desaturation.z_sat > 0.01f) << 2) |
-			((sequential_desaturation.roll_sat > 0.01f) << 3) |
-			((sequential_desaturation.pitch_sat > 0.01f) << 4) |
-			((sequential_desaturation.yaw_sat > 0.01f) << 5);
+			// Only report saturation when armed: the allocator runs while disarmed and, with idle thrust,
+			// any attitude correction torque (e.g. vehicle resting on a slope) saturates the motors.
+			if (status.arming_state == vehicle_status_s::ARMING_STATE_ARMED) {
+				// The desaturation gain is signed: its sign follows the direction of the correction the
+				// allocator had to apply, so saturation of equal severity shows up as either sign.
+				// Compare the magnitude, otherwise only one direction is ever reported.
+				const float sat_threshold = 0.01f;
 
-			// check if any motor is near / at saturation
-			const float upper_bound = 0.9f;
-			const float lower_bound = 0.00f;
+				msg.errors_count1 =
+					((fabsf(sequential_desaturation.x_sat) > sat_threshold)) |
+					((fabsf(sequential_desaturation.y_sat) > sat_threshold) << 1) |
+					((fabsf(sequential_desaturation.z_sat) > sat_threshold) << 2) |
+					((fabsf(sequential_desaturation.roll_sat) > sat_threshold) << 3) |
+					((fabsf(sequential_desaturation.pitch_sat) > sat_threshold) << 4) |
+					((fabsf(sequential_desaturation.yaw_sat) > sat_threshold) << 5);
 
-			msg.errors_count2 =
-			((actuator_motors.control[0] > upper_bound)) |
-			((actuator_motors.control[1] > upper_bound) << 1) |
-			((actuator_motors.control[2] > upper_bound) << 2) |
-			((actuator_motors.control[3] > upper_bound) << 3) |
-			((actuator_motors.control[4] > upper_bound) << 4) |
-			((actuator_motors.control[5] > upper_bound) << 5) |
-			((actuator_motors.control[6] > upper_bound) << 6) |
-			((actuator_motors.control[7] > upper_bound) << 7) |
-			((actuator_motors.control[0] < lower_bound) << 8) |
-			((actuator_motors.control[1] < lower_bound) << 9) |
-			((actuator_motors.control[2] < lower_bound) << 10) |
-			((actuator_motors.control[3] < lower_bound) << 11) |
-			((actuator_motors.control[4] < lower_bound) << 12) |
-			((actuator_motors.control[5] < lower_bound) << 13) |
-			((actuator_motors.control[6] < lower_bound) << 14) |
-			((actuator_motors.control[7] < lower_bound) << 15);
+				// check if any motor is near / at saturation
+				const float upper_bound = 0.9f;
 
-			// Set a warning at 80% and a critial when cap reached
-			msg.errors_count3 = 0;
-			// TODO: refactor these 3 error message fields into 3 steps of criticallaity instead of sperate meanings
-			if(horizontal_thrust_limit.x_sat == 1 || horizontal_thrust_limit.y_sat == 1) {
-				msg.errors_count3 = 1;
+				msg.errors_count2 =
+					((actuator_motors.control[0] > upper_bound)) |
+					((actuator_motors.control[1] > upper_bound) << 1) |
+					((actuator_motors.control[2] > upper_bound) << 2) |
+					((actuator_motors.control[3] > upper_bound) << 3) |
+					((actuator_motors.control[4] > upper_bound) << 4) |
+					((actuator_motors.control[5] > upper_bound) << 5) |
+					((actuator_motors.control[6] > upper_bound) << 6) |
+					((actuator_motors.control[7] > upper_bound) << 7);
+
+				// 2 bits per axis: 0 ok, 1 warning (> 80 % of DTRG_HT_MAX), 2 at DTRG_HT_MAX
+				msg.errors_count3 =
+					(horizontal_thrust_limit.x_sat) |
+					((horizontal_thrust_limit.y_sat) << 2);
 			}
-
-			if(horizontal_thrust_limit.x_sat > 1 || horizontal_thrust_limit.y_sat > 1) {
-				msg.errors_count1 += (1 << 8);
-			}
-
-			msg.errors_count3 |=
-			((sequential_desaturation.x_sat > 0.01f) << 1) |
-			((sequential_desaturation.y_sat > 0.01f) << 2);
 
 			msg.errors_count4 = 706; // tell the status monitor that this code is running
 
@@ -234,8 +225,8 @@ private:
 			const battery_status_s &lowest_battery = battery_status[lowest_battery_index];
 
 			if (lowest_battery.connected) {
-				msg.voltage_battery = lowest_battery.voltage_filtered_v * 1000.0f;
-				msg.current_battery = lowest_battery.current_filtered_a * 100.0f;
+				msg.voltage_battery = lowest_battery.voltage_v * 1000.0f;
+				msg.current_battery = lowest_battery.current_a * 100.0f;
 				msg.battery_remaining = ceilf(lowest_battery.remaining * 100.0f);
 
 			} else {
@@ -245,9 +236,6 @@ private:
 			}
 
 			mavlink_msg_sys_status_send_struct(_mavlink->get_channel(), &msg);
-
-			//const hrt_abstime end = hrt_absolute_time();
-    			//PX4_INFO("SYS_STATUS send took %lld us", (long long)(end - start));
 			return true;
 		}
 
