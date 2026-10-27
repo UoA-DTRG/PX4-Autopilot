@@ -109,6 +109,8 @@ if(CONFIG_MODULES_MC_RATE_CONTROL)
 		# planarOcto vehicle and HITL registration
 		12013_dtrg_planar_octo
 		12015_dtrg_planar_octo_hitl.hil
+		# planetaryHex vehicle registration
+		12018_dtrg_planetary_hex
 
 		# [14000, 14999] MC with tilt
 		14001_generic_mc_with_tilt
