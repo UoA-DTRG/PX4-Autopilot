@@ -1,0 +1,37 @@
+# planarOcto physical properties: single source of truth for SITL runs.
+#
+# Edit the values below, then run (from the PX4 root):
+#     python3 Tools/dtrg/vehicle_properties/planar_octo_properties.py
+# It rewrites the Gazebo SDFs and the PX4 airframe so the simulated vehicle and
+# the controller's hover model stay consistent. See Tools/dtrg/README.md.
+#
+# The defaults reproduce the committed files exactly. Mass and the propulsion
+# model (inherited from the FT-X8 reference) are ASSUMED, not measured.
+#
+# planar_octo_rod includes planar_octo, so it picks these values up too.
+
+# Total takeoff mass [kg] of the airframe (base body + 8 rotor links), without the rod.
+mass_kg: 1.5
+
+# Base-body moment of inertia about the body origin, Gazebo FLU [kg m^2].
+# This is the stationary body only; rotor-link inertia is set below.
+base_inertia_kgm2:
+  ixx: 0.024068
+  iyy: 0.024067
+  izz: 0.039599
+  ixy: -0.0
+  ixz: 0.0
+  iyz: -0.0
+
+# Propulsion, identical for all eight rotors.
+#   thrust_constant  kf  [N s^2/rad^2]  (thrust = kf * omega^2) -> Gazebo motorConstant
+#   moment_constant  km/kf [m]          -> Gazebo momentConstant, |CA_ROTORn_KM|
+#   time_constant_s  motor lag          -> Gazebo timeConstantUp/Down
+#   rotor_mass_kg / rotor_ixx / rotor_izz  rotor + propeller link inertia (motor inertia)
+rotor:
+  thrust_constant: 1.2138e-06
+  moment_constant: 0.00857637
+  time_constant_s: 0.03
+  rotor_mass_kg: 0.005
+  rotor_ixx: 7.26e-6
+  rotor_izz: 1.452e-5

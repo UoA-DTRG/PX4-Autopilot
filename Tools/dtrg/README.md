@@ -138,3 +138,38 @@ The pieces live in `Tools/simulation/gz/models/planar_octo_rod`,
 `Tools/simulation/gz/models/interaction_pole` and
 `Tools/simulation/gz/worlds/mocap_interaction.sdf`; the plain `planar_octo`
 model and `mocap` world are untouched.
+
+## planetaryHex physical properties
+
+`planetary_hex_properties.yaml` holds the values that differ between SITL runs:
+total mass, base-body inertia, thrust constant (`kf`), moment constant, motor
+lag, and rotor-link mass/inertia for the outer and sun rotor groups.
+`planetary_hex_properties.py` applies them to the Gazebo SDFs
+(`planetary_hex`, `planetary_hex_base`) and to `12018_dtrg_planetary_hex`
+(`CA_ROTOR*_CT/KM`, `THR_MDL_FAC`, `MPC_THR_HOVER`) so the simulated vehicle and
+the controller's allocation model stay consistent.
+
+```sh
+# edit Tools/dtrg/vehicle_properties/planetary_hex_properties.yaml, then:
+python3 Tools/dtrg/vehicle_properties/planetary_hex_properties.py --dry-run   # preview the diff
+python3 Tools/dtrg/vehicle_properties/planetary_hex_properties.py             # apply
+make px4_sitl_default gz_planetary_hex_mocap               # rebuild: airframe is baked into ROMFS
+```
+
+Rotor geometry and speed limits are read from the airframes and are not changed.
+The SDFs live in the `Tools/simulation/gz` submodule, so commit there as well.
+
+## planarOcto physical properties
+
+Same workflow with `planar_octo_properties.yaml` / `planar_octo_properties.py`.
+It edits `planar_octo` and `planar_octo_base` (so `planar_octo_rod`, which
+includes them, follows) and `12013_dtrg_planar_octo` (`CA_ROTOR*_KM`,
+`THR_MDL_FAC`, `MPC_THR_HOVER`). All eight rotors are identical, so
+`CA_ROTOR*_CT` stays 1.0 and a `kf` change only moves the hover thrust. The rod's
+own 0.030 kg is not included in `mass_kg`; the hover-thrust estimator absorbs it.
+
+```sh
+python3 Tools/dtrg/vehicle_properties/planar_octo_properties.py --dry-run
+python3 Tools/dtrg/vehicle_properties/planar_octo_properties.py
+make px4_sitl_default gz_planar_octo_mocap
+```

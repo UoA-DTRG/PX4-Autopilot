@@ -1,0 +1,47 @@
+# planetaryHex physical properties: single source of truth for SITL runs.
+#
+# Edit the values below, then run (from the PX4 root):
+#     python3 Tools/dtrg/vehicle_properties/planetary_hex_properties.py
+# It rewrites the Gazebo SDFs and the PX4 airframe so the simulated vehicle and
+# the controller's allocation model stay consistent. See Tools/dtrg/README.md.
+#
+# The defaults reproduce the committed files exactly. Mass and both propulsion
+# models are ASSUMED (no measured data), as in generate_planetary_hex_model.py.
+
+# Total takeoff mass [kg] (base body + rotor links).
+mass_kg: 3
+
+# Base-body moment of inertia about the body origin, Gazebo FLU [kg m^2].
+# This is the stationary body only; rotor-link inertia is set per group below.
+base_inertia_kgm2:
+  ixx: 0.057325
+  iyy: 0.057334
+  izz: 0.106615
+  ixy: -0.000135
+  ixz: -0.000016
+  iyz: -0.000021
+
+# Thrust of the lower sun rotor relative to the upper one (coaxial wash).
+lower_coax_effectiveness: 0.8
+
+# Per-rotor-group propulsion. "outer" = the six tilted rotors (motors 1-6),
+# "sun" = the central coaxial pair (motors 7-8).
+#   thrust_constant  kf  [N s^2/rad^2]  (thrust = kf * omega^2) -> Gazebo motorConstant
+#   moment_constant  km/kf [m]          -> Gazebo momentConstant, |CA_ROTORn_KM|
+#   time_constant_s  motor lag          -> Gazebo timeConstantUp/Down
+#   rotor_mass_kg / rotor_ixx / rotor_izz  rotor + propeller link inertia (motor inertia)
+outer:
+  thrust_constant: 1.0e-6
+  moment_constant: 0.012
+  time_constant_s: 0.05
+  rotor_mass_kg: 0.008
+  rotor_ixx: 5.7e-6
+  rotor_izz: 1.13e-5
+
+sun:
+  thrust_constant: 1.6e-5
+  moment_constant: 0.020
+  time_constant_s: 0.12
+  rotor_mass_kg: 0.030
+  rotor_ixx: 1.4e-4
+  rotor_izz: 2.7e-4
