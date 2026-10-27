@@ -6,7 +6,7 @@ the maths behind it where there is some.
 
 > Several of these features drive the motors in ways upstream PX4 never does
 > (no control loops, a hand-written mixer, sideways thrust). Read the page,
-> and try the feature in [SITL](DTRG_Planar_Octo_SITL.md) or on a stand,
+> and try the feature in [SITL](DTRG_SITL.md) or on a stand,
 > before flying it.
 
 ## Flight features
@@ -23,7 +23,7 @@ the maths behind it where there is some.
 
 | Page | Summary |
 | --- | --- |
-| [planarOcto SITL](DTRG_Planar_Octo_SITL.md) | The planarOcto in Gazebo, SIH (PC and flight controller) and HITL; the SIH generic multirotor; keyboard and RC-override tools |
+| [SITL](DTRG_SITL.md) | The planarOcto and planetaryHex in Gazebo, the planarOcto in SIH (PC and flight controller) and HITL; the interaction rod; the SIH generic multirotor; keyboard and RC-override tools; editing mass, inertia and thrust constants |
 | [Automated testing](DTRG_Automated_Testing.md) | Unit, SIH logic and SIH flight tests of the features above; CI |
 | [DTRG MAVLink dialect](DTRG_MAVLink_Dialect.md) | The `dtrg` dialect and the `DTRG_OFFBOARD` message (received and logged, not yet used by a controller) |
 | [Boards, builds and CI](DTRG_Boards_Builds_and_CI.md) | Build targets including GooseTech FMU-v6XRT, forked submodules, build workflow, releases, smaller fork fixes |

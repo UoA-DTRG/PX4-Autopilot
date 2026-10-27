@@ -65,7 +65,7 @@ The features that are separate modules are switched on in the board's
 | [Bench test mode](DTRG_Bench_Test_Mode.md) | `CONFIG_MODULES_BENCH_TEST=y` |
 | [DTRG MAVLink dialect](DTRG_MAVLink_Dialect.md) | `CONFIG_MAVLINK_DIALECT="dtrg"` |
 | `dtrg_test` example | `CONFIG_EXAMPLES_DTRG_TEST=y` |
-| [SIH on the board](DTRG_Planar_Octo_SITL.md) (airframe 12017) | `CONFIG_MODULES_SIMULATION_SIMULATOR_SIH=y` |
+| [SIH on the board](DTRG_SITL.md) (airframe 12017) | `CONFIG_MODULES_SIMULATION_SIMULATOR_SIH=y` |
 
 Watch the flash size: on `px4_fmu-v6c` there is about 32 kB left with the
 toolchain CI uses.

@@ -18,7 +18,7 @@ setup, parameters and thrust limit are shared; the modes differ in
 > **Safety:** HT only makes sense on a vehicle whose geometry can produce X/Y
 > thrust (`CA_ROTORn_AX/AY` not all zero). On a normal multirotor the
 > allocator drops the X/Y thrust, so with HT on the vehicle can no longer
-> move horizontally. Try HT in [SITL](DTRG_Planar_Octo_SITL.md) first, and
+> move horizontally. Try HT in [SITL](DTRG_SITL.md) first, and
 > fly it first in Position mode with a low `DTRG_HT_MAX`. In Stabilized
 > nothing holds position: with HT on and the knobs centred, a level vehicle
 > has nothing pulling it back, and the sticks command thrust (acceleration),
