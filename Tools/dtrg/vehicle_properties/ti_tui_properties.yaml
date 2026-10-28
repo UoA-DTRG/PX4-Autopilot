@@ -1,0 +1,41 @@
+# Ti-Tui (stacked octo) physical properties: single source of truth for SITL runs.
+#
+# Edit the values below, then run (from the PX4 root):
+#     python3 Tools/dtrg/vehicle_properties/ti_tui_properties.py
+# It rewrites the Gazebo SDFs and the PX4 airframe so the simulated vehicle and
+# the controller's allocation model stay consistent. See docs/DTRG/DTRG_SITL.md.
+#
+# The defaults reproduce the committed files exactly. All rotors are assumed
+# identical; the lower four are scaled by lower_rotor_effectiveness. Mass and the
+# propulsion model (inherited from the FT-X8 reference) are ASSUMED, not measured.
+
+# Total takeoff mass [kg] (base body + 8 rotor links).
+mass_kg: 1.212
+
+# Base-body moment of inertia about the body origin, Gazebo FLU [kg m^2].
+# This is the stationary body only; rotor-link inertia is set below.
+base_inertia_kgm2:
+  ixx: 0.00965
+  iyy: 0.00965
+  izz: 0.01737
+  ixy: 0
+  ixz: 0
+  iyz: 0
+
+# Thrust of each lower rotor (motors 5-8) relative to an upper rotor (motors 1-4),
+# for the upper rotor's wash over it. 1.0 = no loss. Scales the lower rotors'
+# Gazebo motorConstant and CA_ROTORn_CT.
+lower_rotor_effectiveness: 0.85
+
+# Propulsion, identical for all eight rotors.
+#   thrust_constant  kf  [N s^2/rad^2]  (thrust = kf * omega^2) -> Gazebo motorConstant
+#   moment_constant  km/kf [m]          -> Gazebo momentConstant, |CA_ROTORn_KM|
+#   time_constant_s  motor lag          -> Gazebo timeConstantUp/Down
+#   rotor_mass_kg / rotor_ixx / rotor_izz  rotor + propeller link inertia (motor inertia)
+rotor:
+  thrust_constant: 1.2138e-06
+  moment_constant: 0.00857637
+  time_constant_s: 0.15
+  rotor_mass_kg: 0.005
+  rotor_ixx: 7.26e-6
+  rotor_izz: 1.452e-5

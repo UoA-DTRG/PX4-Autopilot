@@ -152,9 +152,17 @@ def update_base_sdf(sdf: str, cfg: dict, rotor_mass: float) -> str:
     if base_mass <= 0:
         sys.exit(f"mass_kg {cfg['mass_kg']} is not larger than the rotor links ({rotor_mass:.3f} kg)")
     j = cfg["base_inertia_kgm2"]
-    inertial = (f"<inertial><mass>{base_mass:.3f}</mass><inertia><ixx>{j['ixx']:.6f}</ixx><ixy>{j['ixy']:.6f}</ixy>"
-                f"<ixz>{j['ixz']:.6f}</ixz><iyy>{j['iyy']:.6f}</iyy><iyz>{j['iyz']:.6f}</iyz>"
-                f"<izz>{j['izz']:.6f}</izz></inertia></inertial>")
+    want = {"mass": (base_mass, ".3f"), **{k: (j[k], ".6f") for k in ("ixx", "ixy", "ixz", "iyy", "iyz", "izz")}}
+
+    def inertial(match: re.Match) -> str:
+        # Keep the existing text for unchanged values so number formatting does not churn.
+        def val(tag: str) -> str:
+            old = re.search(rf"<{tag}>([^<]*)</{tag}>", match.group(0)).group(1)
+            return old if float(old) == float(format(want[tag][0], want[tag][1])) else format(want[tag][0], want[tag][1])
+        return (f"<inertial><mass>{val('mass')}</mass><inertia><ixx>{val('ixx')}</ixx><ixy>{val('ixy')}</ixy>"
+                f"<ixz>{val('ixz')}</ixz><iyy>{val('iyy')}</iyy><iyz>{val('iyz')}</iyz>"
+                f"<izz>{val('izz')}</izz></inertia></inertial>")
+
     sdf, count = re.subn(r"<inertial>.*?</inertial>", inertial, sdf, count=1, flags=re.S)
     if count != 1:
         sys.exit("base inertial block not found")

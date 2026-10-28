@@ -1,0 +1,55 @@
+#!/bin/sh
+#
+# Author: Ishaq Hafez <ishaq.hafez@auckland.ac.nz>
+# Created: 10/09/2026
+# Last Checked: 11/09/2026
+# Documentation: 12007_gz_ti_tui.md
+# Maintenance: update this file and its companion Markdown file together.
+#
+# @name Gazebo DTRG Ti-Tui Canted Coaxial
+# @type Octorotor Coaxial
+# @class Copter
+# @maintainer Ishaq Hafez <ishaq.hafez@auckland.ac.nz>
+#
+
+TI_TUI_NATIVE_GZ_SITL=1
+. ${R}etc/init.d/airframes/12011_ti_tui_canted_coax
+
+PX4_SIMULATOR=${PX4_SIMULATOR:=gz}
+PX4_GZ_WORLD=${PX4_GZ_WORLD:=default}
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=ti_tui}
+
+param set-default SIM_GZ_EN 1
+param set-default SIM_GZ_EC_FUNC1 101
+param set-default SIM_GZ_EC_FUNC2 102
+param set-default SIM_GZ_EC_FUNC3 103
+param set-default SIM_GZ_EC_FUNC4 104
+param set-default SIM_GZ_EC_FUNC5 105
+param set-default SIM_GZ_EC_FUNC6 106
+param set-default SIM_GZ_EC_FUNC7 107
+param set-default SIM_GZ_EC_FUNC8 108
+
+param set-default SIM_GZ_EC_MIN1 350
+param set-default SIM_GZ_EC_MIN2 350
+param set-default SIM_GZ_EC_MIN3 350
+param set-default SIM_GZ_EC_MIN4 350
+param set-default SIM_GZ_EC_MIN5 350
+param set-default SIM_GZ_EC_MIN6 350
+param set-default SIM_GZ_EC_MIN7 350
+param set-default SIM_GZ_EC_MIN8 350
+param set-default SIM_GZ_EC_MAX1 1774
+param set-default SIM_GZ_EC_MAX2 1774
+param set-default SIM_GZ_EC_MAX3 1774
+param set-default SIM_GZ_EC_MAX4 1774
+param set-default SIM_GZ_EC_MAX5 1774
+param set-default SIM_GZ_EC_MAX6 1774
+param set-default SIM_GZ_EC_MAX7 1774
+param set-default SIM_GZ_EC_MAX8 1774
+
+# The hardware airframe defines THR_MDL_FAC and MPC_THR_HOVER from the
+# Ti-Tui motor model. Do not override those shared SITL/HITL defaults here.
+param set-default NAV_DLL_ACT 2
+
+# DTRG Mapping
+param set-default RC_MAP_HT_ROLL 9
+param set-default RC_MAP_HT_PITCH 10

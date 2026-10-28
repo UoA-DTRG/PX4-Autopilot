@@ -99,6 +99,8 @@ px4_add_romfs_files(
 	12018_gz_planar_octo_rod
 	# planetaryHex Gazebo SITL registration
 	12019_gz_planetary_hex
+	# Ti-Tui (stacked octo) Gazebo SITL registration
+	12007_gz_ti_tui
 
 	10015_gazebo-classic_iris
 	10016_none_iris

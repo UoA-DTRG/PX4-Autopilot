@@ -173,3 +173,18 @@ python3 Tools/dtrg/vehicle_properties/planar_octo_properties.py --dry-run
 python3 Tools/dtrg/vehicle_properties/planar_octo_properties.py
 make px4_sitl_default gz_planar_octo_mocap
 ```
+
+## Ti-Tui (stacked octo) physical properties
+
+Same workflow with `vehicle_properties/ti_tui_properties.yaml` /
+`ti_tui_properties.py`. It edits `ti_tui` and `ti_tui_base` and
+`12011_ti_tui_canted_coax`. All rotors are identical; the lower four (motors 5-8)
+are scaled by `lower_rotor_effectiveness` (default 0.85), which sets their Gazebo
+`motorConstant` and `CA_ROTOR4-7_CT` and shifts `MPC_THR_HOVER`.
+
+```sh
+python3 Tools/dtrg/vehicle_properties/ti_tui_properties.py --dry-run
+python3 Tools/dtrg/vehicle_properties/ti_tui_properties.py
+make px4_sitl_default gz_ti_tui
+```
+

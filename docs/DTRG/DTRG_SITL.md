@@ -3,19 +3,20 @@
 This page covers the simulated DTRG vehicles: the **planarOcto**, a flat
 octocopter whose eight rotors are tilted 31° towards the tangent of the frame
 so it can push sideways without tilting (fully actuated), and the
-**planetaryHex**, a six-rotor ring with a central coaxial pair. It describes
-Gazebo, SIH on the PC (used by the automated tests), SIH on the flight
+**planetaryHex**, a six-rotor ring with a central coaxial pair, and the
+**Ti-Tui** (stacked octo), a compact octocopter with four upper and four lower
+canted rotors. It describes Gazebo, SIH on the PC (used by the automated tests), SIH on the flight
 controller, and HITL, plus the **interaction rod** for physical-contact tests,
 the **SIH generic multirotor** that can simulate any rotor geometry PX4 can
 describe, and the tool for changing mass, inertia and thrust constants between
 runs.
 
-| | planarOcto | planetaryHex |
-| --- | --- | --- |
-| Airframes | `12013_dtrg_planar_octo` (the vehicle), `12014_gz_planar_octo`, `12016_sihsim_planar_octo` (SITL), `12018_gz_planar_octo_rod` (SITL with the interaction rod), `12015_dtrg_planar_octo_hitl.hil`, `12017_dtrg_planar_octo_sih.hil` (hardware) | `12018_dtrg_planetary_hex` (the vehicle), `12019_gz_planetary_hex` (Gazebo SITL) |
-| Gazebo model | `Tools/simulation/gz/models/planar_octo` (+ `planar_octo_base`, `planar_octo_rod`) | `Tools/simulation/gz/models/planetary_hex` (+ `planetary_hex_base`) |
-| Simulators | Gazebo, SIH, HITL | Gazebo |
-| Properties tool | `Tools/dtrg/vehicle_properties/planar_octo_properties.py` | `Tools/dtrg/vehicle_properties/planetary_hex_properties.py` |
+| | planarOcto | planetaryHex | Ti-Tui (stacked octo) |
+| --- | --- | --- | --- |
+| Airframes | `12013_dtrg_planar_octo` (the vehicle), `12014_gz_planar_octo`, `12016_sihsim_planar_octo` (SITL), `12018_gz_planar_octo_rod` (SITL with the interaction rod), `12015_dtrg_planar_octo_hitl.hil`, `12017_dtrg_planar_octo_sih.hil` (hardware) | `12018_dtrg_planetary_hex` (the vehicle), `12019_gz_planetary_hex` (Gazebo SITL) | `12011_ti_tui_canted_coax` (the vehicle), `12007_gz_ti_tui` (Gazebo SITL) |
+| Gazebo model | `Tools/simulation/gz/models/planar_octo` (+ `planar_octo_base`, `planar_octo_rod`) | `Tools/simulation/gz/models/planetary_hex` (+ `planetary_hex_base`) | `Tools/simulation/gz/models/ti_tui` (+ `ti_tui_base`) |
+| Simulators | Gazebo, SIH, HITL | Gazebo | Gazebo |
+| Properties tool | `Tools/dtrg/vehicle_properties/planar_octo_properties.py` | `Tools/dtrg/vehicle_properties/planetary_hex_properties.py` | `Tools/dtrg/vehicle_properties/ti_tui_properties.py` |
 
 The Gazebo models live in the submodule `Tools/simulation/gz`
 (`UoA-DTRG/PX4-gazebo-models`, branch `dtrg-main`). SIH is
@@ -41,13 +42,18 @@ make px4_sitl sihsim_planar_octo
 make px4_sitl gz_planetary_hex
 make px4_sitl gz_planetary_hex_mocap
 
+# Ti-Tui (stacked octo) in Gazebo
+make px4_sitl gz_ti_tui
+make px4_sitl gz_ti_tui_mocap
+
 # planarOcto with the interaction rod, flying against the push panel
 make px4_sitl gz_planar_octo_rod_mocap_interaction
 ```
 
 `gz_<model>_<world>` is generated for every `*_gz_*` airframe and every world
 in `Tools/simulation/gz/worlds`, so `gz_planetary_hex_mocap` needs both the
-airframe `12019_gz_planetary_hex` and the world `mocap.sdf`.
+airframe `12019_gz_planetary_hex` and the world `mocap.sdf`. The same holds for
+`gz_ti_tui_*` and `12007_gz_ti_tui`.
 
 Then in a second terminal fly it from the keyboard:
 
@@ -114,7 +120,7 @@ PX4_PARAM_DTRG_HT_MASK=1 PX4_PARAM_DTRG_HT_MAX=0.3 make px4_sitl sihsim_planar_o
 | 12014 | Gazebo DTRG planarOcto | SITL, Gazebo | 12013 + Gazebo ESC mapping (`SIM_GZ_EC_FUNC1-8`, 350–1774 rad/s), SITL gains, `RC_MAP_HT_ROLL 9`, `RC_MAP_HT_PITCH 10` |
 | 12016 | SIH DTRG planarOcto | SITL, SIH | 12013 + SIH vehicle model (below), outputs 1–8 = Motors 1–8, SITL gains, HT knobs 9/10 |
 | 12015 | DTRG planarOcto HITL | flight controller, HITL | 12013 + `SYS_HITL 1`, `HIL_ACT_FUNC1-8` = Motors 1–8 for an external HITL simulator |
-| 12018 | Gazebo DTRG planarOcto with interaction rod | SITL, Gazebo | 12014 with `PX4_SIM_MODEL planar_octo_rod`; allocation and gains unchanged (see [section 7](#7-the-interaction-rod)) |
+| 12018 | Gazebo DTRG planarOcto with interaction rod | SITL, Gazebo | 12014 with `PX4_SIM_MODEL planar_octo_rod`; allocation and gains unchanged (see [section 8](#8-the-interaction-rod)) |
 | 12017 | DTRG planarOcto SIH | flight controller, SIH | 12013 + `SYS_HITL 2`: the real flight controller flies a planarOcto simulated on the board itself. No PC needed. Real outputs stay off (remove the props anyway) |
 
 The number 12018 is also used by the planetaryHex vehicle airframe. They live
@@ -144,15 +150,26 @@ QGroundControl over USB and fly with your transmitter.
 | 12019 | Gazebo DTRG planetaryHex | SITL, Gazebo | 12018 + Gazebo ESC mapping (`SIM_GZ_EC_FUNC1-8`, separate speed limits for outer and central rotors), `MPC_XY_VEL_P_ACC 1.8`, HT knobs 9/10 |
 
 12019 sets `PLANETARY_HEX_NATIVE_GZ_SITL=1` before sourcing 12018, which skips
-the hardware output mapping (same scheme as the planarOcto). 12019 also sets
-`DTRG_CC_EN`, `DTRG_CC_MOTORS` and `RC_MAP_CC_MODE` for the constant-command
-feature (branch `salz167/planetary_hex_constant_sun`). Those parameters do not
-exist unless that feature is merged, so here they have no effect.
+the hardware output mapping (same scheme as the planarOcto).
 
 12019 lowers `MPC_XY_VEL_P_ACC` from the flown 11 to 1.8. With 11 the
 simulated vehicle holds height but limit-cycles ±30–40° in roll and pitch and
 saturates the outer rotors; PX4's default-style gain holds a level hover. This
 is tuned in Gazebo, not in flight.
+
+### Ti-Tui
+
+| ID | Name | Where | What it adds |
+| --- | --- | --- | --- |
+| 12011 | DTRG Ti-Tui Canted Coaxial | real vehicle | geometry (`CA_ROTOR*`), conservative rate/position gains inherited from the R1 baseline, thrust model, `HIL_ACT_FUNC1-8` = Motors 1–8, `DTRG_HT_EN 1`, `RC_MAP_HT_MODE 8` |
+| 12007 | Gazebo DTRG Ti-Tui Canted Coaxial | SITL, Gazebo | 12011 + Gazebo ESC mapping (`SIM_GZ_EC_FUNC1-8`, 350–1774 rad/s), `RC_MAP_HT_ROLL 9`, `RC_MAP_HT_PITCH 10` |
+
+12007 sets `TI_TUI_NATIVE_GZ_SITL=1` before sourcing 12011, which skips the
+`HIL_ACT_FUNC` mapping (same scheme as the other vehicles). The upstream Ti-Tui
+airframes also set the MRAC position-controller parameters (`MPC_POS_CTRL`,
+`MPC_ACT_MODE`, `MPC_MR_*`). Those parameters do not exist on this branch, so
+they were left out of 12011, as for the planetaryHex. The MRAC SITL variants
+(12008, 12009, 12012) are not included.
 
 ---
 
@@ -273,7 +290,70 @@ and 190/950 rad/s for motors 7–8.
 
 ---
 
-## 5. SIH generic multirotor (`SIH_VEHICLE_TYPE 6`)
+## 5. The Ti-Tui vehicle
+
+A compact octocopter built as two stacked layers of four rotors, each rotor
+canted 30°. The upper layer leans along body X (motors 1–4) and the lower layer
+along body Y (motors 5–8), so the vehicle can push in both horizontal
+directions. The lower rotors sit under the upper ones in their wash, which is
+modelled as a lower thrust effectiveness. Body FRD, metres.
+
+### Geometry
+
+| Motor | `CA_ROTORn` | Layer | $p_x$ | $p_y$ | $p_z$ | $a_x$ | $a_y$ | `KM` | Spin |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0 | upper, front-right | 0.0783 | 0.0949 | −0.0471 | −0.5 | 0 | 0.00858 | CCW |
+| 2 | 1 | upper, front-left | 0.0783 | −0.0949 | −0.0471 | −0.5 | 0 | −0.00858 | CW |
+| 3 | 2 | upper, rear-left | −0.0783 | −0.0949 | −0.0471 | 0.5 | 0 | 0.00858 | CCW |
+| 4 | 3 | upper, rear-right | −0.0783 | 0.0949 | −0.0471 | 0.5 | 0 | −0.00858 | CW |
+| 5 | 4 | lower, front-left | 0.0955 | −0.1107 | 0.0474 | 0 | 0.5 | 0.00858 | CCW |
+| 6 | 5 | lower, front-right | 0.0955 | 0.1107 | 0.0474 | 0 | −0.5 | −0.00858 | CW |
+| 7 | 6 | lower, rear-right | −0.0955 | 0.1107 | 0.0474 | 0 | −0.5 | 0.00858 | CCW |
+| 8 | 7 | lower, rear-left | −0.0955 | −0.1107 | 0.0474 | 0 | 0.5 | −0.00858 | CW |
+
+All axes have $a_z = -\cos 30° = -0.866$ and the horizontal part is
+$\sin 30° = 0.5$. Rotor centres are from CAD. Motors 1–8 follow the order in the
+airframe header, which matches the FT-X8 reference.
+
+### Mass and propulsion
+
+Provisional values: the mass is assumed and the propulsion is inherited from the
+FT-X8 reference, not measured on the Ti-Tui. All eight rotors are assumed
+identical apart from the lower-rotor effectiveness. Gazebo and the controller
+use the same numbers.
+
+| | Value | |
+| --- | --- | --- |
+| Mass | 1.212 kg | 1.172 kg body + 8 × 5 g rotors |
+| Base inertia $I_{xx}, I_{yy}, I_{zz}$ | 0.00965, 0.00965, 0.01737 kg m² | |
+| Motor constant | $k_F = 1.2138\times10^{-6}$ N/(rad/s)² | upper rotors |
+| Lower-rotor effectiveness | 0.85 | lower $k_F$ = 0.85 × upper, `CA_ROTOR4-7_CT` = 0.85 |
+| Moment constant | $k_M/k_F = 0.00858$ m | |
+| Rotor speed | 350–1774 rad/s | |
+| Motor time constant | 0.15 s | slower than the planarOcto's 0.03 s |
+| Thrust curve | `THR_MDL_FAC` = 0.670 | |
+| Hover thrust | `MPC_THR_HOVER` = 0.462 | |
+
+The upstream Ti-Tui files use a lower-rotor effectiveness of 0.8. This repo uses
+0.85 as the default; change `lower_rotor_effectiveness` in the YAML to alter it
+(see [section 9](#9-changing-mass-inertia-and-thrust-constants)).
+
+### Gazebo
+
+The model `ti_tui` merge-includes `ti_tui_base` (body, inertia, collision, skids,
+sensors) and adds eight rotor links with one `MulticopterMotorModel` plugin each.
+The model is placed 0.102 m above the ground.
+
+The visual meshes (`rotor_*.stl`, `stationary_assembly.stl`) are cosmetic:
+physics, collision and the controller use the SDF and the airframe. Overall the model is 0.318 m × 0.333 m × 0.182 m including the
+propellers. The propellers are drawn light and semi-transparent
+(`cad_propeller` material in `ti_tui/model.sdf`). The front is set by the skid and upper-layer
+orientation; the red `front_marker` in `ti_tui_base/model.sdf` marks it. If you
+edit the SDF rotor poses, the meshes are not moved with them.
+
+---
+
+## 6. SIH generic multirotor (`SIH_VEHICLE_TYPE 6`)
 
 Upstream SIH has a fixed set of vehicles (quad, hex, fixed wing, VTOL, rover).
 The DTRG fork adds a sixth type that **builds the vehicle from the control
@@ -334,13 +414,13 @@ Gazebo's hover is wobblier and SIH's IMU is noisier. Measurements and causes: [S
 
 ---
 
-## 6. Gazebo notes
+## 7. Gazebo notes
 
 - The CAD geometry (meshes, rotor poses and axes) and the airframes were first
   generated from CAD by `generate_planar_octo_model.py` and
   `generate_planetary_hex_model.py`, which are not in this repository. Do not
   hand-edit the rotor geometry. Mass, inertia and the propulsion constants are
-  edited with the properties tool, see [section 8](#8-changing-mass-inertia-and-thrust-constants).
+  edited with the properties tool, see [section 9](#9-changing-mass-inertia-and-thrust-constants).
 - Rotor speed limits come from the airframe: `SIM_GZ_EC_MIN` 350 and
   `SIM_GZ_EC_MAX` 1774 rad/s for the planarOcto. At zero command the rotors still idle at
   350 rad/s, about 4 % thrust.
@@ -351,7 +431,7 @@ Gazebo's hover is wobblier and SIH's IMU is noisier. Measurements and causes: [S
 
 ---
 
-## 7. The interaction rod
+## 8. The interaction rod
 
 For physical-interaction experiments, `gz_planar_octo_rod_mocap_interaction`
 flies a planarOcto with a rigid rod on its nose against a push panel on a floor
@@ -417,7 +497,7 @@ The rod exists on the planarOcto only. The planetaryHex has no rod.
 
 ---
 
-## 8. Changing mass, inertia and thrust constants
+## 9. Changing mass, inertia and thrust constants
 
 The physics of the Gazebo vehicle (mass, inertia, motor constants) is read from
 the SDF when the model loads, and PX4 parameters cannot change it. The
@@ -429,6 +509,7 @@ for changes **between runs**.
 | --- | --- | --- |
 | planarOcto | `planar_octo_properties.yaml` | `planar_octo_properties.py` |
 | planetaryHex | `planetary_hex_properties.yaml` | `planetary_hex_properties.py` |
+| Ti-Tui | `ti_tui_properties.yaml` | `ti_tui_properties.py` |
 
 ```sh
 # edit the YAML, then, from the PX4 root:
@@ -445,7 +526,8 @@ make px4_sitl gz_planetary_hex_mocap                                          # 
 | `moment_constant` | `momentConstant`, $|$`CA_ROTORn_KM`$|$ |
 | `time_constant_s` | `timeConstantUp/Down` |
 | `rotor_mass_kg`, `rotor_ixx`, `rotor_izz` | rotor link inertia (the motor inertia) |
-| `lower_coax_effectiveness` (planetaryHex) | `CA_ROTORn_CT` of the lower central rotor |
+| `lower_coax_effectiveness` (planetaryHex) | `CA_ROTORn_CT` and `motorConstant` of the lower central rotor |
+| `lower_rotor_effectiveness` (Ti-Tui) | `CA_ROTOR4-7_CT` and `motorConstant` of the lower four rotors |
 
 Rotor geometry (`CA_ROTOR*_P/A`) and the speed limits (`SIM_GZ_EC_MIN/MAX`) are
 read from the airframes and not changed. The defaults reproduce the committed

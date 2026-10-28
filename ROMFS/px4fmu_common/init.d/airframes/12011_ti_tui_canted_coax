@@ -1,0 +1,157 @@
+#!/bin/sh
+#
+# Author: Ishaq Hafez <ishaq.hafez@auckland.ac.nz>
+# Created: 10/09/2026
+# Last Checked: 11/09/2026
+#
+# @name DTRG Ti-Tui Canted Coaxial
+#
+# @type Octorotor Coaxial
+# @class Copter
+#
+# @output Motor1 front-right upper CCW
+# @output Motor2 front-left upper CW
+# @output Motor3 rear-left upper CCW
+# @output Motor4 rear-right upper CW
+# @output Motor5 front-left lower CCW
+# @output Motor6 front-right lower CW
+# @output Motor7 rear-right lower CCW
+# @output Motor8 rear-left lower CW
+#
+# @maintainer Ishaq Hafez <ishaq.hafez@auckland.ac.nz>
+#
+# @board bitcraze_crazyflie exclude
+#
+
+. ${R}etc/init.d/rc.mc_defaults
+
+param set-default MAV_TYPE 14
+param set-default CA_AIRFRAME 0
+param set-default CA_ROTOR_COUNT 8
+
+if [ "$TI_TUI_NATIVE_GZ_SITL" != "1" ]; then
+param set-default HIL_ACT_FUNC1 101
+param set-default HIL_ACT_FUNC2 102
+param set-default HIL_ACT_FUNC3 103
+param set-default HIL_ACT_FUNC4 104
+param set-default HIL_ACT_FUNC5 105
+param set-default HIL_ACT_FUNC6 106
+param set-default HIL_ACT_FUNC7 107
+param set-default HIL_ACT_FUNC8 108
+fi
+
+# Conservative initial controller values inherited from the validated R1
+# development baseline. Ti-Tui-specific tuning requires SITL and flight data.
+param set-default MC_ROLLRATE_P 0.12
+param set-default MC_ROLLRATE_I 0.04
+param set-default MC_ROLLRATE_D 0.005
+param set-default MC_PITCHRATE_P 0.12
+param set-default MC_PITCHRATE_I 0.04
+param set-default MC_PITCHRATE_D 0.005
+param set-default MC_YAWRATE_P 0.10
+param set-default MC_YAWRATE_I 0.03
+param set-default MC_YAWRATE_D 0.02
+param set-default MC_ROLL_P 4.0
+param set-default MC_PITCH_P 4.0
+param set-default MC_YAW_P 2.0
+param set-default MC_ROLLRATE_MAX 80
+param set-default MC_PITCHRATE_MAX 80
+param set-default MC_YAWRATE_MAX 60
+param set-default MPC_XY_P 0.50
+param set-default MPC_XY_VEL_P_ACC 0.70
+param set-default MPC_XY_VEL_I_ACC 0.08
+param set-default MPC_XY_VEL_D_ACC 0.12
+param set-default MPC_TILTMAX_AIR 18
+param set-default MPC_ACC_HOR 0.80
+param set-default MPC_ACC_HOR_MAX 1.20
+param set-default MPC_VEL_MANUAL 3.0
+param set-default MPC_Z_VEL_MAX_UP 1.0
+param set-default MPC_Z_VEL_MAX_DN 0.7
+param set-default MPC_JERK_MAX 2.0
+
+# Ti-Tui mass and affine normalized-body-thrust force calibration. These
+# values use the Ti-Tui 30-degree axes, CAD-derived rotor centres, 0.85 lower-
+# rotor effectiveness, 350 rad/s armed-idle speed, 1774 rad/s maximum speed,
+# and 1.2138e-6 N s^2/rad^2 upper-rotor thrust coefficient.
+param set-default THR_MDL_FAC 0.670433
+param set-default MPC_THR_HOVER 0.461647
+
+# CAD-derived rotor centres and 30-degree axes in PX4 body FRD coordinates.
+# The lower-rotor CT value implements the documented 0.85 coaxial-wash model.
+param set-default CA_ROTOR0_PX 0.0783166
+param set-default CA_ROTOR0_PY 0.0949025
+param set-default CA_ROTOR0_PZ -0.0470817
+param set-default CA_ROTOR0_AX -0.5000000
+param set-default CA_ROTOR0_AY 0.0000000
+param set-default CA_ROTOR0_AZ -0.8660254
+param set-default CA_ROTOR0_CT 1.0
+param set-default CA_ROTOR0_KM 0.00857637
+
+param set-default CA_ROTOR1_PX 0.0783166
+param set-default CA_ROTOR1_PY -0.0949025
+param set-default CA_ROTOR1_PZ -0.0470817
+param set-default CA_ROTOR1_AX -0.5000000
+param set-default CA_ROTOR1_AY 0.0000000
+param set-default CA_ROTOR1_AZ -0.8660254
+param set-default CA_ROTOR1_CT 1.0
+param set-default CA_ROTOR1_KM -0.00857637
+
+param set-default CA_ROTOR2_PX -0.0783166
+param set-default CA_ROTOR2_PY -0.0949025
+param set-default CA_ROTOR2_PZ -0.0470817
+param set-default CA_ROTOR2_AX 0.5000000
+param set-default CA_ROTOR2_AY 0.0000000
+param set-default CA_ROTOR2_AZ -0.8660254
+param set-default CA_ROTOR2_CT 1.0
+param set-default CA_ROTOR2_KM 0.00857637
+
+param set-default CA_ROTOR3_PX -0.0783166
+param set-default CA_ROTOR3_PY 0.0949025
+param set-default CA_ROTOR3_PZ -0.0470817
+param set-default CA_ROTOR3_AX 0.5000000
+param set-default CA_ROTOR3_AY 0.0000000
+param set-default CA_ROTOR3_AZ -0.8660254
+param set-default CA_ROTOR3_CT 1.0
+param set-default CA_ROTOR3_KM -0.00857637
+
+param set-default CA_ROTOR4_PX 0.0954782
+param set-default CA_ROTOR4_PY -0.1107248
+param set-default CA_ROTOR4_PZ 0.0473695
+param set-default CA_ROTOR4_AX 0.0000000
+param set-default CA_ROTOR4_AY 0.5000000
+param set-default CA_ROTOR4_AZ -0.8660254
+param set-default CA_ROTOR4_CT 0.85
+param set-default CA_ROTOR4_KM 0.00857637
+
+param set-default CA_ROTOR5_PX 0.0954782
+param set-default CA_ROTOR5_PY 0.1107248
+param set-default CA_ROTOR5_PZ 0.0473695
+param set-default CA_ROTOR5_AX 0.0000000
+param set-default CA_ROTOR5_AY -0.5000000
+param set-default CA_ROTOR5_AZ -0.8660254
+param set-default CA_ROTOR5_CT 0.85
+param set-default CA_ROTOR5_KM -0.00857637
+
+param set-default CA_ROTOR6_PX -0.0954782
+param set-default CA_ROTOR6_PY 0.1107248
+param set-default CA_ROTOR6_PZ 0.0473695
+param set-default CA_ROTOR6_AX 0.0000000
+param set-default CA_ROTOR6_AY -0.5000000
+param set-default CA_ROTOR6_AZ -0.8660254
+param set-default CA_ROTOR6_CT 0.85
+param set-default CA_ROTOR6_KM 0.00857637
+
+param set-default CA_ROTOR7_PX -0.0954782
+param set-default CA_ROTOR7_PY -0.1107248
+param set-default CA_ROTOR7_PZ 0.0473695
+param set-default CA_ROTOR7_AX 0.0000000
+param set-default CA_ROTOR7_AY 0.5000000
+param set-default CA_ROTOR7_AZ -0.8660254
+param set-default CA_ROTOR7_CT 0.85
+param set-default CA_ROTOR7_KM -0.00857637
+
+# DTRG horizontal thrust. The mode switch is shared with SITL; the roll/pitch
+# stick channels stay unmapped here because they depend on the transmitter, and
+# the SITL airframe maps them for the keyboard/RC-override scripts.
+param set-default DTRG_HT_EN 1
+param set-default RC_MAP_HT_MODE 8

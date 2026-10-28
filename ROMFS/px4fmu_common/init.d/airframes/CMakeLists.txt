@@ -111,6 +111,8 @@ if(CONFIG_MODULES_MC_RATE_CONTROL)
 		12015_dtrg_planar_octo_hitl.hil
 		# planetaryHex vehicle registration
 		12018_dtrg_planetary_hex
+		# Ti-Tui (stacked octo) vehicle registration
+		12011_ti_tui_canted_coax
 
 		# [14000, 14999] MC with tilt
 		14001_generic_mc_with_tilt
