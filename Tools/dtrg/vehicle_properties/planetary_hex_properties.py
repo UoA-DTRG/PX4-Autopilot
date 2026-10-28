@@ -171,9 +171,9 @@ def update_rod_sdf(sdf: str, base_mass: float, rotors: list[tuple[float, np.ndar
     inertial pose, standing in for moving the battery aft; total mass is
     unchanged apart from the rod itself.
     """
-    rod = link_masses(sdf, "interaction_rod")
-    if len(rod) != 1:
-        sys.exit("interaction_rod link not found")
+    rod = link_masses(sdf, "interaction_rod")  # the shaft and the tip (interaction_rod_tip)
+    if not rod:
+        sys.exit("interaction_rod links not found")
     sdf, count = re.subn(r'(<link element_id="base_link" action="modify"><inertial><pose>)[^<]*(</pose>)',
                          rf"\g<1>{centred_com_pose(base_mass, rotors + rod)}\g<2>", sdf)
     if count != 1:

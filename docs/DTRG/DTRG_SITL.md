@@ -464,7 +464,7 @@ make px4_sitl gz_ti_tui_rod_mocap_interaction
 | Vehicle | model `planar_octo_rod`, airframe `12018_gz_planar_octo_rod` | `planar_octo` merge-included, plus a rod. The airframe sources 12014, so the allocation, gains and `THR_MDL_FAC` are unchanged |
 | | model `planetary_hex_rod`, airframe `12020_gz_planetary_hex_rod` | `planetary_hex` merge-included, plus a rod. Sources 12019 |
 | | model `ti_tui_rod`, airframe `12021_gz_ti_tui_rod` | `ti_tui` merge-included, plus a rod. Sources 12007 |
-| Rod | in each `*_rod/model.sdf` | 0.35 m long, 16 mm diameter, along body +X, with an 18 mm radius contact ball on the tip. Assumed mass 0.030 kg. Mounted at the height of the centre of mass, so an axial contact force makes no pitching moment. Same joint and sensor names on every vehicle, so `gz_bridge` finds it without changes |
+| Rod | in each `*_rod/model.sdf` | 0.35 m long, 16 mm diameter, along body +X, with an 18 mm radius contact ball on the tip. Assumed mass 0.030 kg: a 0.025 kg shaft welded to the airframe and a 0.005 kg tip, joined by the load-cell joint. Mounted at the height of the centre of mass, so an axial contact force makes no pitching moment. Same joint and sensor names on every vehicle, so `gz_bridge` finds it without changes |
 | Pole | model `interaction_pole` | base plate, mast and a flat 0.60 m × 1.20 m panel spanning z = 0.80–2.00 m. 25 kg (assumed). Rigid: a prismatic joint of 1e6 N/m, 50 µm under a 50 N push |
 | World | `Tools/simulation/gz/worlds/mocap_interaction.sdf` | the mocap room plus the pole, with the panel face 2 m ahead of the takeoff marker (+X) |
 
@@ -483,7 +483,7 @@ measured from, so zero roll and pitch torque keeps it level. The plain
 1.4 mm, planetaryHex 0.5 mm, both vertical). Each `*_rod` model includes the
 plain vehicle and overrides only the base-link CoM pose (an
 `<experimental:params>` block on the include), moving it aft to balance the
-rod: planarOcto 8.7 mm, planetaryHex 4.0 mm, Ti-Tui 6.3 mm. This stands in
+rod: planarOcto 9.3 mm, planetaryHex 4.3 mm, Ti-Tui 7.1 mm. This stands in
 for moving the battery aft; the rod's 0.030 kg is the only mass added. The
 properties tools (section 9) write both poses, so they follow any change of
 mass or rotor links. Unbalanced, the Ti-Tui rod pitched the vehicle 13° nose
@@ -501,7 +501,7 @@ Both ends of the contact carry a Gazebo `force_torque` sensor:
 
 | Side | Recorded as | Sign |
 | --- | --- | --- |
-| Vehicle (rod mount) | `interaction_wrench` uORB topic, in the ulog at 250 Hz, body FRD (`force[0]`) | pressing forward gives a **negative** `force[0]`: it is what the environment feeds back into the airframe |
+| Vehicle (load cell at the rod tip) | `interaction_wrench` uORB topic, in the ulog at 250 Hz, body FRD (`force[0]`), torque about the tip centre | pressing forward gives a **negative** `force[0]`: it is what the surface feeds back into the rod |
 | Pole (panel) | CSV from `Tools/dtrg/log_interaction_force.py`, pole frame (world aligned) | a push in +X gives a **positive** `fx` |
 
 ```sh
@@ -511,12 +511,12 @@ Tools/dtrg/log_interaction_force.py --duration 60 -o push.csv
 
 The CSV is tared by default to remove the pole's standing weight, so keep clear
 of the panel for the first second. Line it up against a ulog with
-`sim_time_s`, which is Gazebo's clock. A cross-check over one contact read
-−136.6 N on the rod and +120.0 N on the pole: equal and opposite apart from
-the rod's inertial reaction during an impulsive hit.
-`interaction_wrench` includes the rod's own weight and inertial reaction, so it
-equals the contact force only near steady flight. It is SITL only and is never
-published on hardware.
+`sim_time_s`, which is Gazebo's clock. A cross-check over one steady push read
+a median −2.48 N on the tip and +2.32 N on the pole: equal and opposite.
+Only the 5 g tip sits in front of the load cell, so `interaction_wrench`
+carries just its weight (+0.049 N on `force[2]` away from contact) and a small
+inertial reaction; it is close to the contact force even while manoeuvring.
+It is SITL only and is never published on hardware.
 
 The `contact` sensors on the tip and the panel say *where* contact happened,
 not *how hard*: gz-sim leaves their wrench at zero. Use the `force_torque`
@@ -532,9 +532,11 @@ Three things to know when changing the setup:
   `server.config` plugin set. The contact and force-torque systems are loaded
   from `src/modules/simulation/gz_bridge/server.config`.
 
-Checked in Gazebo with an offboard push 0.2 m past contact: at rest each
-vehicle reads `force[2]` = +0.294 N, the rod's own weight, and pressing on the
-panel gives a negative `force[0]` that returns to zero on release.
+Checked in Gazebo with an offboard push 0.2 m past contact: hovering clear of
+the panel each vehicle reads `force[2]` = +0.049 N, the tip's weight, and
+pressing gives a steady negative `force[0]` (planarOcto −2.5 N, planetaryHex
+−3.0 N, Ti-Tui −0.5 N) that returns to zero on release. The first touch gives
+a one-sample spike (tens of newtons at about 1 m/s); skip it when analysing.
 
 ---
 

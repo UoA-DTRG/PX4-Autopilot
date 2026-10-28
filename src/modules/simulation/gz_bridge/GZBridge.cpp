@@ -334,9 +334,9 @@ bool GZBridge::subscribeOpticalFlow(bool required)
 
 bool GZBridge::subscribeInteractionWrench(bool required)
 {
-	// Interaction rod force/torque (planar_octo_rod and any other model carrying
-	// an interaction rod). Absent on every other model, in which case the
-	// subscription simply never fires.
+	// Interaction rod force/torque: the load cell at the rod tip (planar_octo_rod,
+	// planetary_hex_rod, ti_tui_rod). Absent on every other model, in which case
+	// the subscription simply never fires.
 	std::string interaction_wrench_topic = "/world/" + _world_name + "/model/" + _model_name +
 					       "/joint/interaction_rod_joint/sensor/interaction_force/forcetorque";
 
@@ -476,8 +476,8 @@ void GZBridge::interactionWrenchCallback(const gz::msgs::Wrench &msg)
 				  + (static_cast<uint64_t>(msg.header().stamp().nsec()) / 1000ULL)
 				  : timestamp;
 
-	// The sensor reports in the parent link frame, which is body FLU; PX4 works
-	// in body FRD, so y and z flip sign.
+	// The sensor reports in the rod tip's frame, which is aligned with the body
+	// (FLU); PX4 works in body FRD, so y and z flip sign.
 	report.force[0] = static_cast<float>(msg.force().x());
 	report.force[1] = -static_cast<float>(msg.force().y());
 	report.force[2] = -static_cast<float>(msg.force().z());

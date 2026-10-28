@@ -63,10 +63,12 @@ of mass, so an axial contact force produces no pitching moment.
 Both ends of the contact are instrumented with a Gazebo `force_torque` sensor,
 and each is recorded in the place that suits it.
 
-**Vehicle side, into the ulog.** A sensor on the rod mount measures the wrench
-the rod transmits into the airframe. `gz_bridge` subscribes to it, converts
-body FLU to body FRD and publishes the `interaction_wrench` uORB topic, which
-the logger records at the sensor's full 250 Hz:
+**Vehicle side, into the ulog.** A load cell at the rod tip measures the
+wrench the contact ball transmits into the rod shaft: the rod is a shaft
+welded to the airframe plus a 5 g tip, joined by the sensor joint. `gz_bridge`
+subscribes to it, converts body FLU to body FRD and publishes the
+`interaction_wrench` uORB topic, which the logger records at the sensor's full
+250 Hz:
 
 ```bash
 px4-listener interaction_wrench          # live, from the pxh console
@@ -79,9 +81,11 @@ d.data["force[0]"]                       # N, body FRD
 ```
 
 Pressing the rod forward into the panel gives a **negative** `force[0]`: the
-logged quantity is what the environment feeds back into the vehicle, not what
-the vehicle exerts. It includes the rod's own weight and its inertial reaction,
-so it is the external contact force only near steady flight. The topic is
+logged quantity is what the surface feeds back into the rod, not what the
+vehicle exerts. Only the tip's own 5 g is behind the load cell, so away from
+contact it reads +0.049 N on `force[2]` (the tip's weight) and its inertial
+reaction is small; it is close to the contact force even while manoeuvring.
+The torque is taken about the tip centre. The topic is
 registered as optional, so models without a rod and real hardware simply never
 publish it.
 
@@ -99,9 +103,9 @@ default and removes the pole's standing weight, so keep clear of the panel for
 the first second. Use `sim_time_s` to line the CSV up against a ulog; it is
 Gazebo's clock, and it stops when the simulation pauses.
 
-A cross-check of both records over one contact: the rod read a -136.6 N peak on
-`force[0]` while the pole read +120.0 N on `fx`. Equal and opposite, with the
-gap being the rod's inertial reaction during an impulsive hit.
+A cross-check of both records over one steady push (planarOcto): the tip read
+a median -2.48 N on `force[0]` while the pole read +2.32 N on `fx`, equal and
+opposite.
 
 ### What the contact sensors do and do not give
 
@@ -109,7 +113,7 @@ The rod tip and the panel also carry `contact` sensors:
 
 ```bash
 gz topic -e -t /world/mocap_interaction/model/interaction_pole/link/pole/sensor/push_surface_contact/contact
-gz topic -e -t /world/mocap_interaction/model/planar_octo_rod_0/link/interaction_rod/sensor/rod_tip_contact/contact
+gz topic -e -t /world/mocap_interaction/model/planar_octo_rod_0/link/interaction_rod_tip/sensor/rod_tip_contact/contact
 ```
 
 These answer *where* contact happened, not *how hard*: point positions, normals
