@@ -2,8 +2,9 @@
 """Apply planetary_hex_properties.yaml to the planetaryHex Gazebo models and PX4 airframe.
 
 Edits in place (no CAD needed):
-  Tools/simulation/gz/models/planetary_hex_base/model.sdf   base mass and inertia
+  Tools/simulation/gz/models/planetary_hex_base/model.sdf   base mass, CoM and inertia
   Tools/simulation/gz/models/planetary_hex/model.sdf        rotor link inertia, motor constants
+  Tools/simulation/gz/models/planetary_hex_rod/model.sdf    base CoM rebalanced for the rod
   ROMFS/px4fmu_common/init.d/airframes/12018_dtrg_planetary_hex
                                                             CA_ROTOR*_CT/KM, THR_MDL_FAC,
                                                             MPC_THR_HOVER (and MPC_MR_* if present)
@@ -32,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[3]
 CONFIG = Path(__file__).with_suffix(".yaml")
 BASE_SDF = ROOT / "Tools/simulation/gz/models/planetary_hex_base/model.sdf"
 MODEL_SDF = ROOT / "Tools/simulation/gz/models/planetary_hex/model.sdf"
+ROD_SDF = ROOT / "Tools/simulation/gz/models/planetary_hex_rod/model.sdf"
 HW_AIRFRAME = ROOT / "ROMFS/px4fmu_common/init.d/airframes/12018_dtrg_planetary_hex"
 SITL_AIRFRAME = ROOT / "ROMFS/px4fmu_common/init.d-posix/airframes/12019_gz_planetary_hex"
 
@@ -146,8 +148,55 @@ def update_airframe(hw: str, rotors: list[Rotor], values: dict[str, float], cts:
     return hw
 
 
-def update_base_sdf(sdf: str, cfg: dict, rotor_mass: float) -> str:
-    """Set the base link mass (total minus rotor links) and inertia."""
+def link_masses(sdf: str, prefix: str = "rotor_") -> list[tuple[float, np.ndarray]]:
+    """(mass, position) of every link named prefix*, position from its <pose> relative to base_link."""
+    links = re.findall(rf'<link name="{prefix}[^"]*">\s*<pose[^>]*>([^<]*)</pose>.*?<mass>([^<]*)</mass>', sdf, re.S)
+    return [(float(m), np.array([float(v) for v in p.split()[:3]])) for p, m in links]
+
+
+def centred_com_pose(base_mass: float, others: list[tuple[float, np.ndarray]]) -> str:
+    """Base inertial pose that puts the CoM of base + others at the body origin.
+
+    The body origin is where the CA_ROTOR positions are measured from, so with
+    the CoM there zero roll and pitch torque holds the vehicle level.
+    """
+    com = -sum((m * p for m, p in others), np.zeros(3)) / base_mass
+    return " ".join(f"{v + 0.0:.6f}" for v in np.round(com, 6)) + " 0 0 0"
+
+
+def update_rod_sdf(sdf: str, base_mass: float, rotors: list[tuple[float, np.ndarray]]) -> str:
+    """Rebalance the base of a *_rod model so the rod does not move the CoM off the origin.
+
+    The rod model merge-includes the plain vehicle and overrides only the base
+    inertial pose, standing in for moving the battery aft; total mass is
+    unchanged apart from the rod itself.
+    """
+    rod = link_masses(sdf, "interaction_rod")
+    if len(rod) != 1:
+        sys.exit("interaction_rod link not found")
+    sdf, count = re.subn(r'(<link element_id="base_link" action="modify"><inertial><pose>)[^<]*(</pose>)',
+                         rf"\g<1>{centred_com_pose(base_mass, rotors + rod)}\g<2>", sdf)
+    if count != 1:
+        sys.exit("base_link inertial override not found in the rod model")
+    return sdf
+
+
+def body_sdfs(cfg: dict, rotor_mass: float, model_sdf: str, base_path: Path, rod_path: Path) -> dict[Path, str]:
+    """Base and rod-model SDFs, both with the CoM at the body origin.
+
+    model_sdf is the already-updated rotor model, so new rotor masses count.
+    """
+    base_mass = round(cfg["mass_kg"] - rotor_mass, 3)
+    rotors = link_masses(model_sdf)
+    return {
+        base_path: update_base_sdf(base_path.read_text(encoding="utf-8"), cfg, rotor_mass,
+                                   centred_com_pose(base_mass, rotors)),
+        rod_path: update_rod_sdf(rod_path.read_text(encoding="utf-8"), base_mass, rotors),
+    }
+
+
+def update_base_sdf(sdf: str, cfg: dict, rotor_mass: float, com_pose: str) -> str:
+    """Set the base link mass (total minus rotor links), CoM pose and inertia."""
     base_mass = cfg["mass_kg"] - rotor_mass
     if base_mass <= 0:
         sys.exit(f"mass_kg {cfg['mass_kg']} is not larger than the rotor links ({rotor_mass:.3f} kg)")
@@ -159,7 +208,7 @@ def update_base_sdf(sdf: str, cfg: dict, rotor_mass: float) -> str:
         def val(tag: str) -> str:
             old = re.search(rf"<{tag}>([^<]*)</{tag}>", match.group(0)).group(1)
             return old if float(old) == float(format(want[tag][0], want[tag][1])) else format(want[tag][0], want[tag][1])
-        return (f"<inertial><mass>{val('mass')}</mass><inertia><ixx>{val('ixx')}</ixx><ixy>{val('ixy')}</ixy>"
+        return (f"<inertial><pose>{com_pose}</pose><mass>{val('mass')}</mass><inertia><ixx>{val('ixx')}</ixx><ixy>{val('ixy')}</ixy>"
                 f"<ixz>{val('ixz')}</ixz><iyy>{val('iyy')}</iyy><iyz>{val('iyz')}</iyz>"
                 f"<izz>{val('izz')}</izz></inertia></inertial>")
 
@@ -226,10 +275,10 @@ def main() -> None:
     rotors = build_rotors(cfg, hw, sitl)
     values, cts = calibration(rotors, cfg["mass_kg"])
 
+    model = update_model_sdf(MODEL_SDF.read_text(encoding="utf-8"), rotors)
     outputs = {
-        BASE_SDF: update_base_sdf(BASE_SDF.read_text(encoding="utf-8"), cfg,
-                              sum(r.p["rotor_mass_kg"] for r in rotors)),
-        MODEL_SDF: update_model_sdf(MODEL_SDF.read_text(encoding="utf-8"), rotors),
+        **body_sdfs(cfg, sum(r.p["rotor_mass_kg"] for r in rotors), model, BASE_SDF, ROD_SDF),
+        MODEL_SDF: model,
         HW_AIRFRAME: update_airframe(hw, rotors, values, cts),
     }
     changed = write_outputs(outputs, args.dry_run)

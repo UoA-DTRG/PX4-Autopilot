@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Created: 28/10/2026
+#
+# @name Gazebo DTRG Ti-Tui with interaction rod
+# @type Octorotor Coaxial
+# @class Copter
+#
+# Ti-Tui (stacked octo) carrying a rigid forward rod for physical-interaction
+# tests against the interaction_pole push panel:
+#
+#   make px4_sitl gz_ti_tui_rod_mocap_interaction
+#
+# Everything is inherited from 12007, which in turn inherits the parameter set
+# from 12011 (init.d). The rod adds an assumed 0.030 kg to the 1.21 kg
+# airframe (2.5%); the model moves the base CoM aft so the vehicle CoM stays
+# at the body origin, as without the rod. That matters here: uncompensated,
+# the 6 mm forward shift flipped the vehicle at liftoff (see
+# ti_tui_rod/model.sdf). The control allocation, gains and THR_MDL_FAC are
+# deliberately left unchanged; the hover-thrust estimator takes up the mass.
+#
+
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=ti_tui_rod}
+
+. ${R}etc/init.d-posix/airframes/12007_gz_ti_tui

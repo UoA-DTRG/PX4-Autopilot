@@ -8,12 +8,12 @@
 # @type Octorotor Coaxial
 # @class Copter
 #
-# @output Motor1 azimuth +1.7 deg CW
-# @output Motor2 azimuth -61.7 deg CCW
-# @output Motor3 azimuth -118.3 deg CW
-# @output Motor4 azimuth +178.3 deg CCW
-# @output Motor5 azimuth +121.7 deg CW
-# @output Motor6 azimuth +58.3 deg CCW
+# @output Motor1 azimuth -28.3 deg CW
+# @output Motor2 azimuth -91.7 deg CCW
+# @output Motor3 azimuth -148.3 deg CW
+# @output Motor4 azimuth +148.3 deg CCW
+# @output Motor5 azimuth +91.7 deg CW
+# @output Motor6 azimuth +28.3 deg CCW
 # @output Motor7 centre upper CCW
 # @output Motor8 centre lower CW
 #
@@ -96,60 +96,65 @@ param set-default THR_MDL_FAC 0.666667
 param set-default MPC_THR_HOVER 0.387524
 
 # CAD-derived rotor centres (about the body origin) and thrust axes in PX4 body
-# FRD. CT is each rotor's incremental thrust relative to an outer rotor and
+# FRD. Body +X (forward) lies in the gap between Motor1 and Motor6, the pair
+# whose thrust leans inward towards each other; Motor2 and Motor5 sit at the
+# sides with their thrust pointing straight back. This is the CAD frame rotated
+# 30 deg (28/10/2026; previously Motor1 pointed forward). The flight
+# controller's forward arrow must point into that gap, or set
+# SENS_BOARD_Z_OFF to the mounting yaw instead of remounting it. CT is each rotor's incremental thrust relative to an outer rotor and
 # includes the 0.8 lower-coaxial effectiveness. Motor order follows
 # the flown CA_ROTOR indices; spin follows the STEP propeller instances.
 
-param set-default CA_ROTOR0_PX 0.3002891
-param set-default CA_ROTOR0_PY 0.0087986
+param set-default CA_ROTOR0_PX 0.2644573
+param set-default CA_ROTOR0_PY -0.1425247
 param set-default CA_ROTOR0_PZ -0.0190072
-param set-default CA_ROTOR0_AX 0.0127639
-param set-default CA_ROTOR0_AY 0.7312423
+param set-default CA_ROTOR0_AX 0.3766750
+param set-default CA_ROTOR0_AY 0.6268925
 param set-default CA_ROTOR0_AZ -0.6819984
 param set-default CA_ROTOR0_CT 1.000000
 param set-default CA_ROTOR0_KM -0.01200000
 
-param set-default CA_ROTOR1_PX 0.1425247
-param set-default CA_ROTOR1_PY -0.2644573
+param set-default CA_ROTOR1_PX -0.0087986
+param set-default CA_ROTOR1_PY -0.3002891
 param set-default CA_ROTOR1_PZ -0.0190072
-param set-default CA_ROTOR1_AX -0.6268925
-param set-default CA_ROTOR1_AY -0.3766750
+param set-default CA_ROTOR1_AX -0.7312423
+param set-default CA_ROTOR1_AY -0.0127639
 param set-default CA_ROTOR1_AZ -0.6819984
 param set-default CA_ROTOR1_CT 1.000000
 param set-default CA_ROTOR1_KM 0.01200000
 
-param set-default CA_ROTOR2_PX -0.1425247
-param set-default CA_ROTOR2_PY -0.2644573
+param set-default CA_ROTOR2_PX -0.2556587
+param set-default CA_ROTOR2_PY -0.1577644
 param set-default CA_ROTOR2_PZ -0.0190072
-param set-default CA_ROTOR2_AX 0.6268925
-param set-default CA_ROTOR2_AY -0.3766750
+param set-default CA_ROTOR2_AX 0.3545673
+param set-default CA_ROTOR2_AY -0.6396564
 param set-default CA_ROTOR2_AZ -0.6819984
 param set-default CA_ROTOR2_CT 1.000000
 param set-default CA_ROTOR2_KM -0.01200000
 
-param set-default CA_ROTOR3_PX -0.3002891
-param set-default CA_ROTOR3_PY 0.0087986
+param set-default CA_ROTOR3_PX -0.2556587
+param set-default CA_ROTOR3_PY 0.1577644
 param set-default CA_ROTOR3_PZ -0.0190072
-param set-default CA_ROTOR3_AX -0.0127639
-param set-default CA_ROTOR3_AY 0.7312423
+param set-default CA_ROTOR3_AX 0.3545673
+param set-default CA_ROTOR3_AY 0.6396564
 param set-default CA_ROTOR3_AZ -0.6819983
 param set-default CA_ROTOR3_CT 1.000000
 param set-default CA_ROTOR3_KM 0.01200000
 
-param set-default CA_ROTOR4_PX -0.1577644
-param set-default CA_ROTOR4_PY 0.2556586
+param set-default CA_ROTOR4_PX -0.0087987
+param set-default CA_ROTOR4_PY 0.3002890
 param set-default CA_ROTOR4_PZ -0.0190072
-param set-default CA_ROTOR4_AX -0.6396564
-param set-default CA_ROTOR4_AY -0.3545673
+param set-default CA_ROTOR4_AX -0.7312423
+param set-default CA_ROTOR4_AY 0.0127639
 param set-default CA_ROTOR4_AZ -0.6819984
 param set-default CA_ROTOR4_CT 1.000000
 param set-default CA_ROTOR4_KM -0.01200000
 
-param set-default CA_ROTOR5_PX 0.1577644
-param set-default CA_ROTOR5_PY 0.2556586
+param set-default CA_ROTOR5_PX 0.2644573
+param set-default CA_ROTOR5_PY 0.1425246
 param set-default CA_ROTOR5_PZ -0.0190072
-param set-default CA_ROTOR5_AX 0.6396563
-param set-default CA_ROTOR5_AY -0.3545674
+param set-default CA_ROTOR5_AX 0.3766749
+param set-default CA_ROTOR5_AY -0.6268925
 param set-default CA_ROTOR5_AZ -0.6819984
 param set-default CA_ROTOR5_CT 1.000000
 param set-default CA_ROTOR5_KM 0.01200000
@@ -157,7 +162,7 @@ param set-default CA_ROTOR5_KM 0.01200000
 param set-default CA_ROTOR6_PX 0.0000000
 param set-default CA_ROTOR6_PY 0.0000000
 param set-default CA_ROTOR6_PZ -0.0825618
-param set-default CA_ROTOR6_AX -0.0000000
+param set-default CA_ROTOR6_AX 0.0000000
 param set-default CA_ROTOR6_AY 0.0000000
 param set-default CA_ROTOR6_AZ -1.0000000
 param set-default CA_ROTOR6_CT 1.604444

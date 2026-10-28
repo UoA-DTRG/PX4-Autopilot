@@ -12,10 +12,11 @@
 #   make px4_sitl gz_planar_octo_rod_mocap_interaction
 #
 # Everything is inherited from 12014, which in turn inherits the flown
-# parameter set from 12013. The rod adds an assumed 0.030 kg to the 1.460 kg
-# airframe, 2% more mass with the centre of mass 8.5 mm forward. The control
-# allocation, rate gains and THR_MDL_FAC are deliberately left at their
-# measured values; the hover-thrust estimator takes up the small offset.
+# parameter set from 12013. The rod adds an assumed 0.030 kg to the 1.5 kg
+# airframe (2%); the model moves the base CoM aft so the vehicle CoM stays at
+# the body origin, as without the rod. The control allocation, rate gains and
+# THR_MDL_FAC are deliberately left at their measured values; the
+# hover-thrust estimator takes up the extra mass.
 # Re-tune here, not in 12013, if a heavier rod is fitted.
 #
 

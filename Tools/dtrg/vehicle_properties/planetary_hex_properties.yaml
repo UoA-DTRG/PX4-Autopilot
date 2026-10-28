@@ -14,12 +14,12 @@ mass_kg: 3
 # Base-body moment of inertia about the body origin, Gazebo FLU [kg m^2].
 # This is the stationary body only; rotor-link inertia is set per group below.
 base_inertia_kgm2:
-  ixx: 0.057325
-  iyy: 0.057334
+  ixx: 0.057444
+  iyy: 0.057215
   izz: 0.106615
-  ixy: -0.000135
-  ixz: -0.000016
-  iyz: -0.000021
+  ixy: -0.000071
+  ixz: -0.000003
+  iyz: -0.000026
 
 # Thrust of the lower sun rotor relative to the upper one (coaxial wash).
 lower_coax_effectiveness: 0.8

@@ -2,8 +2,9 @@
 """Apply ti_tui_properties.yaml to the Ti-Tui (stacked octo) Gazebo models and PX4 airframe.
 
 Edits in place (no CAD needed):
-  Tools/simulation/gz/models/ti_tui_base/model.sdf   base mass and inertia
+  Tools/simulation/gz/models/ti_tui_base/model.sdf   base mass, CoM and inertia
   Tools/simulation/gz/models/ti_tui/model.sdf        rotor link inertia, motor constants
+  Tools/simulation/gz/models/ti_tui_rod/model.sdf    base CoM rebalanced for the rod
   ROMFS/px4fmu_common/init.d/airframes/12011_ti_tui_canted_coax
                                                      CA_ROTOR*_CT/KM, THR_MDL_FAC,
                                                      MPC_THR_HOVER (and MPC_MR_* if present)
@@ -27,11 +28,12 @@ from pathlib import Path
 import yaml
 
 import planetary_hex_properties as base
-from planetary_hex_properties import ROOT, calibration, set_param, update_base_sdf, update_model_sdf, write_outputs
+from planetary_hex_properties import ROOT, body_sdfs, calibration, set_param, update_model_sdf, write_outputs
 
 CONFIG = Path(__file__).with_suffix(".yaml")
 BASE_SDF = ROOT / "Tools/simulation/gz/models/ti_tui_base/model.sdf"
 MODEL_SDF = ROOT / "Tools/simulation/gz/models/ti_tui/model.sdf"
+ROD_SDF = ROOT / "Tools/simulation/gz/models/ti_tui_rod/model.sdf"
 HW_AIRFRAME = ROOT / "ROMFS/px4fmu_common/init.d/airframes/12011_ti_tui_canted_coax"
 SITL_AIRFRAME = ROOT / "ROMFS/px4fmu_common/init.d-posix/airframes/12007_gz_ti_tui"
 N_ROTORS = 8
@@ -77,10 +79,10 @@ def main() -> None:
     rotors = [Rotor(i, hw, sitl, cfg) for i in range(N_ROTORS)]
     values, cts = calibration(rotors, cfg["mass_kg"])
 
+    model = update_model_sdf(MODEL_SDF.read_text(encoding="utf-8"), rotors)
     outputs = {
-        BASE_SDF: update_base_sdf(BASE_SDF.read_text(encoding="utf-8"), cfg,
-                                  cfg["rotor"]["rotor_mass_kg"] * N_ROTORS),
-        MODEL_SDF: update_model_sdf(MODEL_SDF.read_text(encoding="utf-8"), rotors),
+        **body_sdfs(cfg, cfg["rotor"]["rotor_mass_kg"] * N_ROTORS, model, BASE_SDF, ROD_SDF),
+        MODEL_SDF: model,
         HW_AIRFRAME: update_airframe(hw, rotors, values, cts, cfg["lower_rotor_effectiveness"]),
     }
     changed = write_outputs(outputs, args.dry_run)

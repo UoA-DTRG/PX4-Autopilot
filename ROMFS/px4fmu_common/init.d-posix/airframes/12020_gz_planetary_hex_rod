@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Created: 28/10/2026
+#
+# @name Gazebo DTRG planetaryHex with interaction rod
+# @type Octorotor Coaxial
+# @class Copter
+#
+# planetaryHex carrying a rigid forward rod for physical-interaction tests
+# against the interaction_pole push panel:
+#
+#   make px4_sitl gz_planetary_hex_rod_mocap_interaction
+#
+# Everything is inherited from 12019, which in turn inherits the flown
+# parameter set from 12018 (init.d). The rod adds an assumed 0.030 kg to the
+# 3.0 kg airframe (1%); the model moves the base CoM aft so the vehicle CoM
+# stays at the body origin, as without the rod. The control allocation, gains
+# and THR_MDL_FAC are deliberately left unchanged; the hover-thrust estimator
+# takes up the extra mass.
+#
+
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=planetary_hex_rod}
+
+. ${R}etc/init.d-posix/airframes/12019_gz_planetary_hex

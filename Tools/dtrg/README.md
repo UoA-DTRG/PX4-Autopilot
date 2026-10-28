@@ -38,15 +38,19 @@ Run only one of these scripts at a time: both send `RC_CHANNELS_OVERRIDE`, and t
 
 `gz_planar_octo_rod_mocap_interaction` flies a planarOcto with a rigid 0.35 m
 rod on its nose, in a copy of the mocap laboratory that also holds a floor
-pole with a vertical push panel:
+pole with a vertical push panel. The planetaryHex and the Ti-Tui carry the
+same rod:
 
 ```bash
 make px4_sitl gz_planar_octo_rod_mocap_interaction
+make px4_sitl gz_planetary_hex_rod_mocap_interaction
+make px4_sitl gz_ti_tui_rod_mocap_interaction
 ```
 
 The panel face is 2 m straight ahead of the takeoff marker (+X) and spans
 z = 0.80 m to 2.00 m, so hovering at 1.0-1.5 m and flying forward brings the
-rod tip onto it; contact happens with the vehicle centred near x = 1.38 m.
+rod tip onto it; contact happens with the vehicle centred near x = 1.38 m
+(planetaryHex 1.42 m, Ti-Tui 1.56 m).
 The pole is rigid and immovable, which is the usual reference condition for
 interaction-force control.
 
@@ -134,10 +138,17 @@ force.
    (`gz-sim-contact-system`, `gz-sim-forcetorque-system`) are loaded from
    `src/modules/simulation/gz_bridge/server.config` instead.
 
-The pieces live in `Tools/simulation/gz/models/planar_octo_rod`,
+The pieces live in `Tools/simulation/gz/models/planar_octo_rod`
+(`planetary_hex_rod`, `ti_tui_rod`),
 `Tools/simulation/gz/models/interaction_pole` and
-`Tools/simulation/gz/worlds/mocap_interaction.sdf`; the plain `planar_octo`
-model and `mocap` world are untouched.
+`Tools/simulation/gz/worlds/mocap_interaction.sdf`; the plain vehicle models
+and the `mocap` world are untouched. The rod uses the same joint and sensor
+names on every vehicle, so the `interaction_wrench` path above works for all
+three. Every model, with or without the rod, keeps its centre of mass at the
+body origin that the `CA_ROTOR*` positions are measured from: each `*_rod`
+model moves the base CoM aft to balance the rod (the properties tools below
+keep this in step). Without that the Ti-Tui flips at liftoff. See
+`docs/DTRG/DTRG_SITL.md`, section 8.
 
 ## planetaryHex physical properties
 

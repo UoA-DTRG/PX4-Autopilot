@@ -13,8 +13,8 @@ runs.
 
 | | planarOcto | planetaryHex | Ti-Tui (stacked octo) |
 | --- | --- | --- | --- |
-| Airframes | `12013_dtrg_planar_octo` (the vehicle), `12014_gz_planar_octo`, `12016_sihsim_planar_octo` (SITL), `12018_gz_planar_octo_rod` (SITL with the interaction rod), `12015_dtrg_planar_octo_hitl.hil`, `12017_dtrg_planar_octo_sih.hil` (hardware) | `12018_dtrg_planetary_hex` (the vehicle), `12019_gz_planetary_hex` (Gazebo SITL) | `12011_ti_tui_canted_coax` (the vehicle), `12007_gz_ti_tui` (Gazebo SITL) |
-| Gazebo model | `Tools/simulation/gz/models/planar_octo` (+ `planar_octo_base`, `planar_octo_rod`) | `Tools/simulation/gz/models/planetary_hex` (+ `planetary_hex_base`) | `Tools/simulation/gz/models/ti_tui` (+ `ti_tui_base`) |
+| Airframes | `12013_dtrg_planar_octo` (the vehicle), `12014_gz_planar_octo`, `12016_sihsim_planar_octo` (SITL), `12018_gz_planar_octo_rod` (SITL with the interaction rod), `12015_dtrg_planar_octo_hitl.hil`, `12017_dtrg_planar_octo_sih.hil` (hardware) | `12018_dtrg_planetary_hex` (the vehicle), `12019_gz_planetary_hex` (Gazebo SITL), `12020_gz_planetary_hex_rod` (SITL with the interaction rod) | `12011_ti_tui_canted_coax` (the vehicle), `12007_gz_ti_tui` (Gazebo SITL), `12021_gz_ti_tui_rod` (SITL with the interaction rod) |
+| Gazebo model | `Tools/simulation/gz/models/planar_octo` (+ `planar_octo_base`, `planar_octo_rod`) | `Tools/simulation/gz/models/planetary_hex` (+ `planetary_hex_base`, `planetary_hex_rod`) | `Tools/simulation/gz/models/ti_tui` (+ `ti_tui_base`, `ti_tui_rod`) |
 | Simulators | Gazebo, SIH, HITL | Gazebo | Gazebo |
 | Properties tool | `Tools/dtrg/vehicle_properties/planar_octo_properties.py` | `Tools/dtrg/vehicle_properties/planetary_hex_properties.py` | `Tools/dtrg/vehicle_properties/ti_tui_properties.py` |
 
@@ -46,8 +46,10 @@ make px4_sitl gz_planetary_hex_mocap
 make px4_sitl gz_ti_tui
 make px4_sitl gz_ti_tui_mocap
 
-# planarOcto with the interaction rod, flying against the push panel
+# any of the three with the interaction rod, flying against the push panel
 make px4_sitl gz_planar_octo_rod_mocap_interaction
+make px4_sitl gz_planetary_hex_rod_mocap_interaction
+make px4_sitl gz_ti_tui_rod_mocap_interaction
 ```
 
 `gz_<model>_<world>` is generated for every `*_gz_*` airframe and every world
@@ -148,6 +150,7 @@ QGroundControl over USB and fly with your transmitter.
 | --- | --- | --- | --- |
 | 12018 | DTRG planetaryHex | real vehicle | geometry (`CA_ROTOR*`), flown rate/attitude/position gains, thrust model, outputs AUX1–8 = Motors 1–8 |
 | 12019 | Gazebo DTRG planetaryHex | SITL, Gazebo | 12018 + Gazebo ESC mapping (`SIM_GZ_EC_FUNC1-8`, separate speed limits for outer and central rotors), `MPC_XY_VEL_P_ACC 1.8`, HT knobs 9/10 |
+| 12020 | Gazebo DTRG planetaryHex with interaction rod | SITL, Gazebo | 12019 with `PX4_SIM_MODEL planetary_hex_rod`; allocation and gains unchanged (see [section 8](#8-the-interaction-rod)) |
 
 12019 sets `PLANETARY_HEX_NATIVE_GZ_SITL=1` before sourcing 12018, which skips
 the hardware output mapping (same scheme as the planarOcto).
@@ -163,6 +166,7 @@ is tuned in Gazebo, not in flight.
 | --- | --- | --- | --- |
 | 12011 | DTRG Ti-Tui Canted Coaxial | real vehicle | geometry (`CA_ROTOR*`), conservative rate/position gains inherited from the R1 baseline, thrust model, `HIL_ACT_FUNC1-8` = Motors 1–8, `DTRG_HT_EN 1`, `RC_MAP_HT_MODE 8` |
 | 12007 | Gazebo DTRG Ti-Tui Canted Coaxial | SITL, Gazebo | 12011 + Gazebo ESC mapping (`SIM_GZ_EC_FUNC1-8`, 350–1774 rad/s), `RC_MAP_HT_ROLL 9`, `RC_MAP_HT_PITCH 10` |
+| 12021 | Gazebo DTRG Ti-Tui with interaction rod | SITL, Gazebo | 12007 with `PX4_SIM_MODEL ti_tui_rod`; allocation and gains unchanged (see [section 8](#8-the-interaction-rod)) |
 
 12007 sets `TI_TUI_NATIVE_GZ_SITL=1` before sourcing 12011, which skips the
 `HIL_ACT_FUNC` mapping (same scheme as the other vehicles). The upstream Ti-Tui
@@ -224,18 +228,24 @@ exchange for the sideways authority.
 
 Six outer rotors on a ring, each tilted 47° and leaning mainly tangentially,
 plus a central (sun) coaxial pair. Body FRD, metres, origin on the sun axis at
-the centroid height of the stationary CAD.
+the centroid height of the stationary CAD. Forward (+X) lies in the gap
+between motors 1 and 6, whose thrust leans inward towards each other; motors 2
+and 5 sit at the sides and thrust straight back. The frame is mirror
+symmetric about X. This is the CAD frame rotated 30° (until 28/10/2026 motor 1
+pointed forward), so on the real vehicle the flight controller's forward
+arrow must point into the motor 1–6 gap, or `SENS_BOARD_Z_OFF` must carry the
+mounting yaw.
 
 ### Geometry
 
 | Motor | `CA_ROTORn` | Position | $p_x$ | $p_y$ | $p_z$ | `KM` | Spin |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 0 | outer, +1.7° | 0.3003 | 0.0088 | −0.0190 | −0.012 | CW |
-| 2 | 1 | outer, −61.7° | 0.1425 | −0.2645 | −0.0190 | 0.012 | CCW |
-| 3 | 2 | outer, −118.3° | −0.1425 | −0.2645 | −0.0190 | −0.012 | CW |
-| 4 | 3 | outer, +178.3° | −0.3003 | 0.0088 | −0.0190 | 0.012 | CCW |
-| 5 | 4 | outer, +121.7° | −0.1578 | 0.2557 | −0.0190 | −0.012 | CW |
-| 6 | 5 | outer, +58.3° | 0.1578 | 0.2557 | −0.0190 | 0.012 | CCW |
+| 1 | 0 | outer, −28.3° | 0.2645 | −0.1425 | −0.0190 | −0.012 | CW |
+| 2 | 1 | outer, −91.7° | −0.0088 | −0.3003 | −0.0190 | 0.012 | CCW |
+| 3 | 2 | outer, −148.3° | −0.2557 | −0.1578 | −0.0190 | −0.012 | CW |
+| 4 | 3 | outer, +148.3° | −0.2557 | 0.1578 | −0.0190 | 0.012 | CCW |
+| 5 | 4 | outer, +91.7° | −0.0088 | 0.3003 | −0.0190 | −0.012 | CW |
+| 6 | 5 | outer, +28.3° | 0.2645 | 0.1425 | −0.0190 | 0.012 | CCW |
 | 7 | 6 | centre, upper | 0 | 0 | −0.0826 | 0.020 | CCW |
 | 8 | 7 | centre, lower | 0 | 0 | 0.0619 | −0.020 | CW |
 
@@ -253,7 +263,7 @@ assumed, not measured. Gazebo and the controller use the same numbers.
 | | Value | |
 | --- | --- | --- |
 | Mass | 3.0 kg | 2.892 kg base + 6 × 8 g outer rotors + 2 × 30 g central rotors |
-| Base inertia $I_{xx}, I_{yy}, I_{zz}$ | 0.0573, 0.0573, 0.1066 kg m² | uniform-density CAD, scaled to the base mass |
+| Base inertia $I_{xx}, I_{yy}, I_{zz}$ | 0.0574, 0.0572, 0.1066 kg m² | uniform-density CAD, scaled to the base mass |
 | Outer propulsion | $k_F = 1.0\times10^{-6}$, $k_M/k_F = 0.012$ m, 600–3000 rad/s, $\tau = 0.05$ s | 5.1 in propeller, about 9 N at full speed |
 | Central propulsion | $k_F = 1.6\times10^{-5}$, $k_M/k_F = 0.020$ m, 190–950 rad/s, $\tau = 0.12$ s | 13 in propeller, about 14.4 N at full speed |
 | Lower coaxial effectiveness | 0.8 | the lower central rotor works in the upper one's wash |
@@ -286,7 +296,10 @@ The model `planetary_hex` merge-includes `planetary_hex_base` (CAD body,
 inertia, collision, sensors) and adds eight rotor links with one
 `MulticopterMotorModel` plugin each. The six landing feet are 10 mm collision
 spheres at the CAD feet. `SIM_GZ_EC_MIN/MAX` are 600/3000 rad/s for motors 1–6
-and 190/950 rad/s for motors 7–8.
+and 190/950 rad/s for motors 7–8. The CAD meshes are in the original CAD frame;
+the model turns the body mesh, the rotor links and the feet 30° so that body
++X is the motor 1–6 gap, matching `CA_ROTOR*` in 12018. The red front marker
+sits on +X.
 
 ---
 
@@ -435,23 +448,49 @@ Gazebo's hover is wobblier and SIH's IMU is noisier. Measurements and causes: [S
 
 For physical-interaction experiments, `gz_planar_octo_rod_mocap_interaction`
 flies a planarOcto with a rigid rod on its nose against a push panel on a floor
-pole. The full description, with the gotchas, is in the
+pole. The planetaryHex and the Ti-Tui carry the same rod
+(`gz_planetary_hex_rod_mocap_interaction`, `gz_ti_tui_rod_mocap_interaction`). The full description, with the gotchas, is in the
 [Physical-interaction testing](../../Tools/dtrg/README.md#physical-interaction-testing)
 section of `Tools/dtrg/README.md`. This is the summary.
 
 ```sh
 make px4_sitl gz_planar_octo_rod_mocap_interaction
+make px4_sitl gz_planetary_hex_rod_mocap_interaction
+make px4_sitl gz_ti_tui_rod_mocap_interaction
 ```
 
 | Piece | Where | What |
 | --- | --- | --- |
 | Vehicle | model `planar_octo_rod`, airframe `12018_gz_planar_octo_rod` | `planar_octo` merge-included, plus a rod. The airframe sources 12014, so the allocation, gains and `THR_MDL_FAC` are unchanged |
-| Rod | in `planar_octo_rod/model.sdf` | 0.35 m long, 16 mm diameter, along body +X, with an 18 mm radius contact ball on the tip. Reaches 0.6155 m from the body centre (0.368 m clear of the body). Assumed mass 0.030 kg. Mounted at the height of the centre of mass, so an axial contact force makes no pitching moment |
+| | model `planetary_hex_rod`, airframe `12020_gz_planetary_hex_rod` | `planetary_hex` merge-included, plus a rod. Sources 12019 |
+| | model `ti_tui_rod`, airframe `12021_gz_ti_tui_rod` | `ti_tui` merge-included, plus a rod. Sources 12007 |
+| Rod | in each `*_rod/model.sdf` | 0.35 m long, 16 mm diameter, along body +X, with an 18 mm radius contact ball on the tip. Assumed mass 0.030 kg. Mounted at the height of the centre of mass, so an axial contact force makes no pitching moment. Same joint and sensor names on every vehicle, so `gz_bridge` finds it without changes |
 | Pole | model `interaction_pole` | base plate, mast and a flat 0.60 m × 1.20 m panel spanning z = 0.80–2.00 m. 25 kg (assumed). Rigid: a prismatic joint of 1e6 N/m, 50 µm under a 50 N push |
 | World | `Tools/simulation/gz/worlds/mocap_interaction.sdf` | the mocap room plus the pole, with the panel face 2 m ahead of the takeoff marker (+X) |
 
+Where each rod sits:
+
+| Vehicle | Rod root | Reach from body centre | Contact with the vehicle centred at | Notes |
+| --- | --- | --- | --- | --- |
+| planarOcto | body edge, x = 0.2475 m | 0.6155 m | x = 1.38 m | 0.368 m clear of the body |
+| planetaryHex | edge of the ring, x = 0.209 m | 0.577 m | x = 1.42 m | runs through the motor 1–6 gap: the nearest propeller disc is 85 mm from the rod surface |
+| Ti-Tui | front of the body, x = 0.0725 m | 0.4405 m | x = 1.56 m | |
+
+**Centre of mass.** Every vehicle model, with or without the rod, has its
+centre of mass at the body origin: the point the `CA_ROTOR*` positions are
+measured from, so zero roll and pitch torque keeps it level. The plain
+`*_base` models offset the base-link CoM to cancel the rotor links (planarOcto
+1.4 mm, planetaryHex 0.5 mm, both vertical). Each `*_rod` model includes the
+plain vehicle and overrides only the base-link CoM pose (an
+`<experimental:params>` block on the include), moving it aft to balance the
+rod: planarOcto 8.7 mm, planetaryHex 4.0 mm, Ti-Tui 6.3 mm. This stands in
+for moving the battery aft; the rod's 0.030 kg is the only mass added. The
+properties tools (section 9) write both poses, so they follow any change of
+mass or rotor links. Unbalanced, the Ti-Tui rod pitched the vehicle 13° nose
+down at liftoff, sent it 2.2 m forward under the panel and flipped it.
+
 Hover at 1.0–1.5 m and fly forward: the tip reaches the panel with the vehicle
-centred near x = 1.38 m. Horizontal thrust (`e`, then `z/x/c/v` in
+centred at the x above (planarOcto 1.38 m). Horizontal thrust (`e`, then `z/x/c/v` in
 `keyboard_teleop.py`) pushes without pitching the airframe. The rod's 0.030 kg
 is not part of the properties-tool `mass_kg`; the hover-thrust estimator
 absorbs it.
@@ -493,7 +532,9 @@ Three things to know when changing the setup:
   `server.config` plugin set. The contact and force-torque systems are loaded
   from `src/modules/simulation/gz_bridge/server.config`.
 
-The rod exists on the planarOcto only. The planetaryHex has no rod.
+Checked in Gazebo with an offboard push 0.2 m past contact: at rest each
+vehicle reads `force[2]` = +0.294 N, the rod's own weight, and pressing on the
+panel gives a negative `force[0]` that returns to zero on release.
 
 ---
 
@@ -521,6 +562,7 @@ make px4_sitl gz_planetary_hex_mocap                                          # 
 | YAML value | Written to |
 | --- | --- |
 | `mass_kg` | base link mass (total minus the rotor links) in `*_base/model.sdf`, `MPC_THR_HOVER` |
+| (derived) | base link CoM pose in `*_base/model.sdf` and in the `*_rod/model.sdf` override, so the vehicle CoM stays at the body origin with and without the rod |
 | `base_inertia_kgm2` | base link inertia in `*_base/model.sdf` |
 | `thrust_constant` ($k_F$) | `motorConstant` per rotor, `CA_ROTORn_CT` (planetaryHex), `MPC_THR_HOVER` |
 | `moment_constant` | `momentConstant`, $|$`CA_ROTORn_KM`$|$ |
