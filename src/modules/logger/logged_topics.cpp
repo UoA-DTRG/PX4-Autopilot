@@ -162,6 +162,11 @@ void LoggedTopics::add_default_topics()
 	add_topic("dtrg_desaturated_control");
 	add_topic("horizontal_thrust_limit");
 
+	// 6-axis load cell (gz_bridge in SITL; same topic as the real sensor).
+	// No interval, so every sample is logged: contact transients are the
+	// point of the measurement.
+	add_topic("six_axis_load_cell");
+
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);
@@ -197,10 +202,6 @@ void LoggedTopics::add_default_topics()
 	// dtrg
 	add_topic("debug_vect");
 	add_topic("dtrg_custom");
-	// SITL interaction rod force/torque; absent on hardware and on models
-	// without a rod, hence optional. Full 250 Hz sensor rate: contact
-	// transients are the point of the measurement.
-	add_optional_topic("interaction_wrench", 4);
 	add_topic("dtrg_mixer_status");
 
 	// log all raw sensors at minimal rate (at least 1 Hz)

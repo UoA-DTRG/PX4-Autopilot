@@ -67,26 +67,26 @@ and each is recorded in the place that suits it.
 wrench the contact ball transmits into the rod shaft: the rod is a shaft
 welded to the airframe plus a 5 g tip, joined by the sensor joint. `gz_bridge`
 subscribes to it, converts body FLU to body FRD and publishes the
-`interaction_wrench` uORB topic, which the logger records at the sensor's full
-250 Hz:
+`six_axis_load_cell` uORB topic, which the logger records at the sensor's full
+250 Hz. This is the same topic the real load cell uses on the vehicle, so
+SITL and flight logs line up:
 
 ```bash
-px4-listener interaction_wrench          # live, from the pxh console
+px4-listener six_axis_load_cell          # live, from the pxh console
 ```
 
 ```python
 from pyulog import ULog
-d = ULog("log/.../xx.ulg", ["interaction_wrench"]).data_list[0]
-d.data["force[0]"]                       # N, body FRD
+d = ULog("log/.../xx.ulg", ["six_axis_load_cell"]).data_list[0]
+d.data["fx"]                             # N, body FRD
 ```
 
-Pressing the rod forward into the panel gives a **negative** `force[0]`: the
+Pressing the rod forward into the panel gives a **negative** `fx`: the
 logged quantity is what the surface feeds back into the rod, not what the
 vehicle exerts. Only the tip's own 5 g is behind the load cell, so away from
-contact it reads +0.049 N on `force[2]` (the tip's weight) and its inertial
+contact it reads +0.049 N on `fz` (the tip's weight) and its inertial
 reaction is small; it is close to the contact force even while manoeuvring.
-The torque is taken about the tip centre. The topic is
-registered as optional, so models without a rod and real hardware simply never
+The torque is taken about the tip centre. Models without a rod simply never
 publish it.
 
 **Surface side, into a CSV.** PX4 never sees the pole, so there is nothing to
@@ -104,7 +104,7 @@ the first second. Use `sim_time_s` to line the CSV up against a ulog; it is
 Gazebo's clock, and it stops when the simulation pauses.
 
 A cross-check of both records over one steady push (planarOcto): the tip read
-a median -2.48 N on `force[0]` while the pole read +2.32 N on `fx`, equal and
+a median -2.48 N on `fx` while the pole read +2.32 N on `fx`, equal and
 opposite.
 
 ### What the contact sensors do and do not give
@@ -147,7 +147,7 @@ The pieces live in `Tools/simulation/gz/models/planar_octo_rod`
 `Tools/simulation/gz/models/interaction_pole` and
 `Tools/simulation/gz/worlds/mocap_interaction.sdf`; the plain vehicle models
 and the `mocap` world are untouched. The rod uses the same joint and sensor
-names on every vehicle, so the `interaction_wrench` path above works for all
+names on every vehicle, so the `six_axis_load_cell` path above works for all
 three. Every model, with or without the rod, keeps its centre of mass at the
 body origin that the `CA_ROTOR*` positions are measured from: each `*_rod`
 model moves the base CoM aft to balance the rod (the properties tools below

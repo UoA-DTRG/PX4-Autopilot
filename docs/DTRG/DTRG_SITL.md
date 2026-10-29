@@ -501,11 +501,11 @@ Both ends of the contact carry a Gazebo `force_torque` sensor:
 
 | Side | Recorded as | Sign |
 | --- | --- | --- |
-| Vehicle (load cell at the rod tip) | `interaction_wrench` uORB topic, in the ulog at 250 Hz, body FRD (`force[0]`), torque about the tip centre | pressing forward gives a **negative** `force[0]`: it is what the surface feeds back into the rod |
+| Vehicle (load cell at the rod tip) | `six_axis_load_cell` uORB topic (the same topic the real load cell uses), in the ulog at 250 Hz, body FRD (`fx`), torque about the tip centre | pressing forward gives a **negative** `fx`: it is what the surface feeds back into the rod |
 | Pole (panel) | CSV from `Tools/dtrg/log_interaction_force.py`, pole frame (world aligned) | a push in +X gives a **positive** `fx` |
 
 ```sh
-px4-listener interaction_wrench                     # live, from the pxh console
+px4-listener six_axis_load_cell                     # live, from the pxh console
 Tools/dtrg/log_interaction_force.py --duration 60 -o push.csv
 ```
 
@@ -513,10 +513,10 @@ The CSV is tared by default to remove the pole's standing weight, so keep clear
 of the panel for the first second. Line it up against a ulog with
 `sim_time_s`, which is Gazebo's clock. A cross-check over one steady push read
 a median −2.48 N on the tip and +2.32 N on the pole: equal and opposite.
-Only the 5 g tip sits in front of the load cell, so `interaction_wrench`
-carries just its weight (+0.049 N on `force[2]` away from contact) and a small
+Only the 5 g tip sits in front of the load cell, so `six_axis_load_cell`
+carries just its weight (+0.049 N on `fz` away from contact) and a small
 inertial reaction; it is close to the contact force even while manoeuvring.
-It is SITL only and is never published on hardware.
+On hardware the real load cell publishes the same topic.
 
 The `contact` sensors on the tip and the panel say *where* contact happened,
 not *how hard*: gz-sim leaves their wrench at zero. Use the `force_torque`
@@ -533,8 +533,8 @@ Three things to know when changing the setup:
   from `src/modules/simulation/gz_bridge/server.config`.
 
 Checked in Gazebo with an offboard push 0.2 m past contact: hovering clear of
-the panel each vehicle reads `force[2]` = +0.049 N, the tip's weight, and
-pressing gives a steady negative `force[0]` (planarOcto −2.5 N, planetaryHex
+the panel each vehicle reads `fz` = +0.049 N, the tip's weight, and
+pressing gives a steady negative `fx` (planarOcto −2.5 N, planetaryHex
 −3.0 N, Ti-Tui −0.5 N) that returns to zero on release. The first touch gives
 a one-sample spike (tens of newtons at about 1 m/s); skip it when analysing.
 

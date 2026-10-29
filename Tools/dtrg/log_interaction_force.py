@@ -4,7 +4,7 @@
 The interaction_pole model in the mocap_interaction world carries a
 force_torque sensor on its base joint, measuring the wrench the pole delivers
 into the floor. PX4 never sees that model, so unlike the vehicle-side rod
-sensor (which gz_bridge publishes as the interaction_wrench uORB topic and the
+sensor (which gz_bridge publishes as the six_axis_load_cell uORB topic and the
 logger writes into the ulog) there is nothing to record it. This script does.
 
 It shells out to `gz topic -e` and parses the text output rather than using the

@@ -276,8 +276,9 @@ set(msg_files
 	DtrgMixerStatus.msg
 	DtrgDesaturatedControl.msg
 	HorizontalThrustLimit.msg
-	InteractionWrench.msg
 	SequentialDesaturation.msg
+	SixAxisLoadCell.msg
+
 )
 list(SORT msg_files)
 
