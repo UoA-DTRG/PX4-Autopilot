@@ -5,6 +5,9 @@ name: DTRG Build
 #
 # Upstream workflows target 'main' on push and every branch on pull_request.
 # This one is scoped to dtrg-main so it runs on our integration branch only.
+#
+# Publishing a GitHub release builds the release tag and attaches each board's
+# .px4 to that release, so the firmware never has to be uploaded by hand.
 
 on:
   push:
@@ -21,6 +24,8 @@ on:
       - 'docs/**'
       - 'Documentation/**'
       - '**.md'
+  release:
+    types: [published]
   workflow_dispatch:
 
 # a new push to the same branch cancels the previous run
@@ -47,6 +52,7 @@ jobs:
           - px4_fmu-v6c_default
           - px4_fmu-v6xrt_default
           - goosetech_fmu-v6xrt_default
+          - cubepilot_cubeorangeplus_default
     steps:
       - uses: actions/checkout@v4
         with:
@@ -152,3 +158,26 @@ jobs:
 
       - name: ccache statistics
         run: ccache -s
+
+  release:
+    name: Attach firmware to release
+    if: github.event_name == 'release'
+    needs: nuttx
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download firmware
+        uses: actions/download-artifact@v4
+        with:
+          path: firmware
+          merge-multiple: true
+
+      # --clobber so re-running the workflow replaces the assets instead of failing
+      - name: Upload to ${{ github.event.release.tag_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l firmware
+          gh release upload "${{ github.event.release.tag_name }}" firmware/*.px4 \
+            --repo "${{ github.repository }}" --clobber
